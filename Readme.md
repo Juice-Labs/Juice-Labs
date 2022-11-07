@@ -1,1 +1,1 @@
-Please see Wiki https://github.com/Juice-Labs/Juice-Labs/wiki
+Please see our [Wiki](https://github.com/Juice-Labs/Juice-Labs/wiki)
