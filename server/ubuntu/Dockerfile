@@ -46,6 +46,15 @@ RUN unzip -j Video_Codec_SDK_${VIDEOSDK_VERSION}.zip \
 RUN mv /usr/local/cuda/lib64/stubs/libnvidia-encode.so /usr/local/cuda/lib64/stubs/libnvidia-encode.so.1 && \
     ln -s -T /usr/local/cuda/lib64/stubs/libnvidia-encode.so.1 /usr/local/cuda/lib64/stubs/libnvidia-encode.so
 
+# Seems the NVidia runtime does not expose these files
+# To get around needing to mount the host version, just adding a default version
+COPY nvidia_icd.json /usr/share/vulkan/icd.d/nvidia_icd.json
+COPY 10_nvidia.json /usr/share/glvnd/egl_vendor.d/10_nvidia.json
+
+ARG VK_API_VERSION=1.2.203
+LABEL "juicelabs.co/vulkan/api_version"=${VK_API_VERSION}
+RUN sed -e "s/<<VK_API_VERSION>>/${VK_API_VERSION}/" /usr/share/vulkan/icd.d/nvidia_icd.json
+
 # Finally, Juice installation
 RUN useradd -ms /bin/bash juice
 
@@ -54,6 +63,7 @@ USER juice
 ARG OS_NAME
 ARG JUICE_VERSION
 ENV JUICE_VERSION=${JUICE_VERSION}
+LABEL "juicelabs.co/version"=${JUICE_VERSION}
 RUN wget -O ~/JuiceServer.tar.gz https://github.com/Juice-Labs/Juice-Labs/releases/download/${JUICE_VERSION}/JuiceServer-${OS_NAME}.tar.gz
 
 ARG PORT=43210
@@ -74,3 +84,5 @@ RUN tar -xf JuiceServer.tar.gz && \
 WORKDIR /home/juice/agent
 
 ENTRYPOINT ["/bin/bash", "-c", "../node/bin/node dist/bin/main.js --launcher ../Renderer_Win --port $PORT ${@}", "--"]
+
+LABEL maintainer="JUICE TECHNOLOGIES <juicelabs.co>"

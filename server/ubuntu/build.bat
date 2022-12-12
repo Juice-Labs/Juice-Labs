@@ -1,0 +1,3 @@
+docker build --pull --rm --build-arg BASE_CONTAINER=nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu18.04 --build-arg OS_NAME=ubuntu-18 --build-arg JUICE_VERSION=%1 -f "./Dockerfile" -t juicelabs/server:%1-ubuntu-18 "."
+docker build --pull --rm --build-arg BASE_CONTAINER=nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu20.04 --build-arg OS_NAME=ubuntu-20 --build-arg JUICE_VERSION=%1 -f "./Dockerfile" -t juicelabs/server:%1-ubuntu-20 "."
+docker build --pull --rm --build-arg BASE_CONTAINER=nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04 --build-arg OS_NAME=ubuntu-22 --build-arg JUICE_VERSION=%1 -f "./Dockerfile" -t juicelabs/server:%1-ubuntu-22 "."
