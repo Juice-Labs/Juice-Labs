@@ -1,0 +1,18 @@
+doctype html
+html
+    head
+        title Juice controller status
+    body
+        table(border=1)
+            tr
+                th Agent
+                th Status
+                th Uptime (ms)
+                th #Sessions
+            each status in statii
+                tr
+                    td= status.agent.url
+                    td= status.reason
+                    if status.stats
+                        td= status.stats.uptimeMs
+                        td= status.stats.numSessions
