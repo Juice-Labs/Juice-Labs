@@ -106,7 +106,7 @@ async function main(): Promise<void> {
       const id = options?.id ?? uuidv4();
 
       await router.create(id, CommandLine.argv.launcherArgs, options);
-      res.status(200).json({ port: port, id: id });
+      res.status(200).json({ id: id });
     } catch (e) {
       Logging.error(e);
       res.status(500).send(e);
