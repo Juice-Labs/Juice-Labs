@@ -48,9 +48,21 @@ async function getHostname() {
   return lines[0];
 }
 
+async function getVersion() {
+  try {
+    const version = await fs.readFile("version.txt", { encoding: 'utf8' });
+    return version.trim();
+  } catch (err) {
+    return 'unknown';
+  }
+}
+
 async function main(): Promise<void> {
+
+  const version = await getVersion();
+
   if (!CommandLine.argv.nobanner) {
-    Logging.always("Juice Agent, version %s", process.env.npm_package_version);
+    Logging.always("Juice Agent, version %s", version);
     Logging.always("Copyright 2021-2022 Juice Technologies, Inc.");
   }
 
@@ -187,6 +199,7 @@ async function main(): Promise<void> {
   function getStatus() {
     const uptimeMs = new Date().getTime() - startTime;
     return {
+      version: version,
       uptime_ms: uptimeMs,
       num_sessions: router.targets.length,
     }
