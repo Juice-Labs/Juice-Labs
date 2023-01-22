@@ -56,32 +56,27 @@ LABEL "juicelabs.co/vulkan/api_version"=${VK_API_VERSION}
 RUN sed -e "s/<<VK_API_VERSION>>/${VK_API_VERSION}/" /usr/share/vulkan/icd.d/nvidia_icd.json
 
 # Finally, Juice installation
-RUN useradd -ms /bin/bash juice
-
-USER juice
-
-ARG OS_NAME
 ARG JUICE_VERSION
 ENV JUICE_VERSION=${JUICE_VERSION}
 LABEL "juicelabs.co/version"=${JUICE_VERSION}
-RUN wget -O ~/JuiceServer.tar.gz https://github.com/Juice-Labs/Juice-Labs/releases/download/${JUICE_VERSION}/JuiceServer-${OS_NAME}.tar.gz
+RUN wget -O ~/JuiceServer.tar.gz https://github.com/Juice-Labs/Juice-Labs/releases/download/${JUICE_VERSION}/JuiceServer-linux.tar.gz
 
 ARG PORT=43210
 EXPOSE ${PORT}
 ENV PORT=${PORT}
 
-ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/cuda/lib64:/usr/local/cuda/lib64/stubs:/home/juice
+ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/cuda/lib64:/usr/local/cuda/lib64/stubs:/root
 ENV FONTCONFIG_PATH=/etc/fonts
 
 ENV NVIDIA_DISABLE_REQUIRE=1
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,graphics,utility,video
 
-WORKDIR /home/juice
+WORKDIR /root
 
 RUN tar -xf JuiceServer.tar.gz && \
     ./setup.sh
 
-WORKDIR /home/juice/agent
+WORKDIR /root/agent
 
 ENTRYPOINT ["/bin/bash", "-c", "../node/bin/node dist/bin/main.js --launcher ../Renderer_Win --port $PORT ${@}", "--"]
 
