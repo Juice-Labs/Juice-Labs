@@ -3,8 +3,7 @@ name: Docker Images
 on:
   release:
     types:
-    - published
-    - edited
+    - released
 
 jobs:
   docker:
@@ -25,7 +24,7 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           build-args: |
-            BASE_CONTAINER=ubuntu20.04
+            BASE_CONTAINER=ubuntu:20.04
             JUICE_VERSION=${{ github.ref_name }}
           context: .docker/client
           push: true
