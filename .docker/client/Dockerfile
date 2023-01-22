@@ -1,6 +1,9 @@
 ARG BASE_CONTAINER
 FROM ${BASE_CONTAINER}
 
+RUN apt-get update && \
+    apt-get install -y wget
+
 ARG JUICE_VERSION
 ENV JUICE_VERSION=${JUICE_VERSION}
 LABEL "juicelabs.co/version"=${JUICE_VERSION}
