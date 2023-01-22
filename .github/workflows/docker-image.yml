@@ -2,7 +2,9 @@ name: Docker Images
 
 on:
   release:
-    types: [published]
+    types:
+    - published
+    - edited
 
 jobs:
   docker:
