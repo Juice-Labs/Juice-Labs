@@ -1,0 +1,2 @@
+name: juice-server
+image: docker.io/juicelabs/server:2023.01.22-1415.17613ca9
