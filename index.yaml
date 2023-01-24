@@ -1,3 +1,18 @@
 apiVersion: v1
-entries: {}
-generated: "2023-01-22T11:16:43.802728-06:00"
+entries:
+  juice-server:
+  - apiVersion: v2
+    appVersion: 2023.01.22-1415.17613ca9
+    created: "2023-01-24T19:54:28.864443706Z"
+    digest: 61616d8c3d6ffb6e7a51b415026d660c7e87c65da3c165295c1002e64aa339de
+    home: https://github.com/Juice-Labs/Juice-Labs
+    icon: https://raw.githubusercontent.com/Juice-Labs/Juice-Labs/master/assets/Juice.svg
+    maintainers:
+    - name: Juice Technologies, Inc.
+      url: juicelabs.co
+    name: juice-server
+    type: application
+    urls:
+    - juice-server-1.0.0.tgz
+    version: 1.0.0
+generated: "2023-01-24T19:54:28.8640111Z"
