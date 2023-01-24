@@ -1,0 +1,69 @@
+name: Helm Charts
+
+on:
+  push:
+    branches:
+    - master
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: v3.10.0
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          check-latest: true
+
+      - name: Set up chart-testing
+        uses: helm/chart-testing-action@v2.3.1
+
+      - name: Run chart-testing (list-changed)
+        id: list-changed
+        run: |
+          changed=$(ct list-changed --chart-dirs charts --since ${{ github.event.before }})
+          if [[ -n "$changed" ]]; then
+            echo "::set-output name=changed::true"
+            echo "::set-output name=changed_list::$changed"
+          fi
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+        if: steps.list-changed.outputs.changed == 'true'
+
+      - name: Set up chart-releaser
+        uses: helm/chart-releaser-action@v1.5.0
+        with:
+          install_only: true
+        env:
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        if: steps.list-changed.outputs.changed == 'true'
+
+      - name: Package Charts
+        run: |
+          changed_charts=()
+          readarray -t changed_charts <<< ${{ steps.list-changed.outputs.changed_list }}
+          for chart in "${changed_charts[@]}"; do
+            if [[ -d "$chart" ]]; then
+              cr package "$chart" --package-path .
+            else
+              echo "Chart '$chart' no longer exists. Skipping..."
+            fi
+          done
+          git checkout gh-pages
+          helm repo index .
+          git add *
+          git commit -m "Automatic Helm packaging for commit ${{ github.event.after }}"
+          git push
+        if: steps.list-changed.outputs.changed == 'true'

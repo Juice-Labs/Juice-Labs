@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ .Values.name }}
+{{- if .Values.metadata }}
+{{ toYaml .Values.metadata | indent 2 }}
+{{- end }}
+spec:
+{{- if .Values.spec }}
+{{ toYaml .Values.spec | indent 2 }}
+{{- end }}
+  containers:
+  - name: server
+    image: {{ .Values.image }}
+{{- if .Values.serverContainer }}
+{{ toYaml .Values.serverContainer | indent 4 }}
+{{- end }}

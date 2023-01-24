@@ -1,0 +1,43 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema#",
+    "properties": {
+        "name": {
+            "description": "The metadata name of the POD",
+            "type": "string"
+        },
+        "image": {
+            "description": "The Juice container image to use",
+            "type": "string"
+        },
+        "metadata": {
+            "description": "",
+            "type": "object",
+            "properties": {
+                "name": false
+            },
+            "additionalProperties": true
+        },
+        "spec": {
+            "description": "",
+            "type": "object",
+            "properties": {
+                "containers": false
+            },
+            "additionalProperties": true
+        },
+        "serverContainer": {
+            "description": "",
+            "type": "object",
+            "properties": {
+                "image": false
+            },
+            "additionalProperties": true
+        }
+    },
+    "required": [
+        "name",
+        "image"
+    ],
+    "title": "Values",
+    "type": "object"
+}
