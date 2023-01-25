@@ -22,8 +22,14 @@ RUN add-apt-repository ppa:ubuntu-toolchain-r/test && \
 # Install opengl support
 RUN apt-get install -y libglvnd0 libgl1 libegl1
 
-# Install vulkan support
-RUN apt-get install -y libvulkan1
+# Install vulkan sdk
+RUN mkdir /opt/vulkansdk/ && \
+    cd /opt/vulkansdk/ && \
+    wget https://sdk.lunarg.com/sdk/download/1.3.236.0/linux/vulkansdk-linux-x86_64-1.3.236.0.tar.gz && \
+    tar -xf vulkansdk-linux-x86_64-1.3.236.0.tar.gz && \
+    rm -f vulkansdk-linux-x86_64-1.3.236.0.tar.gz
+
+ENV VULKAN_SDK /opt/vulkansdk/1.3.236.0/x86_64/
 
 # Largely pulled from https://gitlab.com/nvidia/container-images/video-codec-sdk/-/blob/master/ubuntu18.04/Dockerfile
 ARG VIDEOSDK_VERSION
@@ -65,7 +71,7 @@ ARG PORT=43210
 EXPOSE ${PORT}
 ENV PORT=${PORT}
 
-ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/cuda/lib64:/usr/local/cuda/lib64/stubs:/root
+ENV LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/cuda/lib64:/usr/local/cuda/lib64/stubs:${VULKAN_SDK}/lib:/root
 ENV FONTCONFIG_PATH=/etc/fonts
 
 ENV NVIDIA_DISABLE_REQUIRE=1
