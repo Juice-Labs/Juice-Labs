@@ -18,7 +18,7 @@ spec:
     operator: Exists
     effect: NoSchedule
 serverContainer:
-  imagePullPolicy: IfNotPresent
+  imagePullPolicy: Always
   resources:
     limits:
       cpu: "4"
