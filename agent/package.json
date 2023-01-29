@@ -1,12 +1,14 @@
 {
     "name": "juice_agent",
     "displayName": "Juice Agent",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "engines": {
         "node": "^16.0.0"
     },
     "scripts": {
         "run": "",
+        "preinstall": "node -p \"'export const version = ' + JSON.stringify(require('./package.json').version) + ';'\" > src/version.ts",
+        "prebuild": "node -p \"'export const version = ' + JSON.stringify(require('./package.json').version) + ';'\" > src/version.ts",
         "build": "",
         "test": "jest -i --detectOpenHandles"
     },

@@ -71,8 +71,7 @@ export class Router extends EventEmitter implements Router {
     let targetEnv: NodeJS.ProcessEnv | undefined = undefined;
 
     if(options !== undefined) {
-      if(options.pcibus && options.pcibus.length > 0)
-      {
+      if(options.pcibus && options.pcibus.length > 0) {
         spawn_args.push('--pcibus');
         spawn_args.push(options.pcibus);
         Logging.info(`   selecting pcibus ${options.pcibus} with uuid ${options.deviceUuid}`);

@@ -31,6 +31,7 @@ const execAsync = promisify(exec);
 
 import * as CommandLine from "../src/commandline";
 import * as Logging from "../src/logging";
+import * as Package from "../src/version";
 
 // Initialize the logging system here to allow imports to use it
 Logging.configure(CommandLine.argv);
@@ -39,35 +40,29 @@ import * as Settings from "../src/settings";
 import { Router, CreateOptions } from "../src/router";
 import { postWithTimeout } from "../src/fetchWithTimeout";
 
-async function getHostname() {
-  const hostProcess = await execAsync("hostname");
-  const lines = hostProcess.stdout.split(/\r?\n/).filter(line => line.length > 0);
-  if (lines.length !== 1) {
-    throw Error(`unexpected output from hostname: ${hostProcess.stdout}`);
-  }
-  return lines[0];
-}
-
-async function getVersion() {
-  try {
-    const version = await fs.readFile("version.txt", { encoding: 'utf8' });
-    return version.trim();
-  } catch (err) {
-    return 'unknown';
-  }
-}
-
 async function main(): Promise<void> {
-
-  const version = await getVersion();
-
   if (!CommandLine.argv.nobanner) {
-    Logging.always("Juice Agent, version %s", version);
+    Logging.always("Juice Agent, v%s", Package.version);
     Logging.always("Copyright 2021-2022 Juice Technologies, Inc.");
   }
 
   if (CommandLine.argv.launcher === undefined) {
     throw "launcher is undefined";
+  }
+
+  async function getLauncherVersion() {
+    try {
+      const { stdout, } = await execAsync(`${CommandLine.argv.launcher} --version`);
+      return stdout;
+    } catch (err) {
+      return 'unknown';
+    }
+  }
+  
+  const launcherVersion = await getLauncherVersion();
+
+  if (!CommandLine.argv.nobanner) {
+    Logging.always("Launcher %s, v%s", CommandLine.argv.launcher, launcherVersion);
   }
 
   try {
@@ -78,11 +73,22 @@ async function main(): Promise<void> {
     }
   }
 
+  async function getHostname() {
+    const hostProcess = await execAsync("hostname");
+    const lines = hostProcess.stdout.split(/\r?\n/).filter(line => line.length > 0);
+    if (lines.length !== 1) {
+      throw Error(`unexpected output from hostname: ${hostProcess.stdout}`);
+    }
+    return lines[0];
+  }
+  
   const hostname = await getHostname();
   const controller = CommandLine.argv.controller;
   Logging.always(`Hostname: ${hostname}`);
 
-  Logging.always(`Controller: ${controller}`);
+  if(controller) {
+    Logging.always(`Controller: ${controller}`);
+  }
 
   const startTime = new Date().getTime();
 
@@ -97,7 +103,6 @@ async function main(): Promise<void> {
   let app = express();
 
   app.use(morgan("combined"));
-
   app.use(
     express.urlencoded({
       extended: true,
@@ -199,7 +204,8 @@ async function main(): Promise<void> {
   function getStatus() {
     const uptimeMs = new Date().getTime() - startTime;
     return {
-      version: version,
+      agent_version: Package.version,
+      version: launcherVersion,
       uptime_ms: uptimeMs,
       num_sessions: router.targets.length,
     }
