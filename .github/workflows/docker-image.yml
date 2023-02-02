@@ -32,7 +32,7 @@ jobs:
           build-args: |
             BASE_CONTAINER=ubuntu:20.04
             JUICE_VERSION=${{ github.ref_name }}
-          context: .docker/client
+          context: docker/client
           push: true
           tags: juicelabs/client:${{ github.ref_name }}
       - name: Server Image
@@ -41,6 +41,6 @@ jobs:
           build-args: |
             BASE_CONTAINER=nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu20.04
             JUICE_VERSION=${{ github.ref_name }}
-          context: .docker/server
+          context: docker/server
           push: true
           tags: juicelabs/server:${{ github.ref_name }}
