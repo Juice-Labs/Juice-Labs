@@ -1,0 +1,34 @@
+name: Controller Docker Image
+
+on:
+  push:
+    tags:
+    - controller-[0-9]+.[0-9]+.[0-9]+
+
+jobs:
+  docker:
+    strategy:
+      fail-fast: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Determine Controller Version
+        env:
+          TAG: ${{ github.ref_name }}
+        id: version
+        run: |
+          echo "::set-output name=version::${TAG##controller-}"
+      - name: Controller Image
+        uses: docker/build-push-action@v3
+        with:
+          context: controller
+          push: true
+          tags: juicelabs/controller:${{ steps.version.outputs.version }}
