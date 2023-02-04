@@ -43,7 +43,7 @@ import { postWithTimeout } from "../src/fetchWithTimeout";
 async function main(): Promise<void> {
   if (!CommandLine.argv.nobanner) {
     Logging.always("Juice Agent, v%s", Package.version);
-    Logging.always("Copyright 2021-2022 Juice Technologies, Inc.");
+    Logging.always("Copyright 2021-2023 Juice Technologies, Inc.");
   }
 
   if (CommandLine.argv.launcher === undefined) {
@@ -83,9 +83,9 @@ async function main(): Promise<void> {
   }
   
   const hostname = await getHostname();
-  const controller = CommandLine.argv.controller;
   Logging.always(`Hostname: ${hostname}`);
 
+  const controller = CommandLine.argv.controller;
   if(controller) {
     Logging.always(`Controller: ${controller}`);
   }
@@ -247,7 +247,7 @@ async function main(): Promise<void> {
 
     // Not sure of a better way to do this
     assert(addr && typeof addr !== "string");
-    console.log(`listening on ${addr.address}:${addr.port}`);
+    console.log(`Listening on ${addr.address}:${addr.port}`);
 
     // Start gpu status broadcast
     var dgram = require("dgram");

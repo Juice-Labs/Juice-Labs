@@ -20,7 +20,7 @@
 
 const { PromisedDatabase } = require("promised-sqlite3");
 const db = new PromisedDatabase();
-import { getWithTimeout } from "../../agent/src/fetchWithTimeout";
+import { getWithTimeout } from "./fetchWithTimeout";
 
 db.open(":memory:");
 db.run("CREATE TABLE render_hosts (public_hostname TEXT NOT NULL, agent_port INTEGER NOT NULL, gpu_count INTEGER NOT NULL, gpu_data TEXT,	UNIQUE(public_hostname));", function(createResult: any){
