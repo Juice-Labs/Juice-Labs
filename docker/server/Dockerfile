@@ -13,7 +13,7 @@ FROM ${BASE_CONTAINER}
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && \
-    apt-get install -y software-properties-common wget unzip
+    apt-get install -y software-properties-common wget unzip pciutils
 
 # Install libstdc++-10
 RUN add-apt-repository ppa:ubuntu-toolchain-r/test && \
