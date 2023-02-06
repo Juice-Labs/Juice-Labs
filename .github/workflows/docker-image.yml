@@ -35,7 +35,16 @@ jobs:
           context: docker/client
           push: true
           tags: juicelabs/client:${{ github.ref_name }}
-      - name: Server Image
+      - name: Server Image Cuda 11.7
+        uses: docker/build-push-action@v3
+        with:
+          build-args: |
+            BASE_CONTAINER=nvidia/cuda:11.7.0-cudnn8-runtime-ubuntu20.04
+            JUICE_VERSION=${{ github.ref_name }}
+          context: docker/server
+          push: true
+          tags: juicelabs/server:${{ github.ref_name }}
+      - name: Server Image Cuda 11.8
         uses: docker/build-push-action@v3
         with:
           build-args: |
