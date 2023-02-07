@@ -43,7 +43,7 @@ jobs:
             JUICE_VERSION=${{ github.ref_name }}
           context: docker/server
           push: true
-          tags: juicelabs/server:${{ github.ref_name }}
+          tags: juicelabs/server:11.7-${{ github.ref_name }}
       - name: Server Image Cuda 11.8
         uses: docker/build-push-action@v3
         with:
@@ -52,4 +52,4 @@ jobs:
             JUICE_VERSION=${{ github.ref_name }}
           context: docker/server
           push: true
-          tags: juicelabs/server:${{ github.ref_name }}
+          tags: juicelabs/server:11.8-${{ github.ref_name }}
