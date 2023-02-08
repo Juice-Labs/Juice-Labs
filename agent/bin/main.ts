@@ -25,7 +25,7 @@ import morgan from "morgan";
 import assert from "assert";
 import { v4 as uuidv4 } from "uuid";
 import {promisify} from "util";
-import {exec} from "child_process";
+import {exec, execSync} from "child_process";
 
 const execAsync = promisify(exec);
 
@@ -40,6 +40,8 @@ import * as Settings from "../src/settings";
 import { Router, CreateOptions } from "../src/router";
 import { postWithTimeout } from "../src/fetchWithTimeout";
 
+import { exit } from "process";
+
 async function main(): Promise<void> {
   if (!CommandLine.argv.nobanner) {
     Logging.always("Juice Agent, v%s", Package.version);
@@ -50,19 +52,37 @@ async function main(): Promise<void> {
     throw "launcher is undefined";
   }
 
-  async function getLauncherVersion() {
+  function testLauncher() {
     try {
-      const { stdout, } = await execAsync(`${CommandLine.argv.launcher} --version`);
-      return stdout;
-    } catch (err) {
-      return 'unknown';
+      if (!CommandLine.argv.nobanner) {
+        Logging.always("Testing Launcher");
+      }
+      execSync(`${CommandLine.argv.launcher} --test`, { encoding: 'utf-8', stdio: 'pipe' });
+    } catch (error: any) {
+      error.stderr.split(/\r?\n/).forEach((line: string) => {
+        Logging.error(line);
+      });
+      Logging.error(`Launcher exited with return code ${error.status}.`);
+      Logging.error('Please install the Juice Server pre-requisites referenced at https://github.com/Juice-Labs/Juice-Labs/wiki/Install-Juice.');
+      exit(-1);
     }
   }
+
+  async function getLauncherVersion() {
+    try {
+      const {stdout, } = await execAsync(`${CommandLine.argv.launcher} --version`);
+      return stdout.trim();
+    } catch (error) {
+      return "unknown";
+    }
+  }
+
+  testLauncher();
   
   const launcherVersion = await getLauncherVersion();
 
   if (!CommandLine.argv.nobanner) {
-    Logging.always("Launcher %s, v%s", CommandLine.argv.launcher, launcherVersion);
+    Logging.always("Launcher %s, version: %s", CommandLine.argv.launcher, launcherVersion);
   }
 
   try {
