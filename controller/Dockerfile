@@ -1,11 +1,14 @@
-FROM node:16-buster
+FROM node:14.16.0
 
-WORKDIR /app
-RUN apt-get update && apt-get upgrade -y
+ARG PORT=8080
+EXPOSE ${PORT}
+ENV PORT=${PORT}
+
+WORKDIR /root/controller
 
 COPY . .
-RUN npm install
+RUN ./compile.sh
 
-EXPOSE 8080
+ENTRYPOINT ["/bin/bash", "-c", "node dist/bin/main.js --port $PORT ${@}", "--"]
 
-ENTRYPOINT ["node", "index.js"]
+LABEL maintainer="JUICE TECHNOLOGIES <juicelabs.co>"
