@@ -789,16 +789,13 @@ function graphics(callback) {
               vendor: 'NVIDIA',
               model: element.name,
               bus: 'PCI',
+              busAddress: element.pciBus,
               vram: element.memoryTotal,
               vramDynamic: true,
               subDeviceId: element.subDeviceId.substring(2)
             });
           });
 
-          // controller + vram
-          //let csections = data[0].replace(/\r/g, '').split(/\n\s*\n/);
-          //let vsections = data[1].replace(/\r/g, '').split(/\n\s*\n/);
-          //result.controllers = parseLinesWindowsControllers(csections, vsections);
           result.controllers = controllers;
           result.controllers = result.controllers.map((controller) => { // match by subDeviceId
             if (controller.vendor.toLowerCase() === 'nvidia') {
