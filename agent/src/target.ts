@@ -44,6 +44,12 @@ export class Target extends EventEmitter {
       Logging.error(err);
       this.emit("error", err);
     });
+    this.process.stdout.on("data", (data) => {
+        Logging.info(`${client_uuid}: ${data.toString().trim()}`);
+    });
+    this.process.stderr.on("data", (data) => {
+        Logging.error(`${client_uuid}: ${data.toString().trim()}`);
+    });
   }
 
   async destroy() {
