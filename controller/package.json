@@ -1,7 +1,7 @@
 {
   "name": "juice_controller",
   "displayName": "Juice Controller",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "engines": {
     "node": ">=14.16.0"
   },

@@ -90,9 +90,8 @@ async function main(): Promise<void> {
         const randAgent = good[agentNum];
         const resp = await getWithTimeout(hoststore.getURL(randAgent, "/connect"));
 
-        const ports = resp["port"];
         const client_uuid = resp["id"];
-        if (!ports || !client_uuid) {
+        if (!client_uuid) {
           res
             .status(500)
             .send(`bad response from agent: ${JSON.stringify(resp)}`);
@@ -100,7 +99,7 @@ async function main(): Promise<void> {
           res.status(200).json({
             id: client_uuid,
             host: randAgent.url.hostname,
-            port: ports,
+            port: randAgent.url.port,
           });
         }
       }
