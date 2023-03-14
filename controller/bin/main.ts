@@ -99,7 +99,7 @@ async function main(): Promise<void> {
           res.status(200).json({
             id: client_uuid,
             host: randAgent.url.hostname,
-            port: randAgent.url.port,
+            port: Number.parseInt(randAgent.url.port),
           });
         }
       }
