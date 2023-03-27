@@ -1,2 +1,3 @@
 name: juice-server
 image: docker.io/juicelabs/server:11.8-2023.01.22-1415.17613ca9
+pod: false
