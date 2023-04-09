@@ -35,7 +35,6 @@ function getLogFileForClient(client_uuid: string): string {
 
 export type CreateOptions = {
   pcibus?: string;
-  deviceUuid?: string;
 };
 
 export class Router extends EventEmitter implements Router {
@@ -74,9 +73,6 @@ export class Router extends EventEmitter implements Router {
       if(options.pcibus && options.pcibus.length > 0) {
         spawn_args.push('--pcibus');
         spawn_args.push(options.pcibus);
-        Logging.info(`   selecting pcibus ${options.pcibus} with uuid ${options.deviceUuid}`);
-
-        targetEnv = { CUDA_VISIBLE_DEVICES: options.deviceUuid };
       }
     }
 

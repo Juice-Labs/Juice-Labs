@@ -402,7 +402,7 @@ function graphics(callback) {
     const nvidiaSmiExe = getNvidiaSmi();
     options = options || util.execOptsWin;
     if (nvidiaSmiExe) {
-      const nvidiaSmiOpts = '--query-gpu=driver_version,pci.sub_device_id,name,pci.bus_id,fan.speed,memory.total,memory.used,memory.free,utilization.gpu,utilization.memory,temperature.gpu,temperature.memory,power.draw,power.limit,clocks.gr,clocks.mem,uuid --format=csv,noheader,nounits';
+      const nvidiaSmiOpts = '--query-gpu=driver_version,pci.sub_device_id,name,pci.bus_id,fan.speed,memory.total,memory.used,memory.free,utilization.gpu,utilization.memory,temperature.gpu,temperature.memory,power.draw,power.limit,clocks.gr,clocks.mem,uuid,index --format=csv,noheader,nounits';
       const cmd = nvidiaSmiExe + ' ' + nvidiaSmiOpts + (_linux ? '  2>/dev/null' : '');
       try {
         const res = execSync(cmd, options).toString();
@@ -431,7 +431,7 @@ function graphics(callback) {
     const gpus = stdout.split('\n').filter(Boolean);
     const results = gpus.map(gpu => {
       const splittedData = gpu.split(', ').map(value => value.includes('N/A') ? undefined : value);
-      if (splittedData.length === 17) {
+      if (splittedData.length === 18) {
         return {
           driverVersion: splittedData[0],
           subDeviceId: splittedData[1],
@@ -450,6 +450,7 @@ function graphics(callback) {
           clockCore: safeParseNumber(splittedData[14]),
           clockMemory: safeParseNumber(splittedData[15]),
           uuid: splittedData[16],
+          ordinal: splittedData[17]
         };
       }
     });
@@ -479,6 +480,7 @@ function graphics(callback) {
     if (nvidia.clockCore) { controller.clockCore = nvidia.clockCore; }
     if (nvidia.clockMemory) { controller.clockMemory = nvidia.clockMemory; }
     if (nvidia.uuid) { controller.uuid = nvidia.uuid; }
+    if (nvidia.ordinal) { controller.ordinal = nvidia.ordinal; }
     return controller;
   }
 

@@ -120,6 +120,9 @@ async function main(): Promise<void> {
 
   currentControllers = data.controllers;
 
+  currentControllers.every(controller => {
+  })
+
   let app = express();
 
   app.use(morgan("combined"));
@@ -167,31 +170,9 @@ async function main(): Promise<void> {
       }
 
       if(pcibus !== undefined && pcibus.length > 0) {
-        let deviceUuid : string | undefined = undefined;
-        currentControllers.every(controller => {
-          const address = (controller.busAddress as string).toLowerCase();
-          const targetAddress = pcibus.toLowerCase();
-
-          if(address.includes(targetAddress))
-          {
-            deviceUuid = controller.uuid;
-            return false;
-          }
-
-          return true;
-        });
-
-        if(deviceUuid === undefined)
-        {
-          // CUDA device not found at PCI bus address
-          res.status(400).send("pci bus device not found");
-          return;
-        }
-
         options = {
           ...options,
           pcibus: pcibus,
-          deviceUuid: deviceUuid
         };
       }
 
