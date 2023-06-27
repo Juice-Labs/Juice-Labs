@@ -10,7 +10,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/Juice-Labs/Juice-Labs//pkg/logger"
+	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 )
 
 func setupIpc() (*os.File, *os.File, error) {

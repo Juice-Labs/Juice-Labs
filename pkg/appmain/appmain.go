@@ -11,7 +11,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/Juice-Labs/Juice-Labs//pkg/logger"
+	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 )
 
 const (

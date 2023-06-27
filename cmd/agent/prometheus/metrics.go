@@ -9,7 +9,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	gpuMetrics "github.com/Juice-Labs/Juice-Labs//cmd/agent/gpu/metrics"
+	gpuMetrics "github.com/Juice-Labs/Juice-Labs/cmd/agent/gpu/metrics"
 )
 
 const (

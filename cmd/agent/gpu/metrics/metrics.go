@@ -10,9 +10,9 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/Juice-Labs/Juice-Labs//pkg/gpu"
-	"github.com/Juice-Labs/Juice-Labs//pkg/logger"
-	"github.com/Juice-Labs/Juice-Labs//pkg/task"
+	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
+	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
+	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
 
 type Metrics struct {

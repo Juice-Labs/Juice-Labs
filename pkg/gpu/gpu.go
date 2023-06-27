@@ -10,7 +10,7 @@ import (
 
 	"golang.org/x/exp/slices"
 
-	"github.com/Juice-Labs/Juice-Labs//pkg/api"
+	"github.com/Juice-Labs/Juice-Labs/pkg/api"
 )
 
 type Gpu struct {

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os/exec"
 
-	pkggpu "github.com/Juice-Labs/Juice-Labs//pkg/gpu"
+	pkggpu "github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 )
 
 func DetectGpus(rendererWinPath string) (pkggpu.GpuSet, error) {
