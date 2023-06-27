@@ -22,7 +22,7 @@ import (
 	gpuMetrics "github.com/Juice-Labs/Juice-Labs/cmd/agent/gpu/metrics"
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/prometheus"
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/session"
-	"github.com/Juice-Labs/Juice-Labs/internal/build"
+	"github.com/Juice-Labs/Juice-Labs/cmd/build"
 	"github.com/Juice-Labs/Juice-Labs/pkg/api"
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
