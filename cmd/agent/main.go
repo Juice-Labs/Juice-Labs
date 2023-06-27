@@ -45,7 +45,7 @@ func main() {
 		}
 
 		if err == nil {
-			agent, err := app.NewAgent(tlsConfig)
+			agent, err := app.NewAgent(ctx, tlsConfig)
 			if err == nil {
 				agent.Start()
 				err = agent.Wait()

@@ -10,10 +10,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"sync"
-	"syscall"
 
 	"github.com/google/uuid"
 	orderedmap "github.com/wk8/go-ordered-map/v2"
@@ -22,7 +20,6 @@ import (
 	gpuMetrics "github.com/Juice-Labs/Juice-Labs/cmd/agent/gpu/metrics"
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/prometheus"
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/session"
-	"github.com/Juice-Labs/Juice-Labs/cmd/build"
 	"github.com/Juice-Labs/Juice-Labs/pkg/api"
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
@@ -32,8 +29,7 @@ import (
 )
 
 var (
-	printVersion = flag.Bool("version", false, "Prints the version and exits")
-	juicePath    = flag.String("juice-path", "", "")
+	juicePath = flag.String("juice-path", "", "")
 
 	address     = flag.String("address", "0.0.0.0:43210", "The IP address and port to use for listening for client connections")
 	maxSessions = flag.Int("max-sessions", 4, "Maximum number of simultaneous sessions allowed on this Agent")
@@ -59,23 +55,7 @@ type Agent struct {
 	taskManager *task.TaskManager
 }
 
-func NewAgent(tlsConfig *tls.Config) (*Agent, error) {
-	flag.Parse()
-
-	if *printVersion {
-		fmt.Fprintln(os.Stdout, build.Version)
-		return nil, nil
-	}
-
-	err := logger.Configure()
-	if err != nil {
-		return nil, err
-	}
-
-	logger.Info("Juice Agent, v", build.Version)
-
-	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-
+func NewAgent(ctx context.Context, tlsConfig *tls.Config) (*Agent, error) {
 	if tlsConfig == nil {
 		logger.Warning("TLS is disabled, data will be unencrypted")
 	}
@@ -97,10 +77,12 @@ func NewAgent(tlsConfig *tls.Config) (*Agent, error) {
 		agent.JuicePath = filepath.Dir(executable)
 	}
 
-	agent.Hostname, err = os.Hostname()
+	hostname, err := os.Hostname()
 	if err != nil {
 		return nil, err
 	}
+
+	agent.Hostname = hostname
 
 	rendererWinPath := filepath.Join(agent.JuicePath, "Renderer_Win")
 
