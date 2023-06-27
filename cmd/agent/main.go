@@ -10,7 +10,7 @@ import (
 	"flag"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/app"
-	"github.com/Juice-Labs/Juice-Labs/internal/build"
+	"github.com/Juice-Labs/Juice-Labs/cmd/build"
 	"github.com/Juice-Labs/Juice-Labs/pkg/appmain"
 	"github.com/Juice-Labs/Juice-Labs/pkg/crypto"
 )
