@@ -70,3 +70,11 @@ type Agent struct {
 
 	Sessions []Session `json:"sessions,omitempty"`
 }
+
+type Controller struct {
+	Version string `json:"version"`
+
+	Hostname string `json:"hostname"`
+
+	Address string `json:"address"`
+}
