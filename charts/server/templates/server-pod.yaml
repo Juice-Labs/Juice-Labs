@@ -1,3 +1,4 @@
+{{- if .Values.pod }}
 apiVersion: v1
 kind: Pod
 metadata:
@@ -14,4 +15,5 @@ spec:
     image: {{ .Values.image }}
 {{- if .Values.serverContainer }}
 {{ toYaml .Values.serverContainer | indent 4 }}
+{{- end }}
 {{- end }}

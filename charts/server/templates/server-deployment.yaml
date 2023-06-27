@@ -1,0 +1,33 @@
+{{- if not .Values.pod }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.name }}
+labels:
+  app: {{ .Values.name }}
+{{- if .Values.metadata }}
+{{ toYaml .Values.metadata | indent 2 }}
+{{- end }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.name }}
+{{- if .Values.spec }}
+{{ toYaml .Values.spec | indent 4 }}
+{{- end }}
+    spec:
+{{- if .Values.spec }}
+{{ toYaml .Values.spec | indent 6 }}
+{{- end }}
+      containers:
+      - name: server
+        image: {{ .Values.image }}
+{{- if .Values.serverContainer }}
+{{ toYaml .Values.serverContainer | indent 8 }}
+{{- end }}
+{{- end }}
