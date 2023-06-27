@@ -11,7 +11,7 @@ import (
 	"reflect"
 	"syscall"
 
-	"github.com/Juice-Labs/cmd/agent/session/windows"
+	"github.com/Juice-Labs/Juice-Labs//cmd/agent/session/windows"
 )
 
 func setupIpc() (*os.File, *os.File, error) {

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/Juice-Labs/pkg/logger"
+	"github.com/Juice-Labs/Juice-Labs//pkg/logger"
 )
 
 func Cast[T any](value any) (T, error) {

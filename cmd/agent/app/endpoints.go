@@ -10,13 +10,13 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/Juice-Labs/cmd/agent/prometheus"
-	"github.com/Juice-Labs/internal/build"
-	"github.com/Juice-Labs/pkg/api"
-	"github.com/Juice-Labs/pkg/gpu"
-	"github.com/Juice-Labs/pkg/logger"
-	pkgnet "github.com/Juice-Labs/pkg/net"
-	"github.com/Juice-Labs/pkg/utilities"
+	"github.com/Juice-Labs/Juice-Labs//cmd/agent/prometheus"
+	"github.com/Juice-Labs/Juice-Labs//internal/build"
+	"github.com/Juice-Labs/Juice-Labs//pkg/api"
+	"github.com/Juice-Labs/Juice-Labs//pkg/gpu"
+	"github.com/Juice-Labs/Juice-Labs//pkg/logger"
+	pkgnet "github.com/Juice-Labs/Juice-Labs//pkg/net"
+	"github.com/Juice-Labs/Juice-Labs//pkg/utilities"
 )
 
 const (

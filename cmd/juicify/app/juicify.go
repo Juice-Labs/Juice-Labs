@@ -17,10 +17,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Juice-Labs/pkg/api"
-	"github.com/Juice-Labs/pkg/logger"
-	pkgnet "github.com/Juice-Labs/pkg/net"
-	"github.com/Juice-Labs/pkg/utilities"
+	"github.com/Juice-Labs/Juice-Labs//pkg/api"
+	"github.com/Juice-Labs/Juice-Labs//pkg/logger"
+	pkgnet "github.com/Juice-Labs/Juice-Labs//pkg/net"
+	"github.com/Juice-Labs/Juice-Labs//pkg/utilities"
 )
 
 type Configuration struct {

@@ -8,7 +8,7 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/Juice-Labs/pkg/server"
+	"github.com/Juice-Labs/Juice-Labs//pkg/server"
 )
 
 func InitializeEndpoints(server *server.Server) {

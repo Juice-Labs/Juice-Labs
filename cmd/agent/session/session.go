@@ -12,11 +12,11 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/Juice-Labs/pkg/api"
-	"github.com/Juice-Labs/pkg/gpu"
-	"github.com/Juice-Labs/pkg/logger"
-	"github.com/Juice-Labs/pkg/task"
-	"github.com/Juice-Labs/pkg/utilities"
+	"github.com/Juice-Labs/Juice-Labs//pkg/api"
+	"github.com/Juice-Labs/Juice-Labs//pkg/gpu"
+	"github.com/Juice-Labs/Juice-Labs//pkg/logger"
+	"github.com/Juice-Labs/Juice-Labs//pkg/task"
+	"github.com/Juice-Labs/Juice-Labs//pkg/utilities"
 )
 
 type Session struct {
