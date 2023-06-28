@@ -13,8 +13,8 @@ import (
 	"strings"
 
 	"github.com/Juice-Labs/Juice-Labs/internal/build"
-	"github.com/Juice-Labs/Juice-Labs/pkg/api"
 	pkgnet "github.com/Juice-Labs/Juice-Labs/pkg/net"
+	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 )
 
 var (
@@ -78,10 +78,12 @@ func (agent *Agent) ConnectToController() error {
 			},
 		}
 
-		id, err := pkgnet.PostWithBodyReturnString(agent.httpClient, getUrlString("/v1/register/agent"), api.Agent{
-			Version:     build.Version,
-			Hostname:    agent.Hostname,
-			Address:     agent.Server.Address(),
+		id, err := pkgnet.PostWithBodyReturnString(agent.httpClient, getUrlString("/v1/register/agent"), restapi.Agent{
+			Server: restapi.Server{
+				Version:  build.Version,
+				Hostname: agent.Hostname,
+				Address:  agent.Server.Address(),
+			},
 			MaxSessions: agent.maxSessions,
 			Gpus:        agent.Gpus.GetGpus(),
 			Tags:        tags,

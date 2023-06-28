@@ -20,9 +20,9 @@ import (
 	cmdgpu "github.com/Juice-Labs/Juice-Labs/cmd/agent/gpu"
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/prometheus"
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/session"
-	"github.com/Juice-Labs/Juice-Labs/pkg/api"
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
+	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/server"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 	"github.com/Juice-Labs/Juice-Labs/pkg/utilities"
@@ -142,11 +142,11 @@ func (agent *Agent) getSession(id string) (*session.Session, error) {
 	return nil, fmt.Errorf("no session found with id %s", id)
 }
 
-func (agent *Agent) getSessions() []api.Session {
+func (agent *Agent) getSessions() []restapi.Session {
 	agent.sessionsMutex.Lock()
 	defer agent.sessionsMutex.Unlock()
 
-	sessions := make([]api.Session, 0)
+	sessions := make([]restapi.Session, 0)
 	for pair := agent.sessions.Oldest(); pair != nil; pair = pair.Next() {
 		sessions = append(sessions, utilities.Require[*session.Session](pair.Value).Session)
 	}
@@ -154,7 +154,7 @@ func (agent *Agent) getSessions() []api.Session {
 	return sessions
 }
 
-func (agent *Agent) startSession(requestSession api.RequestSession) (*session.Session, error) {
+func (agent *Agent) startSession(requestSession restapi.RequestSession) (*session.Session, error) {
 	selectedGpus, err := agent.Gpus.Find(requestSession.Gpus)
 	if err != nil {
 		return nil, err
@@ -163,7 +163,7 @@ func (agent *Agent) startSession(requestSession api.RequestSession) (*session.Se
 	return agent.runSession(session.New(uuid.NewString(), agent.JuicePath, requestSession.Version, selectedGpus))
 }
 
-func (agent *Agent) registerSession(sessionToRegister api.Session) error {
+func (agent *Agent) registerSession(sessionToRegister restapi.Session) error {
 	selectedGpus, err := agent.Gpus.Select(sessionToRegister.Gpus)
 	if err != nil {
 		return err

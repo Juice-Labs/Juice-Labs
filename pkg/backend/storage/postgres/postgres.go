@@ -14,8 +14,8 @@ import (
 
 	_ "github.com/lib/pq"
 
-	"github.com/Juice-Labs/Juice-Labs/pkg/api"
 	"github.com/Juice-Labs/Juice-Labs/pkg/backend/storage"
+	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 )
 
 const (
@@ -121,10 +121,10 @@ func appendArrayQuotedBytes(b, v []byte) []byte {
 }
 
 type gpuValuer struct {
-	Data *[]api.Gpu
+	Data *[]restapi.Gpu
 }
 
-func gpuValuerAppend(b []byte, gpu api.Gpu) []byte {
+func gpuValuerAppend(b []byte, gpu restapi.Gpu) []byte {
 	b1 := make([]byte, 0, 64)
 
 	b1 = append(b1, '(')
@@ -197,7 +197,7 @@ func (valuer mapStringStringValuer) Value() (driver.Value, error) {
 }
 
 type sessionUuidValuer struct {
-	Data *[]api.Session
+	Data *[]restapi.Session
 }
 
 func (valuer sessionUuidValuer) Value() (driver.Value, error) {

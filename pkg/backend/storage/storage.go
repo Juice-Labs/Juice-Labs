@@ -6,20 +6,20 @@ package storage
 import (
 	"time"
 
-	"github.com/Juice-Labs/Juice-Labs/pkg/api"
+	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 )
 
 type Agent struct {
-	api.Agent
+	restapi.Agent
 
 	LastUpdated time.Time
 }
 
 type Session struct {
-	api.Session
+	restapi.Session
 
 	AgentId         string
-	GpuRequirements []api.GpuRequirements `json:"gpuRequirements"`
+	GpuRequirements []restapi.GpuRequirements `json:"gpuRequirements"`
 
 	LastUpdated time.Time
 }

@@ -7,7 +7,7 @@ import "fmt"
 
 var (
 	Major    = 0
-	Minor    = 1
+	Minor    = 0
 	Revision = 0
 
 	Version = fmt.Sprintf("%d.%d.%d", Major, Minor, Revision)

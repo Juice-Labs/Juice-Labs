@@ -8,11 +8,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Juice-Labs/Juice-Labs/pkg/api"
+	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 )
 
 type Gpu struct {
-	api.Gpu
+	restapi.Gpu
 
 	availableVram uint64
 }
@@ -26,7 +26,7 @@ type SelectedGpu struct {
 type GpuSet []*Gpu
 type SelectedGpuSet []SelectedGpu
 
-func NewGpuSet(gpus []api.Gpu) GpuSet {
+func NewGpuSet(gpus []restapi.Gpu) GpuSet {
 	gpuSet := GpuSet{}
 	for _, gpu := range gpus {
 		gpuSet = append(gpuSet, &Gpu{
@@ -52,8 +52,8 @@ func UnmarshalGpuSet(data []byte) (GpuSet, error) {
 	return gpus, nil
 }
 
-func (gpus GpuSet) GetGpus() []api.Gpu {
-	publicGpus := make([]api.Gpu, len(gpus))
+func (gpus GpuSet) GetGpus() []restapi.Gpu {
+	publicGpus := make([]restapi.Gpu, len(gpus))
 	for index, gpu := range gpus {
 		publicGpus[index] = gpu.Gpu
 	}
@@ -61,8 +61,8 @@ func (gpus GpuSet) GetGpus() []api.Gpu {
 	return publicGpus
 }
 
-func (gpus SelectedGpuSet) GetGpus() []api.Gpu {
-	publicGpus := make([]api.Gpu, len(gpus))
+func (gpus SelectedGpuSet) GetGpus() []restapi.Gpu {
+	publicGpus := make([]restapi.Gpu, len(gpus))
 	for index, gpu := range gpus {
 		publicGpus[index] = gpu.gpu.Gpu
 	}
@@ -98,7 +98,7 @@ func (gpus SelectedGpuSet) GetPciBusString() string {
 	return pciBus
 }
 
-func (gpus GpuSet) Find(requirements []api.GpuRequirements) (SelectedGpuSet, error) {
+func (gpus GpuSet) Find(requirements []restapi.GpuRequirements) (SelectedGpuSet, error) {
 	if len(requirements) == 0 {
 		return SelectedGpuSet{}, errors.New("must specify at least one GPU requirement")
 	}
@@ -147,7 +147,7 @@ func (gpus GpuSet) Find(requirements []api.GpuRequirements) (SelectedGpuSet, err
 	return selectedGpus, nil
 }
 
-func (gpus GpuSet) Select(chosenGpus []api.Gpu) (SelectedGpuSet, error) {
+func (gpus GpuSet) Select(chosenGpus []restapi.Gpu) (SelectedGpuSet, error) {
 	if len(chosenGpus) == 0 {
 		return SelectedGpuSet{}, errors.New("must specify at least one chosen GPU")
 	}

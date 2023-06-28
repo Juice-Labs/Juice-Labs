@@ -10,6 +10,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -17,9 +18,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Juice-Labs/Juice-Labs/pkg/api"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	pkgnet "github.com/Juice-Labs/Juice-Labs/pkg/net"
+	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/utilities"
 )
 
@@ -56,14 +57,15 @@ type Configuration struct {
 }
 
 var (
-	host   = flag.String("host", "", "The IP address or hostname of the server to connect to")
-	port   = flag.Int("port", 0, "The port on the server to connect to")
-	pcibus = []string{}
-	test   = flag.Bool("test", false, "")
+	address     = flag.String("host", "", "The IP address or hostname and port of the server to connect to")
+	test        = flag.Bool("test", false, "")
+	requestOnly = flag.Bool("request-only", false, "Requests a new session from the server")
 
 	disableTls = flag.Bool("disable-tls", true, "")
 
 	juicePath = flag.String("juice-path", "", "")
+
+	pcibus = []string{}
 )
 
 func init() {
@@ -85,6 +87,11 @@ func getUrlString(config Configuration, path string) string {
 }
 
 func Run(ctx context.Context) error {
+	// Make sure we have an application to execute
+	if len(flag.Args()) == 0 && !*test && !*requestOnly {
+		return errors.New("usage: juicify [options] [<application> <application args>]")
+	}
+
 	if *juicePath == "" {
 		executable, err := os.Executable()
 		if err != nil {
@@ -120,16 +127,25 @@ func Run(ctx context.Context) error {
 		}
 	}
 
-	if *host != "" {
-		config.Host = *host
+	if *address != "" {
+		host, portStr, err := net.SplitHostPort(*address)
+		if err != nil {
+			return err
+		}
+
+		port, err := strconv.Atoi(portStr)
+		if err != nil {
+			return err
+		}
+
+		config.Host = host
+		config.Port = port
 	}
+
 	if config.Host == "" {
 		config.Host = "127.0.0.1"
 	}
 
-	if *port != 0 {
-		config.Port = *port
-	}
 	if config.Port == 0 {
 		config.Port = 43210
 	}
@@ -141,18 +157,29 @@ func Run(ctx context.Context) error {
 		return err
 	}
 
-	requestSession := api.RequestSession{
+	requestSession := restapi.RequestSession{
 		Version: "test",
-		Gpus:    make([]api.GpuRequirements, 1),
+		Gpus:    make([]restapi.GpuRequirements, 1),
 	}
 
 	if len(config.PCIBus) > 0 {
 		requestSession.Gpus = nil
 		for _, pci := range config.PCIBus {
-			requestSession.Gpus = append(requestSession.Gpus, api.GpuRequirements{
+			requestSession.Gpus = append(requestSession.Gpus, restapi.GpuRequirements{
 				PciBus: pci,
 			})
 		}
+	}
+
+	if *test {
+		status, err := pkgnet.Get[restapi.Server](client, getUrlString(config, "/v1/status"))
+		if err != nil {
+			return err
+		}
+
+		logger.Infof("Connected to %s:%d, v%s", config.Host, config.Port, status.Version)
+
+		return nil
 	}
 
 	config.Id, err = pkgnet.PostWithBodyReturnString(client, getUrlString(config, "/v1/request/session"), requestSession)
@@ -161,31 +188,29 @@ func Run(ctx context.Context) error {
 	}
 
 	getSessionUrl := getUrlString(config, fmt.Sprint("/v1/session/", config.Id))
-	session, err := pkgnet.Get[api.Session](client, getSessionUrl)
+	session, err := pkgnet.Get[restapi.Session](client, getSessionUrl)
 	if err != nil {
 		return err
 	}
 
-	if session.State == api.StateQueued {
+	if session.State == restapi.StateQueued {
 		logger.Info("Session queued")
 
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 
-		for session.State == api.StateQueued {
+		for session.State == restapi.StateQueued {
 			select {
 			case <-ctx.Done():
 				return nil
 
 			case <-ticker.C:
-				session, err = pkgnet.Get[api.Session](client, getSessionUrl)
+				session, err = pkgnet.Get[restapi.Session](client, getSessionUrl)
 				if err != nil {
 					return err
 				}
 			}
 		}
-
-		logger.Info("Session ready")
 	}
 
 	if session.Address != "" {
@@ -211,20 +236,15 @@ func Run(ctx context.Context) error {
 		}
 	}
 
-	status, err := pkgnet.Get[api.Agent](client, getUrlString(config, "/v1/status"))
+	status, err := pkgnet.Get[restapi.Server](client, getUrlString(config, "/v1/status"))
 	if err != nil {
 		return err
 	}
 
-	logger.Infof("Connected to %s:%d, v%s", *host, *port, status.Version)
+	logger.Infof("Connected to %s:%d, v%s", config.Host, config.Port, status.Version)
 
-	if *test {
+	if *requestOnly {
 		return nil
-	}
-
-	// Make sure we have an application to execute
-	if len(flag.Args()) == 0 {
-		return errors.New("Usage: juicify [options] <application> <application args>")
 	}
 
 	configOverride, err := json.Marshal(config)
@@ -251,5 +271,5 @@ func Run(ctx context.Context) error {
 		err = cmd.Run()
 	}
 
-	return nil
+	return err
 }

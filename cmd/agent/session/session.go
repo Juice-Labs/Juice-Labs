@@ -12,15 +12,15 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/Juice-Labs/Juice-Labs/pkg/api"
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
+	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 	"github.com/Juice-Labs/Juice-Labs/pkg/utilities"
 )
 
 type Session struct {
-	api.Session
+	restapi.Session
 
 	juicePath string
 
@@ -34,9 +34,9 @@ type Session struct {
 
 func New(id string, juicePath string, version string, gpus gpu.SelectedGpuSet) *Session {
 	return &Session{
-		Session: api.Session{
+		Session: restapi.Session{
 			Id:      id,
-			State:   api.StateActive,
+			State:   restapi.StateActive,
 			Version: version,
 			Gpus:    gpus.GetGpus(),
 		},
@@ -45,7 +45,7 @@ func New(id string, juicePath string, version string, gpus gpu.SelectedGpuSet) *
 	}
 }
 
-func Register(session api.Session, juicePath string, gpus gpu.SelectedGpuSet) *Session {
+func Register(session restapi.Session, juicePath string, gpus gpu.SelectedGpuSet) *Session {
 	return &Session{
 		Session:   session,
 		juicePath: juicePath,

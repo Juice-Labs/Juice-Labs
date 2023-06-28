@@ -11,11 +11,10 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/Juice-Labs/Juice-Labs/pkg/api"
+	"github.com/Juice-Labs/Juice-Labs/internal/build"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	pkgnet "github.com/Juice-Labs/Juice-Labs/pkg/net"
-
-	"github.com/Juice-Labs/Juice-Labs/internal/build"
+	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 )
 
 func (controller *Controller) initializeEndpoints() {
@@ -29,7 +28,7 @@ func (controller *Controller) initializeEndpoints() {
 func (controller *Controller) getStatus(router *mux.Router) error {
 	router.Methods("GET").Path("/v1/status").HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			err := pkgnet.Respond(w, http.StatusOK, api.Controller{
+			err := pkgnet.Respond(w, http.StatusOK, restapi.Server{
 				Version:  build.Version,
 				Hostname: controller.hostname,
 				Address:  controller.server.Address(),
@@ -46,7 +45,7 @@ func (controller *Controller) getStatus(router *mux.Router) error {
 func (controller *Controller) registerAgent(router *mux.Router) error {
 	router.Methods("POST").Path("/v1/register/agent").HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			agent, err := pkgnet.ReadRequestBody[api.Agent](r)
+			agent, err := pkgnet.ReadRequestBody[restapi.Agent](r)
 			if err != nil {
 				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 				logger.Error(err)
@@ -68,7 +67,7 @@ func (controller *Controller) registerAgent(router *mux.Router) error {
 			}
 
 			agent.Address = fmt.Sprintf("%s:%s", ip, port)
-			agent.State = api.StateActive
+			agent.State = restapi.StateActive
 
 			id, err := controller.backend.RegisterAgent(agent)
 			if err != nil {
@@ -88,7 +87,7 @@ func (controller *Controller) registerAgent(router *mux.Router) error {
 func (controller *Controller) updateAgent(router *mux.Router) error {
 	router.Methods("POST").Path("/v1/agent/{id}").HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			agent, err := pkgnet.ReadRequestBody[api.Agent](r)
+			agent, err := pkgnet.ReadRequestBody[restapi.Agent](r)
 			if err != nil {
 				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 				logger.Error(err)
@@ -110,7 +109,7 @@ func (controller *Controller) updateAgent(router *mux.Router) error {
 func (controller *Controller) requestSession(router *mux.Router) error {
 	router.Methods("POST").Path("/v1/request/session").HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			requestSession, err := pkgnet.ReadRequestBody[api.RequestSession](r)
+			requestSession, err := pkgnet.ReadRequestBody[restapi.RequestSession](r)
 			if err != nil {
 				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 				logger.Error(err)

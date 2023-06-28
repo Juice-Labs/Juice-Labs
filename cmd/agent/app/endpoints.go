@@ -13,10 +13,10 @@ import (
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/prometheus"
 	"github.com/Juice-Labs/Juice-Labs/internal/build"
-	"github.com/Juice-Labs/Juice-Labs/pkg/api"
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	pkgnet "github.com/Juice-Labs/Juice-Labs/pkg/net"
+	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/utilities"
 )
 
@@ -36,12 +36,14 @@ func (agent *Agent) initializeEndpoints() {
 func (agent *Agent) getStatusEp(router *mux.Router) error {
 	router.Methods("GET").Path("/v1/status").HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			err := pkgnet.Respond(w, http.StatusOK, api.Agent{
+			err := pkgnet.Respond(w, http.StatusOK, restapi.Agent{
+				Server: restapi.Server{
+					Version:  build.Version,
+					Hostname: agent.Hostname,
+					Address:  agent.Server.Address(),
+				},
 				Id:          agent.Id,
-				State:       api.StateActive,
-				Version:     build.Version,
-				Hostname:    agent.Hostname,
-				Address:     agent.Server.Address(),
+				State:       restapi.StateActive,
 				MaxSessions: agent.maxSessions,
 				Gpus:        agent.Gpus.GetGpus(),
 			})
@@ -59,7 +61,7 @@ func (agent *Agent) requestSessionEp(router *mux.Router) error {
 		func(w http.ResponseWriter, r *http.Request) {
 			var selectedGpus gpu.SelectedGpuSet
 
-			requestSession, err := pkgnet.ReadRequestBody[api.RequestSession](r)
+			requestSession, err := pkgnet.ReadRequestBody[restapi.RequestSession](r)
 			if err == nil {
 				// TODO: Verify version
 
@@ -96,7 +98,7 @@ func (agent *Agent) requestSessionEp(router *mux.Router) error {
 func (agent *Agent) registerSessionEp(router *mux.Router) error {
 	router.Methods("POST").Path("/v1/register/session").HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			session, err := pkgnet.ReadRequestBody[api.Session](r)
+			session, err := pkgnet.ReadRequestBody[restapi.Session](r)
 			if err != nil {
 				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 				logger.Error(err)
@@ -114,9 +116,9 @@ func (agent *Agent) registerSessionEp(router *mux.Router) error {
 
 			pkgnet.RespondEmpty(w, http.StatusOK)
 
-			err = pkgnet.PostWithBodyNoResponse[api.Agent](agent.httpClient, getUrlString(fmt.Sprint("/v1/agent/", agent.Id)), api.Agent{
+			err = pkgnet.PostWithBodyNoResponse[restapi.Agent](agent.httpClient, getUrlString(fmt.Sprint("/v1/agent/", agent.Id)), restapi.Agent{
 				Id:       agent.Id,
-				State:    api.StateActive,
+				State:    restapi.StateActive,
 				Gpus:     agent.Gpus.GetGpus(),
 				Sessions: agent.getSessions(),
 			})

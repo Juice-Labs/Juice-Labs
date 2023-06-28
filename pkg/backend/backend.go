@@ -7,11 +7,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/Juice-Labs/Juice-Labs/pkg/api"
 	"github.com/Juice-Labs/Juice-Labs/pkg/backend/storage"
 	"github.com/Juice-Labs/Juice-Labs/pkg/backend/storage/postgres"
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
+	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/utilities"
 )
 
@@ -69,7 +69,7 @@ func (backend *Backend) Close() error {
 	return backend.storage.Close()
 }
 
-func (backend *Backend) RegisterAgent(agent api.Agent) (string, error) {
+func (backend *Backend) RegisterAgent(agent restapi.Agent) (string, error) {
 	storageAgent := storage.Agent{
 		Agent:       agent,
 		LastUpdated: time.Now().UTC(),
@@ -85,7 +85,7 @@ func (backend *Backend) RegisterAgent(agent api.Agent) (string, error) {
 	return id, backend.storage.UpdateAgentsAndSessions([]storage.Agent{storageAgent}, nil)
 }
 
-func (backend *Backend) UpdateAgent(agent api.Agent) error {
+func (backend *Backend) UpdateAgent(agent restapi.Agent) error {
 	now := time.Now().UTC()
 
 	storageAgents := []storage.Agent{
@@ -107,9 +107,9 @@ func (backend *Backend) UpdateAgent(agent api.Agent) error {
 	return backend.storage.UpdateAgentsAndSessions(storageAgents, storageSessions)
 }
 
-func (backend *Backend) RequestSession(request api.RequestSession) (api.Session, error) {
+func (backend *Backend) RequestSession(request restapi.RequestSession) (restapi.Session, error) {
 	storageSession := storage.Session{
-		Session: api.Session{
+		Session: restapi.Session{
 			Version: request.Version,
 		},
 		GpuRequirements: request.Gpus,
@@ -118,7 +118,7 @@ func (backend *Backend) RequestSession(request api.RequestSession) (api.Session,
 
 	id, err := backend.storage.AddSession(storageSession)
 	if err != nil {
-		return api.Session{}, err
+		return restapi.Session{}, err
 	}
 
 	storageSession.Id = id
@@ -126,7 +126,7 @@ func (backend *Backend) RequestSession(request api.RequestSession) (api.Session,
 	return storageSession.Session, backend.storage.UpdateAgentsAndSessions(nil, []storage.Session{storageSession})
 }
 
-func (backend *Backend) GetSession(id string) (api.Session, error) {
+func (backend *Backend) GetSession(id string) (restapi.Session, error) {
 	session, err := backend.storage.GetSessionById(id)
 	return session.Session, err
 }
@@ -148,14 +148,14 @@ func (backend *Backend) Update() error {
 		agent := agentIterator.Value()
 
 		// Has the session been inactive long enough to switch states?
-		if agent.State < api.StateInactive && agent.LastUpdated.Before(inactiveTime) {
-			agent.State = api.StateInactive
+		if agent.State < restapi.StateInactive && agent.LastUpdated.Before(inactiveTime) {
+			agent.State = restapi.StateInactive
 			updated = true
 
 			// Update all the agents sessions as well
 			for index, session := range agent.ActiveSessions {
-				agent.Sessions[index].State = api.StateInactive
-				session.State = api.StateInactive
+				agent.Sessions[index].State = restapi.StateInactive
+				session.State = restapi.StateInactive
 
 				// Session will be removed when iterating over the sessions
 			}
@@ -163,7 +163,7 @@ func (backend *Backend) Update() error {
 
 		// If the state is inactive or closed, remove them from in-memory
 		switch agent.State {
-		case api.StateInactive:
+		case restapi.StateInactive:
 			agentIterator = backend.removeAgent(agentIterator)
 			updated = true
 		}
@@ -180,20 +180,20 @@ func (backend *Backend) Update() error {
 		session := sessionIterator.Value()
 
 		// Has the session been inactive long enough to switch states?
-		if session.State < api.StateInactive && session.LastUpdated.Before(inactiveTime) {
-			session.State = api.StateInactive
+		if session.State < restapi.StateInactive && session.LastUpdated.Before(inactiveTime) {
+			session.State = restapi.StateInactive
 			updated = true
 		}
 
 		// If the state is inactive or closed, remove them from in-memory
 		switch session.State {
-		case api.StateQueued:
+		case restapi.StateQueued:
 			if backend.tryAssigningSession(session) {
 				updated = true
 			}
 
-		case api.StateInactive:
-		case api.StateClosed:
+		case restapi.StateInactive:
+		case restapi.StateClosed:
 			sessionIterator = backend.removeSession(sessionIterator)
 			updated = true
 		}
@@ -295,7 +295,7 @@ func (backend *Backend) tryAssigningSession(session *Session) bool {
 			// Check all the requirements
 			selectedGpus, err := agent.GpuSet.Find(session.GpuRequirements)
 			if err == nil {
-				session.State = api.StateAssigned
+				session.State = restapi.StateAssigned
 				session.AgentId = agent.Id
 				session.Address = agent.Address
 				session.AssignedAgent = agent

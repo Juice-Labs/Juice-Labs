@@ -1,7 +1,7 @@
 /*
  *  Copyright (c) 2023 Juice Technologies, Inc. All Rights Reserved.
  */
-package api
+package restapi
 
 const (
 	StateQueued int = iota
@@ -53,16 +53,20 @@ type Session struct {
 	Gpus []Gpu `json:"gpus,omitempty"`
 }
 
-type Agent struct {
-	Id string `json:"id"`
-
-	State int `json:"state"`
-
+type Server struct {
 	Version string `json:"version"`
 
 	Hostname string `json:"hostname"`
 
 	Address string `json:"address"`
+}
+
+type Agent struct {
+	Server
+
+	Id string `json:"id"`
+
+	State int `json:"state"`
 
 	MaxSessions int `json:"maxSessions"`
 
@@ -73,12 +77,4 @@ type Agent struct {
 	Taints map[string]string `json:"taints,omitempty"`
 
 	Sessions []Session `json:"sessions,omitempty"`
-}
-
-type Controller struct {
-	Version string `json:"version"`
-
-	Hostname string `json:"hostname"`
-
-	Address string `json:"address"`
 }
