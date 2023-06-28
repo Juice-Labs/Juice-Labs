@@ -8,18 +8,13 @@ import (
 	"errors"
 	"fmt"
 
-	"golang.org/x/exp/slices"
-
 	"github.com/Juice-Labs/Juice-Labs/pkg/api"
 )
 
 type Gpu struct {
 	api.Gpu
 
-	PciBus string `json:"pciBus"`
-
 	availableVram uint64
-	available     bool
 }
 
 type SelectedGpu struct {
@@ -37,7 +32,6 @@ func NewGpuSet(gpus []api.Gpu) GpuSet {
 		gpuSet = append(gpuSet, &Gpu{
 			Gpu:           gpu,
 			availableVram: gpu.Vram,
-			available:     true,
 		})
 	}
 
@@ -51,8 +45,8 @@ func UnmarshalGpuSet(data []byte) (GpuSet, error) {
 		return gpus, err
 	}
 
-	for index := range gpus {
-		gpus[index].available = true
+	for index, gpu := range gpus {
+		gpus[index].availableVram = gpu.Gpu.Vram
 	}
 
 	return gpus, nil
@@ -60,9 +54,8 @@ func UnmarshalGpuSet(data []byte) (GpuSet, error) {
 
 func (gpus GpuSet) GetGpus() []api.Gpu {
 	publicGpus := make([]api.Gpu, len(gpus))
-
-	for i := 0; i < len(gpus); i++ {
-		publicGpus[i] = gpus[i].Gpu
+	for index, gpu := range gpus {
+		publicGpus[index] = gpu.Gpu
 	}
 
 	return publicGpus
@@ -70,9 +63,8 @@ func (gpus GpuSet) GetGpus() []api.Gpu {
 
 func (gpus SelectedGpuSet) GetGpus() []api.Gpu {
 	publicGpus := make([]api.Gpu, len(gpus))
-
-	for i := 0; i < len(gpus); i++ {
-		publicGpus[i] = gpus[i].gpu.Gpu
+	for index, gpu := range gpus {
+		publicGpus[index] = gpu.gpu.Gpu
 	}
 
 	return publicGpus
@@ -111,18 +103,14 @@ func (gpus GpuSet) Find(requirements []api.GpuRequirements) (SelectedGpuSet, err
 		return SelectedGpuSet{}, errors.New("must specify at least one GPU requirement")
 	}
 
-	availableGpuIndices := make([]int, 0, len(gpus))
+	availableGpus := map[int]*Gpu{}
 	for index, gpu := range gpus {
-		if gpu.available {
-			availableGpuIndices = append(availableGpuIndices, index)
-		}
+		availableGpus[index] = gpu
 	}
 
 	var selectedGpus SelectedGpuSet
 	for _, requirement := range requirements {
-		for index, potentialGpuIndex := range availableGpuIndices {
-			potentialGpu := gpus[potentialGpuIndex]
-
+		for index, potentialGpu := range availableGpus {
 			if requirement.VendorId != 0 && potentialGpu.VendorId != requirement.VendorId {
 				continue
 			}
@@ -135,12 +123,16 @@ func (gpus GpuSet) Find(requirements []api.GpuRequirements) (SelectedGpuSet, err
 				continue
 			}
 
+			if requirement.PciBus != "" && potentialGpu.PciBus != requirement.PciBus {
+				continue
+			}
+
 			selectedGpus = append(selectedGpus, SelectedGpu{
 				gpu:          potentialGpu,
 				requiredVram: requirement.VramRequired,
 			})
 
-			availableGpuIndices = slices.Delete(availableGpuIndices, index, index+1)
+			delete(availableGpus, index)
 		}
 	}
 
@@ -150,7 +142,6 @@ func (gpus GpuSet) Find(requirements []api.GpuRequirements) (SelectedGpuSet, err
 
 	for _, gpu := range selectedGpus {
 		gpu.gpu.availableVram -= gpu.requiredVram
-		gpu.gpu.available = false
 	}
 
 	return selectedGpus, nil
@@ -163,9 +154,7 @@ func (gpus GpuSet) Select(chosenGpus []api.Gpu) (SelectedGpuSet, error) {
 
 	availableGpus := map[int]*Gpu{}
 	for index, gpu := range gpus {
-		if gpu.available {
-			availableGpus[index] = gpu
-		}
+		availableGpus[index] = gpu
 	}
 
 	var selectedGpus SelectedGpuSet
@@ -191,6 +180,10 @@ func (gpus GpuSet) Select(chosenGpus []api.Gpu) (SelectedGpuSet, error) {
 			return nil, fmt.Errorf("chosen GPU is does not have the correct Vram")
 		}
 
+		if chosenGpu.PciBus != availableGpu.PciBus {
+			return nil, fmt.Errorf("chosen GPU is does not have the correct Vram")
+		}
+
 		selectedGpus = append(selectedGpus, SelectedGpu{
 			gpu:          availableGpu,
 			requiredVram: 0,
@@ -201,7 +194,6 @@ func (gpus GpuSet) Select(chosenGpus []api.Gpu) (SelectedGpuSet, error) {
 
 	for _, gpu := range selectedGpus {
 		gpu.gpu.availableVram -= gpu.requiredVram
-		gpu.gpu.available = false
 	}
 
 	return selectedGpus, nil
@@ -210,7 +202,6 @@ func (gpus GpuSet) Select(chosenGpus []api.Gpu) (SelectedGpuSet, error) {
 func (gpus SelectedGpuSet) Release() {
 	for _, gpu := range gpus {
 		gpu.gpu.availableVram += gpu.requiredVram
-		gpu.gpu.available = true
 		gpu.requiredVram = 0
 	}
 }

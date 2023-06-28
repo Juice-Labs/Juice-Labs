@@ -21,6 +21,8 @@ type Gpu struct {
 	DeviceId uint32 `json:"deviceId"`
 
 	Vram uint64 `json:"vram,omitempty"`
+
+	PciBus string `json:"pciBus"`
 }
 
 type GpuRequirements struct {
@@ -29,6 +31,8 @@ type GpuRequirements struct {
 	DeviceId uint32 `json:"deviceId,omitempty"`
 
 	VramRequired uint64 `json:"vramRequired,omitempty"`
+
+	PciBus string `json:"pciBus"`
 }
 
 type RequestSession struct {

@@ -141,18 +141,27 @@ func Run(ctx context.Context) error {
 		return err
 	}
 
-	var session api.Session
-
-	config.Id, err = pkgnet.PostWithBodyReturnString(client, getUrlString(config, "/v1/request/session"), api.RequestSession{
+	requestSession := api.RequestSession{
 		Version: "test",
 		Gpus:    make([]api.GpuRequirements, 1),
-	})
+	}
+
+	if len(config.PCIBus) > 0 {
+		requestSession.Gpus = nil
+		for _, pci := range config.PCIBus {
+			requestSession.Gpus = append(requestSession.Gpus, api.GpuRequirements{
+				PciBus: pci,
+			})
+		}
+	}
+
+	config.Id, err = pkgnet.PostWithBodyReturnString(client, getUrlString(config, "/v1/request/session"), requestSession)
 	if err != nil {
 		return err
 	}
 
 	getSessionUrl := getUrlString(config, fmt.Sprint("/v1/session/", config.Id))
-	session, err = pkgnet.Get[api.Session](client, getSessionUrl)
+	session, err := pkgnet.Get[api.Session](client, getSessionUrl)
 	if err != nil {
 		return err
 	}
@@ -195,11 +204,11 @@ func Run(ctx context.Context) error {
 
 			config.Port = portInt
 		}
-	}
 
-	err = pkgnet.PostWithBodyNoResponse[api.Session](client, getUrlString(config, "/v1/register/session"), session)
-	if err != nil {
-		return err
+		err = pkgnet.PostWithBodyNoResponse(client, getUrlString(config, "/v1/register/session"), session)
+		if err != nil {
+			return err
+		}
 	}
 
 	status, err := pkgnet.Get[api.Agent](client, getUrlString(config, "/v1/status"))
