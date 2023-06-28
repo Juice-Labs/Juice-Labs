@@ -11,8 +11,8 @@ import (
 )
 
 func Cast[T any](value any) (T, error) {
-	var converted T
-	if converted, ok := value.(T); !ok {
+	converted, ok := value.(T)
+	if !ok {
 		return converted, fmt.Errorf("invalid cast type '%s' to type '%s'", reflect.TypeOf(value), reflect.TypeOf(converted))
 	}
 
