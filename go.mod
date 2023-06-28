@@ -6,9 +6,9 @@ require (
 	github.com/NVIDIA/go-nvml v0.12.0-1
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
+	github.com/lib/pq v1.10.9
 	github.com/prometheus/client_golang v1.16.0
 	github.com/wk8/go-ordered-map/v2 v2.1.8
-	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df
 	golang.org/x/sys v0.9.0
 )
 

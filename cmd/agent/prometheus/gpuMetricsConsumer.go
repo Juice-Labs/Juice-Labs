@@ -9,7 +9,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	gpuMetrics "github.com/Juice-Labs/Juice-Labs/cmd/agent/gpu/metrics"
+	"github.com/Juice-Labs/Juice-Labs/cmd/agent/gpu"
 )
 
 const (
@@ -169,11 +169,11 @@ func (c *gpuCollector) Collect(ch chan<- prometheus.Metric) {
 	c.memoryClock.Collect(ch)
 }
 
-func NewConsumer() gpuMetrics.ConsumerFn {
+func NewGpuMetricsConsumer() gpu.MetricsConsumerFn {
 	collector := newGpuCollector()
 	prometheus.MustRegister(collector)
 
-	return func(metrics []gpuMetrics.Metrics) {
+	return func(metrics []gpu.Metrics) {
 		collector.Lock()
 		defer collector.Unlock()
 

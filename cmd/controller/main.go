@@ -9,12 +9,11 @@ import (
 	"errors"
 	"flag"
 
-	"github.com/Juice-Labs/Juice-Labs/cmd/agent/app"
-	"github.com/Juice-Labs/Juice-Labs/cmd/agent/playnite"
+	"github.com/Juice-Labs/Juice-Labs/cmd/controller/app"
 	"github.com/Juice-Labs/Juice-Labs/internal/build"
 	"github.com/Juice-Labs/Juice-Labs/pkg/appmain"
 	"github.com/Juice-Labs/Juice-Labs/pkg/crypto"
-	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
+	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
 
 var (
@@ -25,7 +24,7 @@ var (
 )
 
 func main() {
-	appmain.Run("Juice Agent", build.Version, func(ctx context.Context) error {
+	appmain.Run("Juice Controller", build.Version, func(ctx context.Context) error {
 		var tlsConfig *tls.Config
 
 		var err error
@@ -47,23 +46,12 @@ func main() {
 		}
 
 		if err == nil {
-			agent, err := app.NewAgent(ctx, tlsConfig)
+			taskManager := task.NewTaskManager(ctx)
+
+			controller, err := app.NewController(tlsConfig)
 			if err == nil {
-				consumer, err := playnite.NewGpuMetricsConsumer(agent)
-				if err != nil {
-					logger.Warning(err)
-				}
-
-				agent.GpuMetricsProvider.AddConsumer(consumer)
-
-				err = agent.ConnectToController()
-				if err == nil {
-					agent.Start()
-				} else {
-					agent.Cancel()
-				}
-
-				err = agent.Wait()
+				taskManager.Go(controller)
+				err = taskManager.Wait()
 			}
 		}
 

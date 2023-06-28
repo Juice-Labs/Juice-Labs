@@ -9,6 +9,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
@@ -17,7 +18,6 @@ import (
 	orderedmap "github.com/wk8/go-ordered-map/v2"
 
 	cmdgpu "github.com/Juice-Labs/Juice-Labs/cmd/agent/gpu"
-	gpuMetrics "github.com/Juice-Labs/Juice-Labs/cmd/agent/gpu/metrics"
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/prometheus"
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/session"
 	"github.com/Juice-Labs/Juice-Labs/pkg/api"
@@ -45,7 +45,7 @@ type Agent struct {
 
 	Server *server.Server
 
-	GpuMetricsProvider *gpuMetrics.Provider
+	GpuMetricsProvider *cmdgpu.MetricsProvider
 
 	maxSessions int
 
@@ -53,6 +53,8 @@ type Agent struct {
 	sessions      *orderedmap.OrderedMap[string, *session.Session]
 
 	taskManager *task.TaskManager
+
+	httpClient *http.Client
 }
 
 func NewAgent(ctx context.Context, tlsConfig *tls.Config) (*Agent, error) {
@@ -100,26 +102,10 @@ func NewAgent(ctx context.Context, tlsConfig *tls.Config) (*Agent, error) {
 	}
 
 	agent.initializeEndpoints()
-	agent.GpuMetricsProvider = gpuMetrics.NewProvider(agent.Gpus, rendererWinPath)
-	agent.GpuMetricsProvider.AddConsumer(prometheus.NewConsumer())
+	agent.GpuMetricsProvider = cmdgpu.NewMetricsProvider(agent.Gpus, rendererWinPath)
+	agent.GpuMetricsProvider.AddConsumer(prometheus.NewGpuMetricsConsumer())
 
 	return agent, nil
-}
-
-func (agent *Agent) Sessions() []api.Session {
-	agent.sessionsMutex.Lock()
-	defer agent.sessionsMutex.Unlock()
-
-	sessions := make([]api.Session, 0)
-	for pair := agent.sessions.Oldest(); pair != nil; pair = pair.Next() {
-		sessions = append(sessions, utilities.Require[*session.Session](pair.Value).Session)
-	}
-
-	return sessions
-}
-
-func (agent *Agent) MaxSessions() int {
-	return agent.maxSessions
 }
 
 func (agent *Agent) Ctx() context.Context {
@@ -147,7 +133,7 @@ func (agent *Agent) Wait() error {
 	return agent.taskManager.Wait()
 }
 
-func (agent *Agent) GetSession(id string) (*session.Session, error) {
+func (agent *Agent) getSession(id string) (*session.Session, error) {
 	session, found := agent.sessions.Get(id)
 	if found {
 		return session, nil
@@ -156,7 +142,19 @@ func (agent *Agent) GetSession(id string) (*session.Session, error) {
 	return nil, fmt.Errorf("no session found with id %s", id)
 }
 
-func (agent *Agent) StartSession(requestSession api.RequestSession) (*session.Session, error) {
+func (agent *Agent) getSessions() []api.Session {
+	agent.sessionsMutex.Lock()
+	defer agent.sessionsMutex.Unlock()
+
+	sessions := make([]api.Session, 0)
+	for pair := agent.sessions.Oldest(); pair != nil; pair = pair.Next() {
+		sessions = append(sessions, utilities.Require[*session.Session](pair.Value).Session)
+	}
+
+	return sessions
+}
+
+func (agent *Agent) startSession(requestSession api.RequestSession) (*session.Session, error) {
 	selectedGpus, err := agent.Gpus.Find(requestSession.Gpus)
 	if err != nil {
 		return nil, err
@@ -165,7 +163,7 @@ func (agent *Agent) StartSession(requestSession api.RequestSession) (*session.Se
 	return agent.runSession(session.New(uuid.NewString(), agent.JuicePath, requestSession.Version, selectedGpus))
 }
 
-func (agent *Agent) RegisterSession(sessionToRegister api.Session) error {
+func (agent *Agent) registerSession(sessionToRegister api.Session) error {
 	selectedGpus, err := agent.Gpus.Select(sessionToRegister.Gpus)
 	if err != nil {
 		return err

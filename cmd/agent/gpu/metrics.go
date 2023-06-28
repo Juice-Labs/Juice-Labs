@@ -1,7 +1,7 @@
 /*
  *  Copyright (c) 2023 Juice Technologies, Inc. All Rights Reserved.
  */
-package metrics
+package gpu
 
 import (
 	"bufio"
@@ -36,27 +36,27 @@ var (
 	gpuMetricsInterval = flag.Uint("gpu-metrics-interval-ms", 1000, "")
 )
 
-type ConsumerFn = func([]Metrics)
+type MetricsConsumerFn = func([]Metrics)
 
-type Provider struct {
-	consumers []ConsumerFn
+type MetricsProvider struct {
+	consumers []MetricsConsumerFn
 
 	gpus            gpu.GpuSet
 	rendererWinPath string
 }
 
-func NewProvider(gpus gpu.GpuSet, rendererWinPath string) *Provider {
-	return &Provider{
+func NewMetricsProvider(gpus gpu.GpuSet, rendererWinPath string) *MetricsProvider {
+	return &MetricsProvider{
 		gpus:            gpus,
 		rendererWinPath: rendererWinPath,
 	}
 }
 
-func (provider *Provider) AddConsumer(consumer ConsumerFn) {
+func (provider *MetricsProvider) AddConsumer(consumer MetricsConsumerFn) {
 	provider.consumers = append(provider.consumers, consumer)
 }
 
-func (provider *Provider) Run(group task.Group) error {
+func (provider *MetricsProvider) Run(group task.Group) error {
 	if !*disableGpuMetrics && len(provider.consumers) > 0 {
 		cmd := exec.CommandContext(group.Ctx(), provider.rendererWinPath,
 			"--log_group", "Fatal",
