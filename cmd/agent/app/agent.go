@@ -61,6 +61,7 @@ func NewAgent(ctx context.Context, tlsConfig *tls.Config) (*Agent, error) {
 	}
 
 	agent := &Agent{
+		Id:          uuid.NewString(),
 		JuicePath:   *juicePath,
 		Server:      server.NewServer(*address, tlsConfig),
 		maxSessions: *maxSessions,
@@ -138,6 +139,7 @@ func (agent *Agent) GoFn(task task.TaskFn) {
 }
 
 func (agent *Agent) Start() {
+	agent.Go(agent.GpuMetricsProvider)
 	agent.Go(agent.Server)
 }
 
