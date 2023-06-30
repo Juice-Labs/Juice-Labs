@@ -29,6 +29,7 @@ type Storage interface {
 
 	AddAgent(Agent) (string, error)
 	AddSession(Session) (string, error)
+	GetActiveAgents() ([]Agent, error)
 	UpdateAgentsAndSessions([]Agent, []Session) error
 
 	GetSessionById(id string) (Session, error)

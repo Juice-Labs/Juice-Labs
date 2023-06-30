@@ -12,6 +12,7 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/app"
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
+	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/utilities"
 )
 
@@ -62,7 +63,7 @@ func NewGpuMetricsConsumer(agent *app.Agent) (gpu.MetricsConsumerFn, error) {
 	}
 
 	nonce := 0
-	return func(metrics []gpu.Metrics) {
+	return func(metrics []restapi.Gpu) {
 		bytes, err := json.Marshal(metrics)
 		if err == nil {
 			data := fmt.Sprintf(`{"action":"UPDATE","uuid":"%s","port":%d,"nonce":%d,"hostname":"%s","data":%s}`, agent.Id, port, nonce, agent.Hostname, string(bytes))

@@ -8,9 +8,9 @@ import (
 	"errors"
 	"time"
 
+	"github.com/Juice-Labs/Juice-Labs/internal/backend"
 	"github.com/Juice-Labs/Juice-Labs/internal/build"
 	"github.com/Juice-Labs/Juice-Labs/pkg/appmain"
-	"github.com/Juice-Labs/Juice-Labs/pkg/backend"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
 

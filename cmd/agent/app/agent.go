@@ -154,13 +154,13 @@ func (agent *Agent) getSessions() []restapi.Session {
 	return sessions
 }
 
-func (agent *Agent) startSession(requestSession restapi.RequestSession) (*session.Session, error) {
-	selectedGpus, err := agent.Gpus.Find(requestSession.Gpus)
+func (agent *Agent) startSession(sessionRequirements restapi.SessionRequirements) (*session.Session, error) {
+	selectedGpus, err := agent.Gpus.Find(sessionRequirements.Gpus)
 	if err != nil {
 		return nil, err
 	}
 
-	return agent.runSession(session.New(uuid.NewString(), agent.JuicePath, requestSession.Version, selectedGpus))
+	return agent.runSession(session.New(uuid.NewString(), agent.JuicePath, sessionRequirements.Version, selectedGpus))
 }
 
 func (agent *Agent) registerSession(sessionToRegister restapi.Session) error {

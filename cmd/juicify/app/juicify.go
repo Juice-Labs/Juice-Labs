@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
-	pkgnet "github.com/Juice-Labs/Juice-Labs/pkg/net"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/utilities"
 )
@@ -106,14 +105,6 @@ func Run(ctx context.Context) error {
 		return err
 	}
 
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: *disableTls,
-			},
-		},
-	}
-
 	var config Configuration
 	configBytes, err := os.ReadFile(filepath.Join(*juicePath, "juice.cfg"))
 	if err != nil {
@@ -157,38 +148,53 @@ func Run(ctx context.Context) error {
 		return err
 	}
 
-	requestSession := restapi.RequestSession{
-		Version: "test",
-		Gpus:    make([]restapi.GpuRequirements, 1),
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: *disableTls,
+			},
+		},
 	}
 
-	if len(config.PCIBus) > 0 {
-		requestSession.Gpus = nil
-		for _, pci := range config.PCIBus {
-			requestSession.Gpus = append(requestSession.Gpus, restapi.GpuRequirements{
-				PciBus: pci,
-			})
-		}
+	api := restapi.RestApi{
+		Client:  client,
+		Scheme:  "https",
+		Address: fmt.Sprintf("%s:%d", config.Host, config.Port),
+	}
+
+	if *disableTls {
+		api.Scheme = "http"
 	}
 
 	if *test {
-		status, err := pkgnet.Get[restapi.Server](client, getUrlString(config, "/v1/status"))
+		status, err := api.StatusWithContext(ctx)
 		if err != nil {
 			return err
 		}
 
 		logger.Infof("Connected to %s:%d, v%s", config.Host, config.Port, status.Version)
-
 		return nil
 	}
 
-	config.Id, err = pkgnet.PostWithBodyReturnString(client, getUrlString(config, "/v1/request/session"), requestSession)
+	sessionRequirements := restapi.SessionRequirements{
+		Gpus: make([]restapi.GpuRequirements, 1),
+	}
+
+	if len(config.PCIBus) > 0 {
+		sessionRequirements.Gpus = nil
+		for _, pci := range config.PCIBus {
+			sessionRequirements.Gpus = append(sessionRequirements.Gpus, restapi.GpuRequirements{
+				PciBus: pci,
+			})
+		}
+	}
+
+	config.Id, err = api.RequestSessionWithContext(ctx, sessionRequirements)
 	if err != nil {
 		return err
 	}
 
-	getSessionUrl := getUrlString(config, fmt.Sprint("/v1/session/", config.Id))
-	session, err := pkgnet.Get[restapi.Session](client, getSessionUrl)
+	session, err := api.GetSessionWithContext(ctx, config.Id)
 	if err != nil {
 		return err
 	}
@@ -205,7 +211,7 @@ func Run(ctx context.Context) error {
 				return nil
 
 			case <-ticker.C:
-				session, err = pkgnet.Get[restapi.Session](client, getSessionUrl)
+				session, err = api.GetSessionWithContext(ctx, config.Id)
 				if err != nil {
 					return err
 				}
@@ -230,13 +236,15 @@ func Run(ctx context.Context) error {
 			config.Port = portInt
 		}
 
-		err = pkgnet.PostWithBodyNoResponse(client, getUrlString(config, "/v1/register/session"), session)
+		api.Address = fmt.Sprintf("%s:%d", config.Host, config.Port)
+
+		err = api.RegisterSessionWithContext(ctx, session)
 		if err != nil {
 			return err
 		}
 	}
 
-	status, err := pkgnet.Get[restapi.Server](client, getUrlString(config, "/v1/status"))
+	status, err := api.StatusWithContext(ctx)
 	if err != nil {
 		return err
 	}

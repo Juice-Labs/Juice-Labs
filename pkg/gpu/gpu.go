@@ -111,14 +111,6 @@ func (gpus GpuSet) Find(requirements []restapi.GpuRequirements) (SelectedGpuSet,
 	var selectedGpus SelectedGpuSet
 	for _, requirement := range requirements {
 		for index, potentialGpu := range availableGpus {
-			if requirement.VendorId != 0 && potentialGpu.VendorId != requirement.VendorId {
-				continue
-			}
-
-			if requirement.DeviceId != 0 && potentialGpu.DeviceId != requirement.DeviceId {
-				continue
-			}
-
 			if requirement.VramRequired != 0 && potentialGpu.availableVram < requirement.VramRequired {
 				continue
 			}
@@ -166,14 +158,6 @@ func (gpus GpuSet) Select(chosenGpus []restapi.Gpu) (SelectedGpuSet, error) {
 
 		if chosenGpu.Name != availableGpu.Name {
 			return nil, fmt.Errorf("chosen GPU is does not have the correct Name")
-		}
-
-		if chosenGpu.VendorId != availableGpu.VendorId {
-			return nil, fmt.Errorf("chosen GPU is does not have the correct VendorID")
-		}
-
-		if chosenGpu.DeviceId != availableGpu.DeviceId {
-			return nil, fmt.Errorf("chosen GPU is does not have the correct DeviceID")
 		}
 
 		if chosenGpu.Vram != availableGpu.Vram {

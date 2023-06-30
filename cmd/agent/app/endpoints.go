@@ -36,16 +36,11 @@ func (agent *Agent) initializeEndpoints() {
 func (agent *Agent) getStatusEp(router *mux.Router) error {
 	router.Methods("GET").Path("/v1/status").HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			err := pkgnet.Respond(w, http.StatusOK, restapi.Agent{
-				Server: restapi.Server{
-					Version:  build.Version,
-					Hostname: agent.Hostname,
-					Address:  agent.Server.Address(),
-				},
-				Id:          agent.Id,
-				State:       restapi.StateActive,
-				MaxSessions: agent.maxSessions,
-				Gpus:        agent.Gpus.GetGpus(),
+			err := pkgnet.Respond(w, http.StatusOK, restapi.Status{
+				State:    "Active",
+				Version:  build.Version,
+				Hostname: agent.Hostname,
+				Address:  agent.Server.Address(),
 			})
 
 			if err != nil {
@@ -61,7 +56,7 @@ func (agent *Agent) requestSessionEp(router *mux.Router) error {
 		func(w http.ResponseWriter, r *http.Request) {
 			var selectedGpus gpu.SelectedGpuSet
 
-			requestSession, err := pkgnet.ReadRequestBody[restapi.RequestSession](r)
+			sessionRequirements, err := pkgnet.ReadRequestBody[restapi.SessionRequirements](r)
 			if err == nil {
 				// TODO: Verify version
 
@@ -78,7 +73,7 @@ func (agent *Agent) requestSessionEp(router *mux.Router) error {
 				return
 			}
 
-			createdSession, err := agent.startSession(requestSession)
+			createdSession, err := agent.startSession(sessionRequirements)
 			if err != nil {
 				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 				logger.Error(err)

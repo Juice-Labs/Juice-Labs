@@ -7,8 +7,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/Juice-Labs/Juice-Labs/pkg/backend/storage"
-	"github.com/Juice-Labs/Juice-Labs/pkg/backend/storage/postgres"
+	"github.com/Juice-Labs/Juice-Labs/internal/backend/storage"
+	"github.com/Juice-Labs/Juice-Labs/internal/backend/storage/postgres"
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
@@ -69,6 +69,20 @@ func (backend *Backend) Close() error {
 	return backend.storage.Close()
 }
 
+func (backend *Backend) GetActiveAgents() ([]restapi.Agent, error) {
+	agents, err := backend.storage.GetActiveAgents()
+	if err != nil {
+		return nil, err
+	}
+
+	apiAgents := make([]restapi.Agent, len(agents))
+	for index, agent := range agents {
+		apiAgents[index] = agent.Agent
+	}
+
+	return apiAgents, nil
+}
+
 func (backend *Backend) RegisterAgent(agent restapi.Agent) (string, error) {
 	storageAgent := storage.Agent{
 		Agent:       agent,
@@ -107,12 +121,12 @@ func (backend *Backend) UpdateAgent(agent restapi.Agent) error {
 	return backend.storage.UpdateAgentsAndSessions(storageAgents, storageSessions)
 }
 
-func (backend *Backend) RequestSession(request restapi.RequestSession) (restapi.Session, error) {
+func (backend *Backend) RequestSession(sessionRequirements restapi.SessionRequirements) (restapi.Session, error) {
 	storageSession := storage.Session{
 		Session: restapi.Session{
-			Version: request.Version,
+			Version: sessionRequirements.Version,
 		},
-		GpuRequirements: request.Gpus,
+		GpuRequirements: sessionRequirements.Gpus,
 		LastUpdated:     time.Now().UTC(),
 	}
 

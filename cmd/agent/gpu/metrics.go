@@ -12,31 +12,16 @@ import (
 
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
+	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
-
-type Metrics struct {
-	Name              string `json:"name"`
-	UtcWhen           uint64 `json:"utcWhen"`
-	GpuUtilization    uint32 `json:"gpuUtilization"`
-	MemoryUtilization uint32 `json:"memoryUtilization"`
-	MemoryUsed        uint64 `json:"memoryUsed"`
-	MemoryTotal       uint64 `json:"memoryTotal"`
-	PowerUsage        uint32 `json:"powerUsage"`
-	PowerLimit        uint32 `json:"powerLimit"`
-	FanSpeed          uint32 `json:"fanSpeed"`
-	TemperatureGpu    uint32 `json:"temperatureGpu"`
-	TemperatureMemory uint32 `json:"temperatureMemory"`
-	ClockCore         uint32 `json:"clockCore"`
-	ClockMemory       uint32 `json:"clockMemory"`
-}
 
 var (
 	disableGpuMetrics  = flag.Bool("disable-gpu-metrics", false, "")
 	gpuMetricsInterval = flag.Uint("gpu-metrics-interval-ms", 1000, "")
 )
 
-type MetricsConsumerFn = func([]Metrics)
+type MetricsConsumerFn = func([]restapi.Gpu)
 
 type MetricsProvider struct {
 	consumers []MetricsConsumerFn
@@ -75,7 +60,7 @@ func (provider *MetricsProvider) Run(group task.Group) error {
 
 		scanner := bufio.NewScanner(stdoutReader)
 		for scanner.Scan() {
-			var metrics []Metrics
+			var metrics []restapi.Gpu
 			err := json.Unmarshal(scanner.Bytes(), &metrics)
 			if err == nil {
 				for _, consumer := range provider.consumers {

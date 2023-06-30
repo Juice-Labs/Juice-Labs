@@ -7,8 +7,9 @@ import (
 	"crypto/tls"
 	"flag"
 	"os"
+	"time"
 
-	"github.com/Juice-Labs/Juice-Labs/pkg/backend"
+	"github.com/Juice-Labs/Juice-Labs/internal/backend"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/server"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
@@ -19,6 +20,8 @@ var (
 )
 
 type Controller struct {
+	startTime time.Time
+
 	hostname string
 
 	server  *server.Server
@@ -36,13 +39,19 @@ func NewController(tlsConfig *tls.Config) (*Controller, error) {
 	}
 
 	controller := &Controller{
-		hostname: hostname,
-		server:   server.NewServer(*address, tlsConfig),
+		startTime: time.Now(),
+		hostname:  hostname,
+		server:    server.NewServer(*address, tlsConfig),
 	}
 
 	controller.initializeEndpoints()
 
 	return controller, nil
+}
+
+func (controller *Controller) TimeSinceStart() time.Duration {
+	// TODO: This needs to be done in the database in some way
+	return time.Now().Sub(controller.startTime)
 }
 
 func (controller *Controller) Run(group task.Group) error {

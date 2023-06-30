@@ -14,7 +14,7 @@ import (
 
 	_ "github.com/lib/pq"
 
-	"github.com/Juice-Labs/Juice-Labs/pkg/backend/storage"
+	"github.com/Juice-Labs/Juice-Labs/internal/backend/storage"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 )
 
@@ -81,6 +81,8 @@ const (
 		"$1, $2, $3, $4" +
 		")" +
 		"WHERE id = $5"
+
+	SelectActiveAgents = "SELECT data FROM agents WHERE state = 2"
 
 	SelectAgentsUpdatedSince = "SELECT data FROM agents WHERE lastUpdated > $1"
 
@@ -297,6 +299,34 @@ func (driver *storageDriver) AddSession(session storage.Session) (string, error)
 	}
 
 	return id, err
+}
+
+func (driver *storageDriver) GetActiveAgents() ([]storage.Agent, error) {
+	rows, err := driver.db.QueryContext(driver.ctx, SelectActiveAgents)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	agents := make([]storage.Agent, 0)
+	for rows.Next() {
+		var data []byte
+		err = rows.Scan(&data)
+		if err != nil {
+			return nil, err
+		}
+
+		var agent storage.Agent
+		err = json.Unmarshal(data, &agent)
+		if err != nil {
+			return nil, err
+		}
+
+		agents = append(agents, agent)
+	}
+
+	return agents, nil
 }
 
 func (driver *storageDriver) UpdateAgentsAndSessions(agents []storage.Agent, sessions []storage.Session) error {

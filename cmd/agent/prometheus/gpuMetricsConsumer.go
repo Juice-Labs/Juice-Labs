@@ -10,6 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/gpu"
+	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 )
 
 const (
@@ -20,48 +21,63 @@ const (
 type gpuCollector struct {
 	sync.Mutex
 
-	when              prometheus.Gauge
-	gpuUtilization    *prometheus.GaugeVec
-	memoryUtilization *prometheus.GaugeVec
-	memoryUsed        *prometheus.GaugeVec
-	memoryTotal       *prometheus.GaugeVec
-	powerUsage        *prometheus.GaugeVec
-	powerLimit        *prometheus.GaugeVec
-	fanSpeed          *prometheus.GaugeVec
-	gpuTemperature    *prometheus.GaugeVec
-	memoryTemperature *prometheus.GaugeVec
-	coreClock         *prometheus.GaugeVec
-	memoryClock       *prometheus.GaugeVec
+	ClockCore       *prometheus.GaugeVec
+	ClockMemory     *prometheus.GaugeVec
+	UtilizationGpu  *prometheus.GaugeVec
+	UtilizationVram *prometheus.GaugeVec
+	TemperatureGpu  *prometheus.GaugeVec
+	VramUsed        *prometheus.GaugeVec
+	Vram            *prometheus.GaugeVec
+	PowerDraw       *prometheus.GaugeVec
+	PowerLimit      *prometheus.GaugeVec
+	FanSpeed        *prometheus.GaugeVec
 }
 
 func newGpuCollector() *gpuCollector {
 	labels := []string{"index", "name"}
 
 	return &gpuCollector{
-		when: prometheus.NewGauge(
+		ClockCore: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Subsystem: subsystem,
-				Name:      "utc",
-			},
-		),
-		gpuUtilization: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Subsystem: subsystem,
-				Name:      "gpu_utilization",
+				Name:      "clock_core",
 			},
 			labels,
 		),
-		memoryUtilization: prometheus.NewGaugeVec(
+		ClockMemory: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Subsystem: subsystem,
-				Name:      "memory_utilization",
+				Name:      "clock_memory",
 			},
 			labels,
 		),
-		memoryUsed: prometheus.NewGaugeVec(
+		UtilizationGpu: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      "utilization_gpu",
+			},
+			labels,
+		),
+		UtilizationVram: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      "utilization_memory",
+			},
+			labels,
+		),
+		TemperatureGpu: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      "temperature_gpu",
+			},
+			labels,
+		),
+		VramUsed: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Subsystem: subsystem,
@@ -69,7 +85,7 @@ func newGpuCollector() *gpuCollector {
 			},
 			labels,
 		),
-		memoryTotal: prometheus.NewGaugeVec(
+		Vram: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Subsystem: subsystem,
@@ -77,15 +93,15 @@ func newGpuCollector() *gpuCollector {
 			},
 			labels,
 		),
-		powerUsage: prometheus.NewGaugeVec(
+		PowerDraw: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Subsystem: subsystem,
-				Name:      "power_usage",
+				Name:      "power_draw",
 			},
 			labels,
 		),
-		powerLimit: prometheus.NewGaugeVec(
+		PowerLimit: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Subsystem: subsystem,
@@ -93,7 +109,7 @@ func newGpuCollector() *gpuCollector {
 			},
 			labels,
 		),
-		fanSpeed: prometheus.NewGaugeVec(
+		FanSpeed: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Subsystem: subsystem,
@@ -101,96 +117,57 @@ func newGpuCollector() *gpuCollector {
 			},
 			labels,
 		),
-		gpuTemperature: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Subsystem: subsystem,
-				Name:      "gpu_temperature",
-			},
-			labels,
-		),
-		memoryTemperature: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Subsystem: subsystem,
-				Name:      "memory_temperature",
-			},
-			labels,
-		),
-		coreClock: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Subsystem: subsystem,
-				Name:      "gpu_clock",
-			},
-			labels,
-		),
-		memoryClock: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Subsystem: subsystem,
-				Name:      "memory_clock",
-			},
-			labels,
-		),
 	}
 }
 
 func (c *gpuCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- c.when.Desc()
-	c.gpuUtilization.Describe(ch)
-	c.memoryUtilization.Describe(ch)
-	c.memoryUsed.Describe(ch)
-	c.memoryTotal.Describe(ch)
-	c.powerUsage.Describe(ch)
-	c.powerLimit.Describe(ch)
-	c.fanSpeed.Describe(ch)
-	c.gpuTemperature.Describe(ch)
-	c.memoryTemperature.Describe(ch)
-	c.coreClock.Describe(ch)
-	c.memoryClock.Describe(ch)
+	c.ClockCore.Describe(ch)
+	c.ClockMemory.Describe(ch)
+	c.UtilizationGpu.Describe(ch)
+	c.UtilizationVram.Describe(ch)
+	c.TemperatureGpu.Describe(ch)
+	c.VramUsed.Describe(ch)
+	c.Vram.Describe(ch)
+	c.PowerDraw.Describe(ch)
+	c.PowerLimit.Describe(ch)
+	c.FanSpeed.Describe(ch)
 }
 
 func (c *gpuCollector) Collect(ch chan<- prometheus.Metric) {
 	c.Lock()
 	defer c.Unlock()
 
-	ch <- c.when
-	c.gpuUtilization.Collect(ch)
-	c.memoryUtilization.Collect(ch)
-	c.memoryUsed.Collect(ch)
-	c.memoryTotal.Collect(ch)
-	c.powerUsage.Collect(ch)
-	c.powerLimit.Collect(ch)
-	c.fanSpeed.Collect(ch)
-	c.gpuTemperature.Collect(ch)
-	c.memoryTemperature.Collect(ch)
-	c.coreClock.Collect(ch)
-	c.memoryClock.Collect(ch)
+	c.ClockCore.Collect(ch)
+	c.ClockMemory.Collect(ch)
+	c.UtilizationGpu.Collect(ch)
+	c.UtilizationVram.Collect(ch)
+	c.TemperatureGpu.Collect(ch)
+	c.VramUsed.Collect(ch)
+	c.Vram.Collect(ch)
+	c.PowerDraw.Collect(ch)
+	c.PowerLimit.Collect(ch)
+	c.FanSpeed.Collect(ch)
 }
 
 func NewGpuMetricsConsumer() gpu.MetricsConsumerFn {
 	collector := newGpuCollector()
 	prometheus.MustRegister(collector)
 
-	return func(metrics []gpu.Metrics) {
+	return func(metrics []restapi.Gpu) {
 		collector.Lock()
 		defer collector.Unlock()
 
-		// UtcWhen should all be the same
-		collector.when.Set(float64(metrics[0].UtcWhen))
-		for index, metric := range metrics {
-			collector.gpuUtilization.WithLabelValues(strconv.Itoa(index), metric.Name).Set(float64(metric.GpuUtilization))
-			collector.memoryUtilization.WithLabelValues(strconv.Itoa(index), metric.Name).Set(float64(metric.MemoryUtilization))
-			collector.memoryUsed.WithLabelValues(strconv.Itoa(index), metric.Name).Set(float64(metric.MemoryUsed))
-			collector.memoryTotal.WithLabelValues(strconv.Itoa(index), metric.Name).Set(float64(metric.MemoryTotal))
-			collector.powerUsage.WithLabelValues(strconv.Itoa(index), metric.Name).Set(float64(metric.PowerUsage))
-			collector.powerLimit.WithLabelValues(strconv.Itoa(index), metric.Name).Set(float64(metric.PowerLimit))
-			collector.fanSpeed.WithLabelValues(strconv.Itoa(index), metric.Name).Set(float64(metric.FanSpeed))
-			collector.gpuTemperature.WithLabelValues(strconv.Itoa(index), metric.Name).Set(float64(metric.TemperatureGpu))
-			collector.memoryTemperature.WithLabelValues(strconv.Itoa(index), metric.Name).Set(float64(metric.TemperatureMemory))
-			collector.coreClock.WithLabelValues(strconv.Itoa(index), metric.Name).Set(float64(metric.ClockCore))
-			collector.memoryClock.WithLabelValues(strconv.Itoa(index), metric.Name).Set(float64(metric.ClockMemory))
+		for index, gpu := range metrics {
+			collector.ClockCore.WithLabelValues(strconv.Itoa(index), gpu.Name).Set(float64(gpu.Metrics.ClockCore))
+			collector.ClockMemory.WithLabelValues(strconv.Itoa(index), gpu.Name).Set(float64(gpu.Metrics.ClockMemory))
+			collector.UtilizationGpu.WithLabelValues(strconv.Itoa(index), gpu.Name).Set(float64(gpu.Metrics.UtilizationGpu))
+			collector.UtilizationVram.WithLabelValues(strconv.Itoa(index), gpu.Name).Set(float64(gpu.Metrics.UtilizationVram))
+			collector.TemperatureGpu.WithLabelValues(strconv.Itoa(index), gpu.Name).Set(float64(gpu.Metrics.TemperatureGpu))
+			collector.VramUsed.WithLabelValues(strconv.Itoa(index), gpu.Name).Set(float64(gpu.Metrics.VramUsed))
+			collector.Vram.WithLabelValues(strconv.Itoa(index), gpu.Name).Set(float64(gpu.Vram))
+			collector.PowerDraw.WithLabelValues(strconv.Itoa(index), gpu.Name).Set(float64(gpu.Metrics.PowerDraw))
+			collector.PowerLimit.WithLabelValues(strconv.Itoa(index), gpu.Name).Set(float64(gpu.Metrics.PowerLimit))
+			collector.FanSpeed.WithLabelValues(strconv.Itoa(index), gpu.Name).Set(float64(gpu.Metrics.FanSpeed))
 		}
 	}
 }

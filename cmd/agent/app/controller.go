@@ -79,11 +79,9 @@ func (agent *Agent) ConnectToController() error {
 		}
 
 		id, err := pkgnet.PostWithBodyReturnString(agent.httpClient, getUrlString("/v1/register/agent"), restapi.Agent{
-			Server: restapi.Server{
-				Version:  build.Version,
-				Hostname: agent.Hostname,
-				Address:  agent.Server.Address(),
-			},
+			Hostname:    agent.Hostname,
+			Address:     agent.Server.Address(),
+			Version:     build.Version,
 			MaxSessions: agent.maxSessions,
 			Gpus:        agent.Gpus.GetGpus(),
 			Tags:        tags,
