@@ -56,13 +56,13 @@ type Configuration struct {
 }
 
 var (
-	address     = flag.String("host", "", "The IP address or hostname and port of the server to connect to")
-	test        = flag.Bool("test", false, "")
-	requestOnly = flag.Bool("request-only", false, "Requests a new session from the server")
+	address        = flag.String("host", "", "The IP address or hostname and port of the server to connect to")
+	testConnection = flag.Bool("test-connection", false, "Verifies juicify is able to reach the server at --address")
+	requestOnly    = flag.Bool("request-only", false, "Requests a new session from the server")
 
-	disableTls = flag.Bool("disable-tls", true, "")
+	disableTls = flag.Bool("disable-tls", true, "Always enabled currently. Disables https when connecting to --address")
 
-	juicePath = flag.String("juice-path", "", "")
+	juicePath = flag.String("juice-path", "", "Path to the juice executables if different than current executable path")
 
 	pcibus = []string{}
 )
@@ -71,23 +71,9 @@ func init() {
 	flag.Var(&utilities.CommaValue{Value: &pcibus}, "pcibus", "A comma-seperated list of PCI bus addresses as advertised by the server of the form <bus>:<device>.<function> e.g. 01:00.0")
 }
 
-func getUrlString(config Configuration, path string) string {
-	uri := url.URL{
-		Scheme: "https",
-		Host:   fmt.Sprintf("%s:%d", config.Host, config.Port),
-		Path:   path,
-	}
-
-	if *disableTls {
-		uri.Scheme = "http"
-	}
-
-	return uri.String()
-}
-
 func Run(ctx context.Context) error {
 	// Make sure we have an application to execute
-	if len(flag.Args()) == 0 && !*test && !*requestOnly {
+	if len(flag.Args()) == 0 && !*testConnection && !*requestOnly {
 		return errors.New("usage: juicify [options] [<application> <application args>]")
 	}
 
@@ -166,7 +152,7 @@ func Run(ctx context.Context) error {
 		api.Scheme = "http"
 	}
 
-	if *test {
+	if *testConnection {
 		status, err := api.StatusWithContext(ctx)
 		if err != nil {
 			return err

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/mux"
 
@@ -52,41 +53,48 @@ func (agent *Agent) getStatusEp(router *mux.Router) error {
 }
 
 func (agent *Agent) requestSessionEp(router *mux.Router) error {
-	router.Methods("POST").Path("/v1/request/session").HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			var selectedGpus gpu.SelectedGpuSet
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		var selectedGpus gpu.SelectedGpuSet
 
-			sessionRequirements, err := pkgnet.ReadRequestBody[restapi.SessionRequirements](r)
-			if err == nil {
-				// TODO: Verify version
+		sessionRequirements, err := pkgnet.ReadRequestBody[restapi.SessionRequirements](r)
+		if err == nil {
+			// TODO: Verify version
 
-				if agent.sessions.Len()+1 >= agent.maxSessions {
-					err = errors.New("unable to add another session")
-				}
-			} else {
-				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+			if agent.sessions.Len()+1 >= agent.maxSessions {
+				err = errors.New("unable to add another session")
 			}
+		} else {
+			err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+		}
 
-			if err != nil {
-				logger.Error(err)
-				selectedGpus.Release()
-				return
-			}
+		if err != nil {
+			logger.Error(err)
+			selectedGpus.Release()
+			return
+		}
 
-			createdSession, err := agent.startSession(sessionRequirements)
-			if err != nil {
-				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
-				logger.Error(err)
-				return
-			}
+		persistent := strings.ToLower(r.URL.Query().Get("persistent"))
+		if persistent == "yes" || persistent == "true" || persistent == "on" || persistent == "1" {
+			sessionRequirements.Persistent = true
+		}
 
-			err = pkgnet.RespondWithString(w, http.StatusOK, createdSession.Id)
-			if err != nil {
-				err = errors.Join(err, createdSession.Signal())
+		createdSession, err := agent.startSession(sessionRequirements)
+		if err != nil {
+			err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+			logger.Error(err)
+			return
+		}
 
-				logger.Error(err)
-			}
-		})
+		err = pkgnet.RespondWithString(w, http.StatusOK, createdSession.Id)
+		if err != nil {
+			err = errors.Join(err, createdSession.Signal())
+
+			logger.Error(err)
+		}
+	}
+
+	router.Methods("POST").Path("/v1/request/session").Queries("transient", "").HandlerFunc(handler)
+	router.Methods("POST").Path("/v1/request/session").HandlerFunc(handler)
 	return nil
 }
 
