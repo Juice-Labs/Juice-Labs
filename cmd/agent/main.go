@@ -11,7 +11,7 @@ import (
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/app"
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/playnite"
-	"github.com/Juice-Labs/Juice-Labs/internal/build"
+	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
 	"github.com/Juice-Labs/Juice-Labs/pkg/appmain"
 	"github.com/Juice-Labs/Juice-Labs/pkg/crypto"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
@@ -63,10 +63,12 @@ func main() {
 					agent.Cancel()
 				}
 
-				err = agent.Wait()
+				return errors.Join(err, agent.Wait())
 			}
+
+			return err
 		}
 
-		return err
+		return nil
 	})
 }

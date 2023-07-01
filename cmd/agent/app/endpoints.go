@@ -13,7 +13,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/prometheus"
-	"github.com/Juice-Labs/Juice-Labs/internal/build"
+	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	pkgnet "github.com/Juice-Labs/Juice-Labs/pkg/net"

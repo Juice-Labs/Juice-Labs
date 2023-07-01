@@ -14,7 +14,7 @@ import (
 
 	_ "github.com/lib/pq"
 
-	"github.com/Juice-Labs/Juice-Labs/internal/backend/storage"
+	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 )
 
@@ -224,7 +224,7 @@ type storageDriver struct {
 	db  *sql.DB
 }
 
-func NewStorage(ctx context.Context) (storage.Storage, error) {
+func OpenStorage(ctx context.Context) (storage.Storage, error) {
 	db, err := sql.Open("postgres", "user=postgres password='[&yx+c3i89}2<((KcZv4{8mGzNO<' dbname=juice host=controller-dev.cluster-coe6qeujst8t.us-east-2.rds.amazonaws.com sslmode=disable")
 	if err != nil {
 		return nil, err

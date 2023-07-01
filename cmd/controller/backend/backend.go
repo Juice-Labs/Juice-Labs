@@ -4,14 +4,13 @@
 package backend
 
 import (
-	"context"
 	"time"
 
-	"github.com/Juice-Labs/Juice-Labs/internal/backend/storage"
-	"github.com/Juice-Labs/Juice-Labs/internal/backend/storage/postgres"
+	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
+	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 	"github.com/Juice-Labs/Juice-Labs/pkg/utilities"
 )
 
@@ -29,10 +28,7 @@ type Session struct {
 	GpuSet        gpu.SelectedGpuSet
 }
 
-// This is essentially an in-memory database
 type Backend struct {
-	ctx context.Context
-
 	storage storage.Storage
 
 	lastUpdated time.Time
@@ -48,12 +44,7 @@ type Backend struct {
 	sessionsById map[string]*Session
 }
 
-func NewBackend(ctx context.Context) (*Backend, error) {
-	storage, err := postgres.NewStorage(ctx)
-	if err != nil {
-		return nil, err
-	}
-
+func NewBackend(storage storage.Storage) *Backend {
 	return &Backend{
 		storage: storage,
 
@@ -62,87 +53,31 @@ func NewBackend(ctx context.Context) (*Backend, error) {
 
 		agentsById:   map[string]*Agent{},
 		sessionsById: map[string]*Session{},
-	}, nil
+	}
 }
 
-func (backend *Backend) Close() error {
-	return backend.storage.Close()
-}
+func (backend *Backend) Run(group task.Group) error {
+	err := backend.Update()
+	if err == nil {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
 
-func (backend *Backend) GetActiveAgents() ([]restapi.Agent, error) {
-	agents, err := backend.storage.GetActiveAgents()
-	if err != nil {
-		return nil, err
+	UpdateLoop:
+		for {
+			select {
+			case <-group.Ctx().Done():
+				break UpdateLoop
+
+			case <-ticker.C:
+				err = backend.Update()
+				if err != nil {
+					break UpdateLoop
+				}
+			}
+		}
 	}
 
-	apiAgents := make([]restapi.Agent, len(agents))
-	for index, agent := range agents {
-		apiAgents[index] = agent.Agent
-	}
-
-	return apiAgents, nil
-}
-
-func (backend *Backend) RegisterAgent(agent restapi.Agent) (string, error) {
-	storageAgent := storage.Agent{
-		Agent:       agent,
-		LastUpdated: time.Now().UTC(),
-	}
-
-	id, err := backend.storage.AddAgent(storageAgent)
-	if err != nil {
-		return id, err
-	}
-
-	storageAgent.Id = id
-
-	return id, backend.storage.UpdateAgentsAndSessions([]storage.Agent{storageAgent}, nil)
-}
-
-func (backend *Backend) UpdateAgent(agent restapi.Agent) error {
-	now := time.Now().UTC()
-
-	storageAgents := []storage.Agent{
-		storage.Agent{
-			Agent:       agent,
-			LastUpdated: now,
-		},
-	}
-
-	storageSessions := []storage.Session{}
-	for _, session := range agent.Sessions {
-		storageSessions = append(storageSessions, storage.Session{
-			Session:     session,
-			AgentId:     agent.Id,
-			LastUpdated: now,
-		})
-	}
-
-	return backend.storage.UpdateAgentsAndSessions(storageAgents, storageSessions)
-}
-
-func (backend *Backend) RequestSession(sessionRequirements restapi.SessionRequirements) (restapi.Session, error) {
-	storageSession := storage.Session{
-		Session: restapi.Session{
-			Version: sessionRequirements.Version,
-		},
-		GpuRequirements: sessionRequirements.Gpus,
-		LastUpdated:     time.Now().UTC(),
-	}
-
-	id, err := backend.storage.AddSession(storageSession)
-	if err != nil {
-		return restapi.Session{}, err
-	}
-
-	storageSession.Id = id
-
-	return storageSession.Session, backend.storage.UpdateAgentsAndSessions(nil, []storage.Session{storageSession})
-}
-
-func (backend *Backend) GetSession(id string) (restapi.Session, error) {
-	session, err := backend.storage.GetSessionById(id)
-	return session.Session, err
+	return err
 }
 
 func (backend *Backend) Update() error {

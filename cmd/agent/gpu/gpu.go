@@ -15,7 +15,7 @@ func DetectGpus(rendererWinPath string) (pkggpu.GpuSet, error) {
 
 	cmd := exec.Command(rendererWinPath,
 		"--log_group", "Fatal",
-		"--dump_gpus")
+		"--dump_gpus", "0")
 	output, err := cmd.Output()
 	if err != nil {
 		return gpus, err

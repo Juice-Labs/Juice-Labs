@@ -1,7 +1,7 @@
 /*
  *  Copyright (c) 2023 Juice Technologies, Inc. All Rights Reserved.
  */
-package app
+package frontend
 
 import (
 	"errors"
@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/Juice-Labs/Juice-Labs/internal/build"
+	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	pkgnet "github.com/Juice-Labs/Juice-Labs/pkg/net"
 	"github.com/gorilla/mux"
@@ -57,10 +57,10 @@ type StatusFormer struct {
 	Hosts    []AgentData `json:"hosts"`
 }
 
-func (controller *Controller) getStatusFormer(router *mux.Router) error {
+func (frontend *Frontend) getStatusFormer(router *mux.Router) error {
 	router.Methods("GET").Path("/status").HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			agents, err := controller.backend.GetActiveAgents()
+			agents, err := frontend.GetActiveAgents()
 			if err == nil {
 				hosts := make([]AgentData, len(agents))
 				for index, agent := range agents {
@@ -118,7 +118,7 @@ func (controller *Controller) getStatusFormer(router *mux.Router) error {
 					err = pkgnet.Respond(w, http.StatusOK, StatusFormer{
 						Status:   "ok",
 						Version:  build.Version,
-						UptimeMs: controller.TimeSinceStart().Milliseconds(),
+						UptimeMs: frontend.TimeSinceStart().Milliseconds(),
 						Hosts:    hosts,
 					})
 				}
