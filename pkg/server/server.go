@@ -99,7 +99,7 @@ func (server *Server) Run(group task.Group) error {
 		TLSConfig: server.tlsConfig,
 	}
 
-	group.GoFn(func(group task.Group) error {
+	group.GoFn("HTTP Listen", func(group task.Group) error {
 		if server.tlsConfig != nil {
 			return httpServer.ListenAndServeTLS("", "")
 		} else {
@@ -107,7 +107,7 @@ func (server *Server) Run(group task.Group) error {
 		}
 	})
 
-	group.GoFn(func(group task.Group) error {
+	group.GoFn("HTTP Shutdown", func(group task.Group) error {
 		<-group.Ctx().Done()
 
 		return httpServer.Shutdown(group.Ctx())

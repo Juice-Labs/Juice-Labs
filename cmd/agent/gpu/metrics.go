@@ -45,7 +45,7 @@ func (provider *MetricsProvider) Run(group task.Group) error {
 	if !*disableGpuMetrics && len(provider.consumers) > 0 {
 		cmd := exec.CommandContext(group.Ctx(), provider.rendererWinPath,
 			"--log_group", "Fatal",
-			"--gpu_watcher", fmt.Sprint(*gpuMetricsInterval),
+			"--dump_gpus", fmt.Sprint(*gpuMetricsInterval),
 			"--pcibus", provider.gpus.GetPciBusString())
 
 		stdoutReader, err := cmd.StdoutPipe()

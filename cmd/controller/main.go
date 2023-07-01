@@ -48,7 +48,7 @@ func main() {
 
 		storage, err := openStorage(taskManager.Ctx())
 		if err == nil {
-			taskManager.GoFn(func(group task.Group) error {
+			taskManager.GoFn("Storage Close", func(group task.Group) error {
 				<-group.Ctx().Done()
 				return storage.Close()
 			})
@@ -77,14 +77,14 @@ func main() {
 			if err == nil {
 				frontend, err := frontend.NewFrontend(tlsConfig, storage)
 				if err == nil {
-					taskManager.Go(frontend)
+					taskManager.Go("Frontend", frontend)
 				}
 			}
 		}
 
 		if *enableBackend {
 			if err == nil {
-				taskManager.Go(backend.NewBackend(storage))
+				taskManager.Go("Backend", backend.NewBackend(storage))
 			}
 		}
 

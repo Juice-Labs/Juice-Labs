@@ -7,6 +7,8 @@ import (
 	"context"
 	"errors"
 	"sync"
+
+	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 )
 
 type TaskFn = func(Group) error
@@ -18,8 +20,8 @@ type Task interface {
 type Group interface {
 	Ctx() context.Context
 	Cancel()
-	Go(Task)
-	GoFn(TaskFn)
+	Go(string, Task)
+	GoFn(string, TaskFn)
 }
 
 type Waiter interface {
@@ -76,23 +78,28 @@ func (group *TaskManager) Wait() error {
 	return <-resultCh
 }
 
-func (group *TaskManager) Go(task Task) {
+func (group *TaskManager) Go(label string, task Task) {
 	group.waitGroup.Add(1)
 
-	go group.run(task.Run)
+	go group.run(label, task.Run)
 }
 
-func (group *TaskManager) GoFn(task TaskFn) {
+func (group *TaskManager) GoFn(label string, task TaskFn) {
 	group.waitGroup.Add(1)
 
-	go group.run(task)
+	go group.run(label, task)
 }
 
-func (group *TaskManager) run(task TaskFn) {
+func (group *TaskManager) run(label string, task TaskFn) {
+	logger.Debugf("Task %s starting", label)
+
 	err := task(group)
 	if err != nil {
+		logger.Debugf("Task %s failed with %s", label, err)
 		group.cancel()
 	}
+
+	logger.Debugf("Task %s finished", label)
 
 	group.errors <- err
 	group.waitGroup.Done()

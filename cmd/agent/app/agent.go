@@ -116,17 +116,17 @@ func (agent *Agent) Cancel() {
 	agent.taskManager.Cancel()
 }
 
-func (agent *Agent) Go(task task.Task) {
-	agent.taskManager.Go(task)
+func (agent *Agent) Go(label string, task task.Task) {
+	agent.taskManager.Go(label, task)
 }
 
-func (agent *Agent) GoFn(task task.TaskFn) {
-	agent.taskManager.GoFn(task)
+func (agent *Agent) GoFn(label string, task task.TaskFn) {
+	agent.taskManager.GoFn(label, task)
 }
 
 func (agent *Agent) Start() {
-	agent.Go(agent.GpuMetricsProvider)
-	agent.Go(agent.Server)
+	agent.Go("Agent GpuMetricsProvider", agent.GpuMetricsProvider)
+	agent.Go("Agent Server", agent.Server)
 }
 
 func (agent *Agent) Wait() error {
@@ -174,7 +174,7 @@ func (agent *Agent) registerSession(sessionToRegister restapi.Session) error {
 }
 
 func (agent *Agent) runSession(session *session.Session) (*session.Session, error) {
-	agent.GoFn(func(group task.Group) error {
+	agent.GoFn("Agent runSession", func(group task.Group) error {
 		err := session.Run(group)
 
 		agent.sessionsMutex.Lock()

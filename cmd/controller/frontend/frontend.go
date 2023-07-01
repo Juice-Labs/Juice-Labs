@@ -53,11 +53,11 @@ func NewFrontend(tlsConfig *tls.Config, storage storage.Storage) (*Frontend, err
 
 func (frontend *Frontend) TimeSinceStart() time.Duration {
 	// TODO: This needs to be done in the database in some way
-	return time.Now().Sub(frontend.startTime)
+	return time.Since(frontend.startTime)
 }
 
 func (frontend *Frontend) Run(group task.Group) error {
-	group.Go(frontend.server)
+	group.Go("Frontend Server", frontend.server)
 	return nil
 }
 

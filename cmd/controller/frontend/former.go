@@ -5,6 +5,7 @@ package frontend
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"strconv"
@@ -86,7 +87,7 @@ func (frontend *Frontend) getStatusFormer(router *mux.Router) error {
 							Vram:           gpu.Vram,
 							VramDynamic:    false,
 							DriverVersion:  gpu.Driver,
-							SubDeviceId:    strconv.FormatInt(int64(gpu.SubDeviceId), 16),
+							SubDeviceId:    fmt.Sprint("0x", strconv.FormatInt(int64(gpu.SubDeviceId), 16)),
 							Name:           gpu.Name,
 							PciBus:         gpu.PciBus,
 							MemoryTotal:    gpu.Vram,
