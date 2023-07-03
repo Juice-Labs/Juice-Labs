@@ -160,20 +160,13 @@ func (agent *Agent) startSession(sessionRequirements restapi.SessionRequirements
 		return nil, err
 	}
 
-	return agent.runSession(session.New(uuid.NewString(), agent.JuicePath, sessionRequirements.Version, selectedGpus))
-}
+	session := session.New(uuid.NewString(), agent.JuicePath, sessionRequirements.Version, selectedGpus)
 
-func (agent *Agent) registerSession(sessionToRegister restapi.Session) error {
-	selectedGpus, err := agent.Gpus.Select(sessionToRegister.Gpus)
+	err = session.Start(agent.taskManager.Ctx())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	_, err = agent.runSession(session.New(sessionToRegister.Id, agent.JuicePath, sessionToRegister.Version, selectedGpus))
-	return err
-}
-
-func (agent *Agent) runSession(session *session.Session) (*session.Session, error) {
 	agent.GoFn("Agent runSession", func(group task.Group) error {
 		err := session.Run(group)
 

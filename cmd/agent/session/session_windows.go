@@ -71,7 +71,7 @@ func (session *Session) forwardSocket(rawConn syscall.RawConn) error {
 		binary.Write(buffer, binary.LittleEndian, protocolInfo.ProtocolName[i])
 	}
 
-	_, err = session.cmdPipe.Write(buffer.Bytes())
+	_, err = session.toPipe.Write(buffer.Bytes())
 	if err != nil {
 		return err
 	}

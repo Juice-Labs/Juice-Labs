@@ -38,6 +38,6 @@ func (session *Session) forwardSocket(rawConn syscall.RawConn) error {
 		return err
 	}
 
-	_, err = unix.SendmsgN(int(session.cmdPipe.Fd()), nil, rights, nil, 0)
+	_, err = unix.SendmsgN(int(session.toPipe.Fd()), nil, rights, nil, 0)
 	return err
 }

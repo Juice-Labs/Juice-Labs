@@ -5,10 +5,8 @@ package app
 
 import (
 	"errors"
-	"fmt"
 	"net"
 	"net/http"
-	"strings"
 
 	"github.com/gorilla/mux"
 
@@ -53,81 +51,39 @@ func (agent *Agent) getStatusEp(router *mux.Router) error {
 }
 
 func (agent *Agent) requestSessionEp(router *mux.Router) error {
-	handler := func(w http.ResponseWriter, r *http.Request) {
-		var selectedGpus gpu.SelectedGpuSet
-
-		sessionRequirements, err := pkgnet.ReadRequestBody[restapi.SessionRequirements](r)
-		if err == nil {
-			// TODO: Verify version
-
-			if agent.sessions.Len()+1 >= agent.maxSessions {
-				err = errors.New("unable to add another session")
-			}
-		} else {
-			err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
-		}
-
-		if err != nil {
-			logger.Error(err)
-			selectedGpus.Release()
-			return
-		}
-
-		persistent := strings.ToLower(r.URL.Query().Get("persistent"))
-		if persistent == "yes" || persistent == "true" || persistent == "on" || persistent == "1" {
-			sessionRequirements.Persistent = true
-		}
-
-		createdSession, err := agent.startSession(sessionRequirements)
-		if err != nil {
-			err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
-			logger.Error(err)
-			return
-		}
-
-		err = pkgnet.RespondWithString(w, http.StatusOK, createdSession.Id)
-		if err != nil {
-			err = errors.Join(err, createdSession.Signal())
-
-			logger.Error(err)
-		}
-	}
-
-	router.Methods("POST").Path("/v1/request/session").Queries("transient", "").HandlerFunc(handler)
-	router.Methods("POST").Path("/v1/request/session").HandlerFunc(handler)
-	return nil
-}
-
-func (agent *Agent) registerSessionEp(router *mux.Router) error {
-	router.Methods("POST").Path("/v1/register/session").HandlerFunc(
+	router.Methods("POST").Path("/v1/request/session").HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			session, err := pkgnet.ReadRequestBody[restapi.Session](r)
+			var selectedGpus gpu.SelectedGpuSet
+
+			sessionRequirements, err := pkgnet.ReadRequestBody[restapi.SessionRequirements](r)
+			if err == nil {
+				// TODO: Verify version
+
+				if agent.sessions.Len()+1 >= agent.maxSessions {
+					err = errors.New("unable to add another session")
+				}
+			} else {
+				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+			}
+
+			if err != nil {
+				logger.Error(err)
+				selectedGpus.Release()
+				return
+			}
+
+			createdSession, err := agent.startSession(sessionRequirements)
 			if err != nil {
 				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 				logger.Error(err)
 				return
 			}
 
-			// TODO: verify it came from the controller
-
-			err = agent.registerSession(session)
+			err = pkgnet.RespondWithString(w, http.StatusOK, createdSession.Id)
 			if err != nil {
-				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
-				logger.Error(err)
-				return
-			}
+				err = errors.Join(err, createdSession.Signal())
 
-			pkgnet.RespondEmpty(w, http.StatusOK)
-
-			err = pkgnet.PostWithBodyNoResponse[restapi.Agent](agent.httpClient, getUrlString(fmt.Sprint("/v1/agent/", agent.Id)), restapi.Agent{
-				Id:       agent.Id,
-				State:    restapi.StateActive,
-				Gpus:     agent.Gpus.GetGpus(),
-				Sessions: agent.getSessions(),
-			})
-			if err != nil {
 				logger.Error(err)
-				return
 			}
 		})
 	return nil

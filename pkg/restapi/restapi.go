@@ -32,8 +32,8 @@ func (api RestApi) do(ctx context.Context, method string, path string, body io.R
 	return api.Client.Do(request)
 }
 
-func (api RestApi) get(ctx context.Context, path string, body io.Reader) (*http.Response, error) {
-	return api.do(ctx, "GET", path, body)
+func (api RestApi) get(ctx context.Context, path string) (*http.Response, error) {
+	return api.do(ctx, "GET", path, nil)
 }
 
 func (api RestApi) post(ctx context.Context, path string, body io.Reader) (*http.Response, error) {
@@ -49,7 +49,7 @@ func (api RestApi) Status() (Status, error) {
 }
 
 func (api RestApi) StatusWithContext(ctx context.Context) (Status, error) {
-	response, err := api.get(ctx, "/v1/status", nil)
+	response, err := api.get(ctx, "/v1/status")
 	if err != nil {
 		return Status{}, err
 	}
@@ -63,7 +63,7 @@ func (api RestApi) GetSession(id string) (Session, error) {
 }
 
 func (api RestApi) GetSessionWithContext(ctx context.Context, id string) (Session, error) {
-	response, err := api.get(ctx, fmt.Sprint("/v1/session", id), nil)
+	response, err := api.get(ctx, fmt.Sprint("/v1/session", id))
 	if err != nil {
 		return Session{}, err
 	}
@@ -83,25 +83,6 @@ func (api RestApi) UpdateSessionWithContext(ctx context.Context, session Session
 	}
 
 	response, err := api.put(ctx, fmt.Sprint("/v1/session", session.Id), body)
-	if err != nil {
-		return err
-	}
-	defer response.Body.Close()
-
-	return validateResponse(response)
-}
-
-func (api RestApi) RegisterSession(session Session) error {
-	return api.RegisterSessionWithContext(context.Background(), session)
-}
-
-func (api RestApi) RegisterSessionWithContext(ctx context.Context, session Session) error {
-	body, err := jsonReaderFromObject(session)
-	if err != nil {
-		return err
-	}
-
-	response, err := api.post(ctx, "/v1/register/session", body)
 	if err != nil {
 		return err
 	}
@@ -148,7 +129,7 @@ func (api RestApi) GetAgent(id string) (Agent, error) {
 }
 
 func (api RestApi) GetAgentWithContext(ctx context.Context, id string) (Agent, error) {
-	response, err := api.get(ctx, fmt.Sprint("/v1/agent", id), nil)
+	response, err := api.get(ctx, fmt.Sprint("/v1/agent", id))
 	if err != nil {
 		return Agent{}, err
 	}

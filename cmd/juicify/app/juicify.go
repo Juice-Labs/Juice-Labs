@@ -57,8 +57,8 @@ type Configuration struct {
 
 var (
 	address        = flag.String("host", "", "The IP address or hostname and port of the server to connect to")
+	test           = flag.Bool("test", false, "Deprecated: Use --test-connection instead")
 	testConnection = flag.Bool("test-connection", false, "Verifies juicify is able to reach the server at --address")
-	requestOnly    = flag.Bool("request-only", false, "Requests a new session from the server")
 
 	disableTls = flag.Bool("disable-tls", true, "Always enabled currently. Disables https when connecting to --address")
 
@@ -72,8 +72,12 @@ func init() {
 }
 
 func Run(ctx context.Context) error {
+	if *test {
+		*testConnection = true
+	}
+
 	// Make sure we have an application to execute
-	if len(flag.Args()) == 0 && !*testConnection && !*requestOnly {
+	if len(flag.Args()) == 0 && !*testConnection {
 		return errors.New("usage: juicify [options] [<application> <application args>]")
 	}
 
@@ -152,81 +156,50 @@ func Run(ctx context.Context) error {
 		api.Scheme = "http"
 	}
 
-	if *testConnection {
-		status, err := api.StatusWithContext(ctx)
+	if config.Id != "" {
+		session, err := api.GetSessionWithContext(ctx, config.Id)
 		if err != nil {
 			return err
 		}
 
-		logger.Infof("Connected to %s:%d, v%s", config.Host, config.Port, status.Version)
-		return nil
-	}
+		if session.State == restapi.StateQueued {
+			logger.Info("Session queued")
 
-	sessionRequirements := restapi.SessionRequirements{
-		Gpus: make([]restapi.GpuRequirements, 1),
-	}
+			ticker := time.NewTicker(5 * time.Second)
+			defer ticker.Stop()
 
-	if len(config.PCIBus) > 0 {
-		sessionRequirements.Gpus = nil
-		for _, pci := range config.PCIBus {
-			sessionRequirements.Gpus = append(sessionRequirements.Gpus, restapi.GpuRequirements{
-				PciBus: pci,
-			})
-		}
-	}
+			for session.State == restapi.StateQueued {
+				select {
+				case <-ctx.Done():
+					return nil
 
-	config.Id, err = api.RequestSessionWithContext(ctx, sessionRequirements)
-	if err != nil {
-		return err
-	}
-
-	session, err := api.GetSessionWithContext(ctx, config.Id)
-	if err != nil {
-		return err
-	}
-
-	if session.State == restapi.StateQueued {
-		logger.Info("Session queued")
-
-		ticker := time.NewTicker(5 * time.Second)
-		defer ticker.Stop()
-
-		for session.State == restapi.StateQueued {
-			select {
-			case <-ctx.Done():
-				return nil
-
-			case <-ticker.C:
-				session, err = api.GetSessionWithContext(ctx, config.Id)
-				if err != nil {
-					return err
+				case <-ticker.C:
+					session, err = api.GetSessionWithContext(ctx, config.Id)
+					if err != nil {
+						return err
+					}
 				}
 			}
 		}
-	}
 
-	if session.Address != "" {
-		uri := url.URL{
-			Host: session.Address,
-		}
-
-		config.Host = uri.Hostname()
-
-		portStr := uri.Port()
-		if portStr != "" {
-			portInt, err := strconv.Atoi(portStr)
-			if err != nil {
-				return err
+		if session.Address != "" {
+			uri := url.URL{
+				Host: session.Address,
 			}
 
-			config.Port = portInt
-		}
+			config.Host = uri.Hostname()
 
-		api.Address = fmt.Sprintf("%s:%d", config.Host, config.Port)
+			portStr := uri.Port()
+			if portStr != "" {
+				portInt, err := strconv.Atoi(portStr)
+				if err != nil {
+					return err
+				}
 
-		err = api.RegisterSessionWithContext(ctx, session)
-		if err != nil {
-			return err
+				config.Port = portInt
+			}
+
+			api.Address = fmt.Sprintf("%s:%d", config.Host, config.Port)
 		}
 	}
 
@@ -237,7 +210,7 @@ func Run(ctx context.Context) error {
 
 	logger.Infof("Connected to %s:%d, v%s", config.Host, config.Port, status.Version)
 
-	if *requestOnly {
+	if *testConnection {
 		return nil
 	}
 

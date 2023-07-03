@@ -91,9 +91,10 @@ func (agent *Agent) ConnectToController() error {
 			return err
 		}
 
-		agent.Server.AddCreateEndpoint(agent.registerSessionEp)
-
 		agent.Id = id
+
+		// When connected to the controller, the agent must not allow requests
+		agent.Server.SetCreateEndpoint(RequestSessionName, nil)
 	}
 
 	return nil

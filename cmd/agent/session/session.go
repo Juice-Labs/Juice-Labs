@@ -4,6 +4,7 @@
 package session
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -24,8 +25,9 @@ type Session struct {
 
 	juicePath string
 
-	cmd     *exec.Cmd
-	cmdPipe *os.File
+	cmd      *exec.Cmd
+	toPipe   *os.File
+	fromPipe *os.File
 
 	connections []net.Conn
 
@@ -45,22 +47,21 @@ func New(id string, juicePath string, version string, gpus gpu.SelectedGpuSet) *
 	}
 }
 
-func Register(session restapi.Session, juicePath string, gpus gpu.SelectedGpuSet) *Session {
+func Register(apisession restapi.Session, juicePath string, gpus gpu.SelectedGpuSet) *Session {
 	return &Session{
-		Session:   session,
+		Session:   apisession,
 		juicePath: juicePath,
 		gpus:      gpus,
 	}
 }
 
-func (session *Session) Run(group task.Group) error {
+func (session *Session) Start(ctx context.Context) error {
 	readPipe, writePipe, err := setupIpc()
 	if err == nil {
-		defer readPipe.Close()
-
-		logLevel, err := logger.LogLevelAsString()
-		if err == nil {
-			session.cmd = exec.CommandContext(group.Ctx(),
+		logLevel, err_ := logger.LogLevelAsString()
+		err = err_
+		if err_ == nil {
+			session.cmd = exec.CommandContext(ctx,
 				filepath.Join(session.juicePath, "Renderer_Win"),
 				"--id", session.Id,
 				"--log_group", logLevel,
@@ -70,20 +71,33 @@ func (session *Session) Run(group task.Group) error {
 
 			inheritFile(session.cmd, readPipe)
 
-			session.cmdPipe = writePipe
-
 			err = session.cmd.Start()
 			if err == nil {
-				err = session.cmd.Wait()
-
-				for _, conn := range session.connections {
-					err = errors.Join(err, conn.Close())
-				}
-
-				session.gpus.Release()
+				session.toPipe = writePipe
+				session.fromPipe = readPipe
 			}
 		}
+
+		if err != nil {
+			err = errors.Join(err, writePipe.Close())
+			err = errors.Join(err, readPipe.Close())
+		}
 	}
+
+	return err
+}
+
+func (session *Session) Run(group task.Group) error {
+	err := session.cmd.Wait()
+
+	for _, conn := range session.connections {
+		err = errors.Join(err, conn.Close())
+	}
+
+	err = errors.Join(err, session.toPipe.Close())
+	err = errors.Join(err, session.fromPipe.Close())
+
+	session.gpus.Release()
 
 	return err
 }
