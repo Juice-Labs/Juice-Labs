@@ -6,7 +6,6 @@ package playnite
 import (
 	"encoding/binary"
 	"encoding/json"
-	"fmt"
 	"net"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/app"
@@ -15,6 +14,31 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/utilities"
 )
+
+type GpuData struct {
+	Name              string `json:"name"`
+	GpuUtilization    int    `json:"gpuUtilization"`
+	MemoryUtilization int    `json:"memoryUtilization"`
+	MemoryTotal       int64  `json:"memoryTotal"`
+	MemoryUsed        int64  `json:"memoryUsed"`
+	PowerUsage        int    `json:"powerUsage"`
+	PowerLimit        int    `json:"powerLimit"`
+	FanSpeed          int    `json:"fanSpeed"`
+	TemperatureGpu    int    `json:"temperatureGpu"`
+	TemperatureMemory int    `json:"temperatureMemory"`
+	ClockCore         int    `json:"clockCore"`
+	ClockMemory       int    `json:"clockMemory"`
+}
+
+type GpuUpdate struct {
+	Hostname string    `json:"hostname"`
+	Port     int       `json:"port"`
+	Uuid     string    `json:"uuid"`
+	Action   string    `json:"action"`
+	Nonce    int       `json:"nonce"`
+	GpuCount int       `json:"gpu_count"`
+	Data     []GpuData `json:"data"`
+}
 
 func NewGpuMetricsConsumer(agent *app.Agent) (gpu.MetricsConsumerFn, error) {
 	port, err := agent.Server.Port()
@@ -64,17 +88,41 @@ func NewGpuMetricsConsumer(agent *app.Agent) (gpu.MetricsConsumerFn, error) {
 
 	nonce := 0
 	return func(metrics []restapi.Gpu) {
-		bytes, err := json.Marshal(metrics)
-		if err == nil {
-			data := fmt.Sprintf(`{"action":"UPDATE","uuid":"%s","port":%d,"nonce":%d,"hostname":"%s","data":%s}`, agent.Id, port, nonce, agent.Hostname, string(bytes))
+		gpuUpdate := GpuUpdate{
+			Hostname: agent.Hostname,
+			Port:     port,
+			Uuid:     agent.Id,
+			Action:   "UPDATE",
+			Nonce:    nonce,
+			GpuCount: len(agent.Gpus),
+			Data:     make([]GpuData, len(agent.Gpus)),
+		}
 
-			for _, addr := range broadcastAddresses {
-				udpConn.WriteTo([]byte(data), addr)
+		for index, gpu := range metrics {
+			gpuUpdate.Data[index] = GpuData{
+				Name:              gpu.Name,
+				GpuUtilization:    int(gpu.Metrics.UtilizationGpu),
+				MemoryUtilization: int(gpu.Metrics.UtilizationVram),
+				MemoryTotal:       int64(gpu.Vram),
+				MemoryUsed:        int64(gpu.Metrics.VramUsed),
+				PowerUsage:        int(float32(gpu.Metrics.PowerDraw) / 1000.0),
+				PowerLimit:        int(float32(gpu.Metrics.PowerLimit) / 1000.0),
+				FanSpeed:          int(gpu.Metrics.FanSpeed),
+				TemperatureGpu:    int(gpu.Metrics.TemperatureGpu),
+				ClockCore:         int(gpu.Metrics.ClockCore),
+				ClockMemory:       int(gpu.Metrics.ClockMemory),
 			}
+		}
 
-			nonce++
+		bytes, err := json.Marshal(gpuUpdate)
+		if err == nil {
+			for _, addr := range broadcastAddresses {
+				udpConn.WriteTo([]byte(bytes), addr)
+			}
 		} else {
 			logger.Warning(err)
 		}
+
+		nonce++
 	}, nil
 }
