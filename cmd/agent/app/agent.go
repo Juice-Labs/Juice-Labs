@@ -4,11 +4,9 @@
 package app
 
 import (
-	"context"
 	"crypto/tls"
 	"flag"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
@@ -17,14 +15,12 @@ import (
 	orderedmap "github.com/wk8/go-ordered-map/v2"
 
 	cmdgpu "github.com/Juice-Labs/Juice-Labs/cmd/agent/gpu"
-	"github.com/Juice-Labs/Juice-Labs/cmd/agent/prometheus"
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/session"
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/server"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
-	"github.com/Juice-Labs/Juice-Labs/pkg/utilities"
 )
 
 var (
@@ -51,12 +47,10 @@ type Agent struct {
 	sessionsMutex sync.Mutex
 	sessions      *orderedmap.OrderedMap[string, *session.Session]
 
-	taskManager *task.TaskManager
-
-	httpClient *http.Client
+	api restapi.Client
 }
 
-func NewAgent(ctx context.Context, tlsConfig *tls.Config) (*Agent, error) {
+func NewAgent(tlsConfig *tls.Config) (*Agent, error) {
 	if tlsConfig == nil {
 		logger.Warning("TLS is disabled, data will be unencrypted")
 	}
@@ -72,7 +66,6 @@ func NewAgent(ctx context.Context, tlsConfig *tls.Config) (*Agent, error) {
 		Server:      server,
 		maxSessions: *maxSessions,
 		sessions:    orderedmap.New[string, *session.Session](),
-		taskManager: task.NewTaskManager(ctx),
 	}
 
 	if agent.JuicePath == "" {
@@ -103,36 +96,17 @@ func NewAgent(ctx context.Context, tlsConfig *tls.Config) (*Agent, error) {
 		logger.Infof("  %d @ %s: %s %dMB", gpu.Index, gpu.PciBus, gpu.Name, gpu.Vram/(1024*1024))
 	}
 
-	agent.initializeEndpoints()
 	agent.GpuMetricsProvider = cmdgpu.NewMetricsProvider(agent.Gpus, rendererWinPath)
-	agent.GpuMetricsProvider.AddConsumer(prometheus.NewGpuMetricsConsumer())
+
+	agent.initializeEndpoints()
 
 	return agent, nil
 }
 
-func (agent *Agent) Ctx() context.Context {
-	return agent.taskManager.Ctx()
-}
-
-func (agent *Agent) Cancel() {
-	agent.taskManager.Cancel()
-}
-
-func (agent *Agent) Go(label string, task task.Task) {
-	agent.taskManager.Go(label, task)
-}
-
-func (agent *Agent) GoFn(label string, task task.TaskFn) {
-	agent.taskManager.GoFn(label, task)
-}
-
-func (agent *Agent) Start() {
-	agent.Go("Agent GpuMetricsProvider", agent.GpuMetricsProvider)
-	agent.Go("Agent Server", agent.Server)
-}
-
-func (agent *Agent) Wait() error {
-	return agent.taskManager.Wait()
+func (agent *Agent) Run(group task.Group) error {
+	group.Go("Agent GpuMetricsProvider", agent.GpuMetricsProvider)
+	group.Go("Agent Server", agent.Server)
+	return nil
 }
 
 func (agent *Agent) getSession(id string) (*session.Session, error) {
@@ -144,38 +118,25 @@ func (agent *Agent) getSession(id string) (*session.Session, error) {
 	return nil, fmt.Errorf("no session found with id %s", id)
 }
 
-func (agent *Agent) getSessions() []restapi.Session {
-	agent.sessionsMutex.Lock()
-	defer agent.sessionsMutex.Unlock()
-
-	sessions := make([]restapi.Session, 0)
-	for pair := agent.sessions.Oldest(); pair != nil; pair = pair.Next() {
-		sessions = append(sessions, utilities.Require[*session.Session](pair.Value).Session)
-	}
-
-	return sessions
-}
-
-func (agent *Agent) startSession(sessionRequirements restapi.SessionRequirements) (*session.Session, error) {
+func (agent *Agent) startSession(group task.Group, sessionRequirements restapi.SessionRequirements) (string, error) {
 	selectedGpus, err := agent.Gpus.Find(sessionRequirements.Gpus)
 	if err != nil {
-		return nil, err
+		return "", fmt.Errorf("Agent.startSession: unable to find a matching set of GPUs")
 	}
 
-	session := session.New(uuid.NewString(), agent.JuicePath, sessionRequirements.Version, selectedGpus)
+	id := uuid.NewString()
+	session := session.New(id, agent.JuicePath, sessionRequirements.Version, selectedGpus)
 
-	err = session.Start(agent.taskManager.Ctx())
-	if err != nil {
-		return nil, err
-	}
-
-	agent.GoFn("Agent runSession", func(group task.Group) error {
+	group.GoFn("Agent runSession", func(group task.Group) error {
 		err := session.Run(group)
 
 		agent.sessionsMutex.Lock()
 		defer agent.sessionsMutex.Unlock()
 
-		agent.sessions.Delete(session.Id)
+		agent.sessions.Delete(id)
+		logger.Debugf("Removing Session %s", id)
+
+		selectedGpus.Release()
 
 		return err
 	})
@@ -183,7 +144,8 @@ func (agent *Agent) startSession(sessionRequirements restapi.SessionRequirements
 	agent.sessionsMutex.Lock()
 	defer agent.sessionsMutex.Unlock()
 
-	agent.sessions.Set(session.Id, session)
+	agent.sessions.Set(id, session)
+	logger.Debugf("Starting Session %s", id)
 
-	return session, nil
+	return id, nil
 }

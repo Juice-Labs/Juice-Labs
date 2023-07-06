@@ -9,13 +9,14 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/Juice-Labs/Juice-Labs/pkg/server"
+	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
 
 func InitializeEndpoints(server *server.Server) {
 	server.AddCreateEndpoint(getMetrics)
 }
 
-func getMetrics(router *mux.Router) error {
+func getMetrics(group task.Group, router *mux.Router) error {
 	router.Methods("GET").Path("/v1/prometheus/metrics").Handler(
 		promhttp.Handler())
 

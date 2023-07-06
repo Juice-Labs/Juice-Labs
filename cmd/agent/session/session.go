@@ -4,14 +4,13 @@
 package session
 
 import (
-	"context"
 	"crypto/tls"
-	"errors"
 	"fmt"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
@@ -21,51 +20,69 @@ import (
 )
 
 type Session struct {
-	restapi.Session
+	sessionMutex sync.Mutex
+	session      restapi.Session
 
+	id        string
 	juicePath string
 
 	cmd      *exec.Cmd
 	toPipe   *os.File
 	fromPipe *os.File
 
-	connections []net.Conn
-
 	gpus *gpu.SelectedGpuSet
 }
 
 func New(id string, juicePath string, version string, gpus *gpu.SelectedGpuSet) *Session {
 	return &Session{
-		Session: restapi.Session{
+		session: restapi.Session{
 			Id:      id,
-			State:   restapi.StateActive,
+			State:   restapi.StateAssigned,
 			Version: version,
 			Gpus:    gpus.GetGpus(),
 		},
+		id:        id,
 		juicePath: juicePath,
 		gpus:      gpus,
 	}
 }
 
-func Register(apisession restapi.Session, juicePath string, gpus *gpu.SelectedGpuSet) *Session {
+func Register(apiSession restapi.Session, juicePath string, gpus *gpu.SelectedGpuSet) *Session {
 	return &Session{
-		Session:   apisession,
+		session:   apiSession,
+		id:        apiSession.Id,
 		juicePath: juicePath,
 		gpus:      gpus,
 	}
 }
 
-func (session *Session) Start(ctx context.Context) error {
+func (session *Session) Id() string {
+	return session.id
+}
+
+func (session *Session) Session() restapi.Session {
+	session.sessionMutex.Lock()
+	defer session.sessionMutex.Unlock()
+	return session.session
+}
+
+func (session *Session) Run(group task.Group) error {
 	readPipe, writePipe, err := setupIpc()
 	if err == nil {
+		defer writePipe.Close()
+		defer readPipe.Close()
+
 		logLevel, err_ := logger.LogLevelAsString()
 		err = err_
 		if err_ == nil {
-			session.cmd = exec.CommandContext(ctx,
+			session.toPipe = writePipe
+			session.fromPipe = readPipe
+
+			session.cmd = exec.CommandContext(group.Ctx(),
 				filepath.Join(session.juicePath, "Renderer_Win"),
-				"--id", session.Id,
+				"--id", session.id,
 				"--log_group", logLevel,
-				"--log_file", filepath.Join(session.juicePath, "logs", fmt.Sprint(session.Id, ".log")),
+				"--log_file", filepath.Join(session.juicePath, "logs", fmt.Sprint(session.id, ".log")),
 				"--go_ipc", fmt.Sprint(readPipe.Fd()),
 				"--pcibus", session.gpus.GetPciBusString())
 
@@ -73,31 +90,18 @@ func (session *Session) Start(ctx context.Context) error {
 
 			err = session.cmd.Start()
 			if err == nil {
-				session.toPipe = writePipe
-				session.fromPipe = readPipe
+				session.sessionMutex.Lock()
+				session.session.State = restapi.StateActive
+				session.sessionMutex.Unlock()
+
+				err = session.cmd.Wait()
 			}
 		}
-
-		if err != nil {
-			err = errors.Join(err, writePipe.Close())
-			err = errors.Join(err, readPipe.Close())
-		}
 	}
 
-	return err
-}
-
-func (session *Session) Run(group task.Group) error {
-	err := session.cmd.Wait()
-
-	for _, conn := range session.connections {
-		err = errors.Join(err, conn.Close())
+	if err != nil {
+		err = fmt.Errorf("Session: failed to start Renderer_Win with %s", err)
 	}
-
-	err = errors.Join(err, session.toPipe.Close())
-	err = errors.Join(err, session.fromPipe.Close())
-
-	session.gpus.Release()
 
 	return err
 }
@@ -116,12 +120,10 @@ func (session *Session) Connect(c net.Conn) error {
 	}
 
 	if err == nil {
-		rawConn, err := tcpConn.SyscallConn()
+		rawConn, err_ := tcpConn.SyscallConn()
+		err = err_
 		if err == nil {
 			err = session.forwardSocket(rawConn)
-			if err == nil {
-				session.connections = append(session.connections, c)
-			}
 		}
 	}
 

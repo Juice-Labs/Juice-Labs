@@ -19,7 +19,7 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
 
-type CreateEndpointFn = func(router *mux.Router) error
+type CreateEndpointFn = func(group task.Group, router *mux.Router) error
 
 type Server struct {
 	url  url.URL
@@ -76,13 +76,13 @@ func (server *Server) Run(group task.Group) error {
 	var err error
 	for _, createEndpoint := range server.createEndpoints {
 		if createEndpoint != nil {
-			err = errors.Join(err, createEndpoint(router))
+			err = errors.Join(err, createEndpoint(group, router))
 		}
 	}
 
 	for _, createEndpoint := range server.immutableCreateEndpoints {
 		if createEndpoint != nil {
-			err = errors.Join(err, createEndpoint(router))
+			err = errors.Join(err, createEndpoint(group, router))
 		}
 	}
 

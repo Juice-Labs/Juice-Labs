@@ -4,17 +4,18 @@
 package main
 
 import (
-	"context"
 	"crypto/tls"
 	"errors"
 	"flag"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/app"
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/playnite"
+	"github.com/Juice-Labs/Juice-Labs/cmd/agent/prometheus"
 	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
 	"github.com/Juice-Labs/Juice-Labs/pkg/appmain"
 	"github.com/Juice-Labs/Juice-Labs/pkg/crypto"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
+	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
 
 var (
@@ -25,7 +26,7 @@ var (
 )
 
 func main() {
-	appmain.Run("Juice Agent", build.Version, func(ctx context.Context) error {
+	appmain.Run("Juice Agent", build.Version, func(group task.Group) error {
 		var tlsConfig *tls.Config
 
 		var err error
@@ -47,23 +48,23 @@ func main() {
 		}
 
 		if err == nil {
-			agent, err := app.NewAgent(ctx, tlsConfig)
+			agent, err := app.NewAgent(tlsConfig)
 			if err == nil {
-				consumer, err := playnite.NewGpuMetricsConsumer(agent)
+				consumer, err_ := playnite.NewGpuMetricsConsumer(agent)
+				err = err_
 				if err != nil {
 					logger.Warning(err)
 				}
 
 				agent.GpuMetricsProvider.AddConsumer(consumer)
+				agent.GpuMetricsProvider.AddConsumer(prometheus.NewGpuMetricsConsumer())
 
-				err = agent.ConnectToController()
+				err = agent.ConnectToController(group)
 				if err == nil {
-					agent.Start()
+					group.Go("Agent", agent)
 				} else {
-					agent.Cancel()
+					group.Cancel()
 				}
-
-				return errors.Join(err, agent.Wait())
 			}
 
 			return err

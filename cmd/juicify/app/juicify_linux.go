@@ -42,12 +42,12 @@ func createCommand(args []string) *exec.Cmd {
 	return exec.Command(args[0], args[1:]...)
 }
 
-func updateCommand(cmd *exec.Cmd, config Configuration) error {
+func runCommand(group task.Group, cmd *exec.Cmd, config Configuration) error {
 	// LD_PRELOAD Juice and setup appropriate Vulkan loader quirks
 
 	juiceLibraryPath := filepath.Join(*juicePath, "libjuicejuda.so")
 
 	cmd.Env = append(os.Environ(), fmt.Sprintf("LD_PRELOAD=%s", juiceLibraryPath))
 
-	return nil
+	return cmd.Run()
 }

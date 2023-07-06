@@ -4,7 +4,6 @@
 package app
 
 import (
-	"context"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
@@ -20,6 +19,7 @@ import (
 
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
+	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 	"github.com/Juice-Labs/Juice-Labs/pkg/utilities"
 )
 
@@ -71,7 +71,7 @@ func init() {
 	flag.Var(&utilities.CommaValue{Value: &pcibus}, "pcibus", "A comma-seperated list of PCI bus addresses as advertised by the server of the form <bus>:<device>.<function> e.g. 01:00.0")
 }
 
-func Run(ctx context.Context) error {
+func Run(group task.Group) error {
 	if *test {
 		*testConnection = true
 	}
@@ -157,7 +157,7 @@ func Run(ctx context.Context) error {
 	}
 
 	if config.Id != "" {
-		session, err := api.GetSessionWithContext(ctx, config.Id)
+		session, err := api.GetSessionWithContext(group.Ctx(), config.Id)
 		if err != nil {
 			return err
 		}
@@ -170,11 +170,11 @@ func Run(ctx context.Context) error {
 
 			for session.State == restapi.StateQueued {
 				select {
-				case <-ctx.Done():
+				case <-group.Ctx().Done():
 					return nil
 
 				case <-ticker.C:
-					session, err = api.GetSessionWithContext(ctx, config.Id)
+					session, err = api.GetSessionWithContext(group.Ctx(), config.Id)
 					if err != nil {
 						return err
 					}
@@ -203,7 +203,7 @@ func Run(ctx context.Context) error {
 		}
 	}
 
-	status, err := api.StatusWithContext(ctx)
+	status, err := api.StatusWithContext(group.Ctx())
 	if err != nil {
 		return err
 	}
@@ -233,10 +233,5 @@ func Run(ctx context.Context) error {
 		fmt.Sprintf("JUICE_CFG_OVERRIDE=%s", string(configOverride)),
 	)
 
-	err = updateCommand(cmd, config)
-	if err == nil {
-		err = cmd.Run()
-	}
-
-	return err
+	return runCommand(group, cmd, config)
 }

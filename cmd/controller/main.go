@@ -41,14 +41,12 @@ func openStorage(ctx context.Context) (storage.Storage, error) {
 }
 
 func main() {
-	appmain.Run("Juice Controller", build.Version, func(ctx context.Context) error {
+	appmain.Run("Juice Controller", build.Version, func(group task.Group) error {
 		var err error
 
-		taskManager := task.NewTaskManager(ctx)
-
-		storage, err := openStorage(taskManager.Ctx())
+		storage, err := openStorage(group.Ctx())
 		if err == nil {
-			taskManager.GoFn("Storage Close", func(group task.Group) error {
+			group.GoFn("Storage Close", func(group task.Group) error {
 				<-group.Ctx().Done()
 				return storage.Close()
 			})
@@ -77,21 +75,21 @@ func main() {
 			if err == nil {
 				frontend, err := frontend.NewFrontend(tlsConfig, storage)
 				if err == nil {
-					taskManager.Go("Frontend", frontend)
+					group.Go("Frontend", frontend)
 				}
 			}
 		}
 
 		if *enableBackend {
 			if err == nil {
-				taskManager.Go("Backend", backend.NewBackend(storage))
+				group.Go("Backend", backend.NewBackend(storage))
 			}
 		}
 
 		if err != nil {
-			taskManager.Cancel()
+			group.Cancel()
 		}
 
-		return errors.Join(err, taskManager.Wait())
+		return err
 	})
 }

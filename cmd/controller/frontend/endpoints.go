@@ -15,6 +15,7 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	pkgnet "github.com/Juice-Labs/Juice-Labs/pkg/net"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
+	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
 
 func (frontend *Frontend) initializeEndpoints() {
@@ -26,7 +27,7 @@ func (frontend *Frontend) initializeEndpoints() {
 	frontend.server.AddCreateEndpoint(frontend.getSession)
 }
 
-func (frontend *Frontend) getStatus(router *mux.Router) error {
+func (frontend *Frontend) getStatus(group task.Group, router *mux.Router) error {
 	router.Methods("GET").Path("/v1/status").HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			err := pkgnet.Respond(w, http.StatusOK, restapi.Status{
@@ -44,7 +45,7 @@ func (frontend *Frontend) getStatus(router *mux.Router) error {
 	return nil
 }
 
-func (frontend *Frontend) registerAgent(router *mux.Router) error {
+func (frontend *Frontend) registerAgent(group task.Group, router *mux.Router) error {
 	router.Methods("POST").Path("/v1/register/agent").HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			agent, err := pkgnet.ReadRequestBody[restapi.Agent](r)
@@ -86,7 +87,7 @@ func (frontend *Frontend) registerAgent(router *mux.Router) error {
 	return nil
 }
 
-func (frontend *Frontend) updateAgent(router *mux.Router) error {
+func (frontend *Frontend) updateAgent(group task.Group, router *mux.Router) error {
 	router.Methods("POST").Path("/v1/agent/{id}").HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			agent, err := pkgnet.ReadRequestBody[restapi.Agent](r)
@@ -108,7 +109,7 @@ func (frontend *Frontend) updateAgent(router *mux.Router) error {
 	return nil
 }
 
-func (frontend *Frontend) requestSession(router *mux.Router) error {
+func (frontend *Frontend) requestSession(group task.Group, router *mux.Router) error {
 	router.Methods("POST").Path("/v1/request/session").HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			sessionRequirements, err := pkgnet.ReadRequestBody[restapi.SessionRequirements](r)
@@ -133,7 +134,7 @@ func (frontend *Frontend) requestSession(router *mux.Router) error {
 	return nil
 }
 
-func (frontend *Frontend) getSession(router *mux.Router) error {
+func (frontend *Frontend) getSession(group task.Group, router *mux.Router) error {
 	router.Methods("GET").Path("/v1/session/{id}").HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			id := mux.Vars(r)["id"]

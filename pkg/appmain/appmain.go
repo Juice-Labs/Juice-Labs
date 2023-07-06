@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
+	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
 
 const (
@@ -23,9 +24,7 @@ var (
 	printVersion = flag.Bool("version", false, "Prints the version and exits")
 )
 
-type AppLogic = func(ctx context.Context) error
-
-func Run(name string, version string, logic AppLogic) {
+func Run(name string, version string, logic task.TaskFn) {
 	flag.Parse()
 
 	if *printVersion {
@@ -38,7 +37,10 @@ func Run(name string, version string, logic AppLogic) {
 		logger.Info(name, ", v", version)
 
 		ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		err = logic(ctx)
+
+		taskManager := task.NewTaskManager(ctx)
+		taskManager.GoFn("AppMain", logic)
+		err = taskManager.Wait()
 	}
 
 	if err != nil {

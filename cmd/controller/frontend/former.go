@@ -13,6 +13,7 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	pkgnet "github.com/Juice-Labs/Juice-Labs/pkg/net"
+	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 	"github.com/gorilla/mux"
 )
 
@@ -58,7 +59,7 @@ type StatusFormer struct {
 	Hosts    []AgentData `json:"hosts"`
 }
 
-func (frontend *Frontend) getStatusFormer(router *mux.Router) error {
+func (frontend *Frontend) getStatusFormer(group task.Group, router *mux.Router) error {
 	router.Methods("GET").Path("/status").HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			agents, err := frontend.GetActiveAgents()

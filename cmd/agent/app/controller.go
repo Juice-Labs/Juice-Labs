@@ -9,12 +9,11 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
-	pkgnet "github.com/Juice-Labs/Juice-Labs/pkg/net"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
+	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
 
 var (
@@ -24,26 +23,11 @@ var (
 	controllerTaints     = flag.String("controller-taints", "", "Comma separated list of key=value pairs")
 )
 
-func getUrlString(path string) string {
-	uri := url.URL{
-		Scheme: "https",
-		Host:   *controllerAddress,
-		Path:   path,
-	}
-
-	if *disableControllerTls {
-		uri.Scheme = "http"
-	}
-
-	return uri.String()
-}
-
-func (agent *Agent) ConnectToController() error {
+func (agent *Agent) ConnectToController(group task.Group) error {
 	if *controllerAddress != "" {
-		var err error
-
 		tags := map[string]string{}
 		if *controllerTags != "" {
+			var err error
 			for _, tag := range strings.Split(*controllerTags, ",") {
 				keyValue := strings.Split(tag, "=")
 				if len(keyValue) != 2 {
@@ -52,10 +36,15 @@ func (agent *Agent) ConnectToController() error {
 					tags[strings.TrimSpace(keyValue[0])] = strings.TrimSpace(keyValue[1])
 				}
 			}
+
+			if err != nil {
+				return fmt.Errorf("Agent.ConnectToController: failed to parse --controller-tags with %s", err)
+			}
 		}
 
 		taints := map[string]string{}
 		if *controllerTaints != "" {
+			var err error
 			for _, taint := range strings.Split(*controllerTaints, ",") {
 				keyValue := strings.Split(taint, "=")
 				if len(keyValue) != 2 {
@@ -64,21 +53,25 @@ func (agent *Agent) ConnectToController() error {
 					taints[strings.TrimSpace(keyValue[0])] = strings.TrimSpace(keyValue[1])
 				}
 			}
+
+			if err != nil {
+				return fmt.Errorf("Agent.ConnectToController: failed to parse --controller-taints with %s", err)
+			}
 		}
 
-		if err != nil {
-			return err
-		}
-
-		agent.httpClient = &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: *disableControllerTls,
+		agent.api = restapi.Client{
+			Client: &http.Client{
+				Transport: &http.Transport{
+					TLSClientConfig: &tls.Config{
+						InsecureSkipVerify: *disableControllerTls,
+					},
 				},
 			},
+			Scheme:  "https",
+			Address: *controllerAddress,
 		}
 
-		id, err := pkgnet.PostWithBodyReturnString(agent.httpClient, getUrlString("/v1/register/agent"), restapi.Agent{
+		id, err := agent.api.RegisterAgentWithContext(group.Ctx(), restapi.Agent{
 			Hostname:    agent.Hostname,
 			Address:     agent.Server.Address(),
 			Version:     build.Version,
@@ -88,7 +81,7 @@ func (agent *Agent) ConnectToController() error {
 			Taints:      taints,
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("Agent.ConnectToController: failed to register with Controller at %s", *controllerAddress)
 		}
 
 		agent.Id = id
