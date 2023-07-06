@@ -146,7 +146,7 @@ func Run(ctx context.Context) error {
 		},
 	}
 
-	api := restapi.RestApi{
+	api := restapi.Client{
 		Client:  client,
 		Scheme:  "https",
 		Address: fmt.Sprintf("%s:%d", config.Host, config.Port),

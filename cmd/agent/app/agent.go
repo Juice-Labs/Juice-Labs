@@ -61,10 +61,15 @@ func NewAgent(ctx context.Context, tlsConfig *tls.Config) (*Agent, error) {
 		logger.Warning("TLS is disabled, data will be unencrypted")
 	}
 
+	server, err := server.NewServer(*address, tlsConfig)
+	if err != nil {
+		return nil, err
+	}
+
 	agent := &Agent{
 		Id:          uuid.NewString(),
 		JuicePath:   *juicePath,
-		Server:      server.NewServer(*address, tlsConfig),
+		Server:      server,
 		maxSessions: *maxSessions,
 		sessions:    orderedmap.New[string, *session.Session](),
 		taskManager: task.NewTaskManager(ctx),

@@ -11,13 +11,13 @@ import (
 	"net/url"
 )
 
-type RestApi struct {
+type Client struct {
 	Client  *http.Client
 	Scheme  string
 	Address string
 }
 
-func (api RestApi) do(ctx context.Context, method string, path string, body io.Reader) (*http.Response, error) {
+func (api Client) do(ctx context.Context, method string, path string, body io.Reader) (*http.Response, error) {
 	url := url.URL{
 		Scheme: api.Scheme,
 		Host:   api.Address,
@@ -32,23 +32,23 @@ func (api RestApi) do(ctx context.Context, method string, path string, body io.R
 	return api.Client.Do(request)
 }
 
-func (api RestApi) get(ctx context.Context, path string) (*http.Response, error) {
+func (api Client) get(ctx context.Context, path string) (*http.Response, error) {
 	return api.do(ctx, "GET", path, nil)
 }
 
-func (api RestApi) post(ctx context.Context, path string, body io.Reader) (*http.Response, error) {
+func (api Client) post(ctx context.Context, path string, body io.Reader) (*http.Response, error) {
 	return api.do(ctx, "POST", path, body)
 }
 
-func (api RestApi) put(ctx context.Context, path string, body io.Reader) (*http.Response, error) {
+func (api Client) put(ctx context.Context, path string, body io.Reader) (*http.Response, error) {
 	return api.do(ctx, "PUT", path, body)
 }
 
-func (api RestApi) Status() (Status, error) {
+func (api Client) Status() (Status, error) {
 	return api.StatusWithContext(context.Background())
 }
 
-func (api RestApi) StatusWithContext(ctx context.Context) (Status, error) {
+func (api Client) StatusWithContext(ctx context.Context) (Status, error) {
 	response, err := api.get(ctx, "/v1/status")
 	if err != nil {
 		return Status{}, err
@@ -58,11 +58,11 @@ func (api RestApi) StatusWithContext(ctx context.Context) (Status, error) {
 	return parseJsonResponse[Status](response)
 }
 
-func (api RestApi) GetSession(id string) (Session, error) {
+func (api Client) GetSession(id string) (Session, error) {
 	return api.GetSessionWithContext(context.Background(), id)
 }
 
-func (api RestApi) GetSessionWithContext(ctx context.Context, id string) (Session, error) {
+func (api Client) GetSessionWithContext(ctx context.Context, id string) (Session, error) {
 	response, err := api.get(ctx, fmt.Sprint("/v1/session", id))
 	if err != nil {
 		return Session{}, err
@@ -72,11 +72,11 @@ func (api RestApi) GetSessionWithContext(ctx context.Context, id string) (Sessio
 	return parseJsonResponse[Session](response)
 }
 
-func (api RestApi) UpdateSession(session Session) error {
+func (api Client) UpdateSession(session Session) error {
 	return api.UpdateSessionWithContext(context.Background(), session)
 }
 
-func (api RestApi) UpdateSessionWithContext(ctx context.Context, session Session) error {
+func (api Client) UpdateSessionWithContext(ctx context.Context, session Session) error {
 	body, err := jsonReaderFromObject(session)
 	if err != nil {
 		return err
@@ -91,11 +91,11 @@ func (api RestApi) UpdateSessionWithContext(ctx context.Context, session Session
 	return validateResponse(response)
 }
 
-func (api RestApi) RequestSession(requirements SessionRequirements) (string, error) {
+func (api Client) RequestSession(requirements SessionRequirements) (string, error) {
 	return api.RequestSessionWithContext(context.Background(), requirements)
 }
 
-func (api RestApi) RequestSessionWithContext(ctx context.Context, requirements SessionRequirements) (string, error) {
+func (api Client) RequestSessionWithContext(ctx context.Context, requirements SessionRequirements) (string, error) {
 	body, err := jsonReaderFromObject(requirements)
 	if err != nil {
 		return "", err
@@ -110,11 +110,11 @@ func (api RestApi) RequestSessionWithContext(ctx context.Context, requirements S
 	return parseStringResponse(response)
 }
 
-func (api RestApi) ReleaseSession(id string) error {
+func (api Client) ReleaseSession(id string) error {
 	return api.ReleaseSessionWithContext(context.Background(), id)
 }
 
-func (api RestApi) ReleaseSessionWithContext(ctx context.Context, id string) error {
+func (api Client) ReleaseSessionWithContext(ctx context.Context, id string) error {
 	response, err := api.post(ctx, fmt.Sprint("/v1/release/session/", id), nil)
 	if err != nil {
 		return err
@@ -124,11 +124,11 @@ func (api RestApi) ReleaseSessionWithContext(ctx context.Context, id string) err
 	return validateResponse(response)
 }
 
-func (api RestApi) GetAgent(id string) (Agent, error) {
+func (api Client) GetAgent(id string) (Agent, error) {
 	return api.GetAgentWithContext(context.Background(), id)
 }
 
-func (api RestApi) GetAgentWithContext(ctx context.Context, id string) (Agent, error) {
+func (api Client) GetAgentWithContext(ctx context.Context, id string) (Agent, error) {
 	response, err := api.get(ctx, fmt.Sprint("/v1/agent", id))
 	if err != nil {
 		return Agent{}, err
@@ -138,11 +138,11 @@ func (api RestApi) GetAgentWithContext(ctx context.Context, id string) (Agent, e
 	return parseJsonResponse[Agent](response)
 }
 
-func (api RestApi) UpdateAgent(agent Agent) error {
+func (api Client) UpdateAgent(agent Agent) error {
 	return api.UpdateAgentWithContext(context.Background(), agent)
 }
 
-func (api RestApi) UpdateAgentWithContext(ctx context.Context, agent Agent) error {
+func (api Client) UpdateAgentWithContext(ctx context.Context, agent Agent) error {
 	body, err := jsonReaderFromObject(agent)
 	if err != nil {
 		return err
@@ -157,11 +157,11 @@ func (api RestApi) UpdateAgentWithContext(ctx context.Context, agent Agent) erro
 	return validateResponse(response)
 }
 
-func (api RestApi) RegisterAgent(agent Agent) (string, error) {
+func (api Client) RegisterAgent(agent Agent) (string, error) {
 	return api.RegisterAgentWithContext(context.Background(), agent)
 }
 
-func (api RestApi) RegisterAgentWithContext(ctx context.Context, agent Agent) (string, error) {
+func (api Client) RegisterAgentWithContext(ctx context.Context, agent Agent) (string, error) {
 	body, err := jsonReaderFromObject(agent)
 	if err != nil {
 		return "", err

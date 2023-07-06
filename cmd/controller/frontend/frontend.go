@@ -39,10 +39,15 @@ func NewFrontend(tlsConfig *tls.Config, storage storage.Storage) (*Frontend, err
 		return nil, err
 	}
 
+	server, err := server.NewServer(*address, tlsConfig)
+	if err != nil {
+		return nil, err
+	}
+
 	frontend := &Frontend{
 		startTime: time.Now(),
 		hostname:  hostname,
-		server:    server.NewServer(*address, tlsConfig),
+		server:    server,
 		storage:   storage,
 	}
 

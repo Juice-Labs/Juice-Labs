@@ -41,11 +41,6 @@ type GpuUpdate struct {
 }
 
 func NewGpuMetricsConsumer(agent *app.Agent) (gpu.MetricsConsumerFn, error) {
-	port, err := agent.Server.Port()
-	if err != nil {
-		return nil, err
-	}
-
 	netInterfaces, err := net.Interfaces()
 	if err != nil {
 		return nil, err
@@ -90,7 +85,7 @@ func NewGpuMetricsConsumer(agent *app.Agent) (gpu.MetricsConsumerFn, error) {
 	return func(metrics []restapi.Gpu) {
 		gpuUpdate := GpuUpdate{
 			Hostname: agent.Hostname,
-			Port:     port,
+			Port:     agent.Server.Port(),
 			Uuid:     agent.Id,
 			Action:   "UPDATE",
 			Nonce:    nonce,

@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -18,42 +19,47 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
 
-var (
-	ErrMissingPort            = errors.New("server: missing address port")
-	ErrEndpointCreationFailed = errors.New("server: endpoint creation failed")
-)
-
 type CreateEndpointFn = func(router *mux.Router) error
 
 type Server struct {
-	url       url.URL
+	url  url.URL
+	port int
+
 	tlsConfig *tls.Config
 
 	createEndpoints          map[string]CreateEndpointFn
 	immutableCreateEndpoints []CreateEndpointFn
 }
 
-func NewServer(address string, tlsConfig *tls.Config) *Server {
+func NewServer(address string, tlsConfig *tls.Config) (*Server, error) {
+	url := url.URL{
+		Host: address,
+	}
+
+	portStr := url.Port()
+	if portStr == "" {
+		return nil, errors.New("NewServer: missing address port")
+	}
+
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return nil, fmt.Errorf("NewServer: address does not contain a valid port")
+	}
+
 	return &Server{
-		url: url.URL{
-			Host: address,
-		},
+		url:             url,
+		port:            port,
 		tlsConfig:       tlsConfig,
 		createEndpoints: map[string]CreateEndpointFn{},
-	}
+	}, nil
 }
 
 func (server *Server) Address() string {
 	return server.url.Host
 }
 
-func (server *Server) Port() (int, error) {
-	portStr := server.url.Port()
-	if portStr == "" {
-		return 0, ErrMissingPort
-	}
-
-	return strconv.Atoi(portStr)
+func (server *Server) Port() int {
+	return server.port
 }
 
 func (server *Server) AddCreateEndpoint(fn CreateEndpointFn) {
@@ -81,7 +87,7 @@ func (server *Server) Run(group task.Group) error {
 	}
 
 	if err != nil {
-		return errors.Join(err, ErrEndpointCreationFailed)
+		return fmt.Errorf("Server.Run: endpoint creation failed with %s", err)
 	}
 
 	loggerRouter := mux.NewRouter().StrictSlash(true)
