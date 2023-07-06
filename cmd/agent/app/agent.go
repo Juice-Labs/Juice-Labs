@@ -6,7 +6,6 @@ package app
 import (
 	"context"
 	"crypto/tls"
-	"errors"
 	"flag"
 	"fmt"
 	"net/http"
@@ -41,7 +40,7 @@ type Agent struct {
 	Hostname  string
 	JuicePath string
 
-	Gpus gpu.GpuSet
+	Gpus *gpu.GpuSet
 
 	Server *server.Server
 
@@ -92,12 +91,10 @@ func NewAgent(ctx context.Context, tlsConfig *tls.Config) (*Agent, error) {
 	agent.Gpus, err = cmdgpu.DetectGpus(rendererWinPath)
 	if err != nil {
 		return nil, err
-	} else if len(agent.Gpus) == 0 {
-		return nil, errors.New("no supported gpus detected")
 	}
 
 	logger.Info("GPUs")
-	for _, gpu := range agent.Gpus {
+	for _, gpu := range agent.Gpus.GetGpus() {
 		logger.Infof("  %d @ %s: %s %dMB", gpu.Index, gpu.PciBus, gpu.Name, gpu.Vram/(1024*1024))
 	}
 

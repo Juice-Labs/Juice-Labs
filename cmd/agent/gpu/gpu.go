@@ -7,23 +7,21 @@ import (
 	"fmt"
 	"os/exec"
 
-	pkggpu "github.com/Juice-Labs/Juice-Labs/pkg/gpu"
+	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 )
 
-func DetectGpus(rendererWinPath string) (pkggpu.GpuSet, error) {
-	var gpus pkggpu.GpuSet
-
+func DetectGpus(rendererWinPath string) (*gpu.GpuSet, error) {
 	cmd := exec.Command(rendererWinPath,
 		"--log_group", "Fatal",
 		"--dump_gpus", "0")
 	output, err := cmd.Output()
 	if err != nil {
-		return gpus, err
+		return nil, fmt.Errorf("DetectGpus: Renderer_Win failed with %s", err)
 	}
 
 	if cmd.ProcessState.ExitCode() == 0 {
-		return pkggpu.UnmarshalGpuSet(output)
+		return gpu.NewGpuSetFromJson(output)
 	}
 
-	return gpus, fmt.Errorf("process Renderer_Win exited with %d", cmd.ProcessState.ExitCode())
+	return nil, fmt.Errorf("DetectGpus: Renderer_Win exited with %d", cmd.ProcessState.ExitCode())
 }

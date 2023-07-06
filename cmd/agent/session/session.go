@@ -31,10 +31,10 @@ type Session struct {
 
 	connections []net.Conn
 
-	gpus gpu.SelectedGpuSet
+	gpus *gpu.SelectedGpuSet
 }
 
-func New(id string, juicePath string, version string, gpus gpu.SelectedGpuSet) *Session {
+func New(id string, juicePath string, version string, gpus *gpu.SelectedGpuSet) *Session {
 	return &Session{
 		Session: restapi.Session{
 			Id:      id,
@@ -47,7 +47,7 @@ func New(id string, juicePath string, version string, gpus gpu.SelectedGpuSet) *
 	}
 }
 
-func Register(apisession restapi.Session, juicePath string, gpus gpu.SelectedGpuSet) *Session {
+func Register(apisession restapi.Session, juicePath string, gpus *gpu.SelectedGpuSet) *Session {
 	return &Session{
 		Session:   apisession,
 		juicePath: juicePath,

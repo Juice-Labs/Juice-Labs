@@ -122,10 +122,6 @@ func appendArrayQuotedBytes(b, v []byte) []byte {
 	return append(b, '"')
 }
 
-type gpuValuer struct {
-	Data *[]restapi.Gpu
-}
-
 func gpuValuerAppend(b []byte, gpu restapi.Gpu) []byte {
 	b1 := make([]byte, 0, 64)
 
@@ -142,6 +138,10 @@ func gpuValuerAppend(b []byte, gpu restapi.Gpu) []byte {
 	return appendArrayQuotedBytes(b, b1)
 }
 
+type gpuValuer struct {
+	Data *[]restapi.Gpu
+}
+
 func (valuer gpuValuer) Value() (driver.Value, error) {
 	if n := len(*valuer.Data); n > 0 {
 		b := make([]byte, 1, 64)
@@ -151,6 +151,27 @@ func (valuer gpuValuer) Value() (driver.Value, error) {
 		for i := 1; i < n; i++ {
 			b = append(b, ',')
 			b = gpuValuerAppend(b, (*valuer.Data)[i])
+		}
+
+		return string(append(b, '}')), nil
+	}
+
+	return "{}", nil
+}
+
+type sessionGpuValuer struct {
+	Data *[]restapi.SessionGpu
+}
+
+func (valuer sessionGpuValuer) Value() (driver.Value, error) {
+	if n := len(*valuer.Data); n > 0 {
+		b := make([]byte, 1, 64)
+		b[0] = '{'
+
+		b = gpuValuerAppend(b, (*valuer.Data)[0].Gpu)
+		for i := 1; i < n; i++ {
+			b = append(b, ',')
+			b = gpuValuerAppend(b, (*valuer.Data)[i].Gpu)
 		}
 
 		return string(append(b, '}')), nil
@@ -295,7 +316,7 @@ func (driver *storageDriver) AddSession(session storage.Session) (string, error)
 
 		err = driver.db.QueryRowContext(driver.ctx, InsertIntoSessionsTable,
 			agentId, session.State, session.Address, session.Version,
-			gpuValuer{Data: &session.Gpus}, session.LastUpdated, jsonb).Scan(&id)
+			sessionGpuValuer{Data: &session.Gpus}, session.LastUpdated, jsonb).Scan(&id)
 	}
 
 	return id, err
@@ -364,7 +385,7 @@ func (driver *storageDriver) UpdateAgentsAndSessions(agents []storage.Agent, ses
 
 			_, err = driver.db.ExecContext(driver.ctx, UpdateSession,
 				agentId, session.State, session.Address,
-				gpuValuer{Data: &session.Gpus}, session.LastUpdated,
+				sessionGpuValuer{Data: &session.Gpus}, session.LastUpdated,
 				jsonb, session.Id)
 			if err != nil {
 				return err

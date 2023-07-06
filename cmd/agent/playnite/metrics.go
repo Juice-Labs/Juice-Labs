@@ -94,8 +94,8 @@ func NewGpuMetricsConsumer(agent *app.Agent) (gpu.MetricsConsumerFn, error) {
 			Uuid:     agent.Id,
 			Action:   "UPDATE",
 			Nonce:    nonce,
-			GpuCount: len(agent.Gpus),
-			Data:     make([]GpuData, len(agent.Gpus)),
+			GpuCount: agent.Gpus.Count(),
+			Data:     make([]GpuData, agent.Gpus.Count()),
 		}
 
 		for index, gpu := range metrics {

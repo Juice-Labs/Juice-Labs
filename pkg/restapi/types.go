@@ -44,11 +44,11 @@ type Gpu struct {
 }
 
 type GpuRequirements struct {
-	VramRequired uint64 `json:"vramRequired,omitempty"`
-	PciBus       string `json:"pciBus,omitempty"`
+	VramRequired uint64 `json:"vramRequired"`
+	PciBus       string `json:"pciBus"`
 
-	Tags      map[string]string `json:"tags,omitempty"`
-	Tolerates map[string]string `json:"taints,omitempty"`
+	Tags      map[string]string `json:"tags"`
+	Tolerates map[string]string `json:"taints"`
 }
 
 type SessionRequirements struct {
@@ -57,8 +57,8 @@ type SessionRequirements struct {
 
 	Gpus []GpuRequirements `json:"gpus"`
 
-	Tags      map[string]string `json:"tags,omitempty"`
-	Tolerates map[string]string `json:"taints,omitempty"`
+	Tags      map[string]string `json:"tags"`
+	Tolerates map[string]string `json:"taints"`
 }
 
 type Status struct {
@@ -68,14 +68,20 @@ type Status struct {
 	Address  string `json:"address"`
 }
 
+type SessionGpu struct {
+	Gpu
+
+	VramRequired uint64 `json:"vramRequired"`
+}
+
 type Session struct {
 	Id         string `json:"id"`
 	State      int    `json:"state"`
-	Address    string `json:"address,omitempty"`
-	Version    string `json:"version,omitempty"`
+	Address    string `json:"address"`
+	Version    string `json:"version"`
 	Persistent bool   `json:"persistent"`
 
-	Gpus []Gpu `json:"gpus,omitempty"`
+	Gpus []SessionGpu `json:"gpus"`
 }
 
 type Agent struct {
@@ -88,8 +94,8 @@ type Agent struct {
 	MaxSessions int   `json:"maxSessions"`
 	Gpus        []Gpu `json:"gpus"`
 
-	Tags   map[string]string `json:"tags,omitempty"`
-	Taints map[string]string `json:"taints,omitempty"`
+	Tags   map[string]string `json:"tags"`
+	Taints map[string]string `json:"taints"`
 
-	Sessions []Session `json:"sessions,omitempty"`
+	Sessions []Session `json:"sessions"`
 }

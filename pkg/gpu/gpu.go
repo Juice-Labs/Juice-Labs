@@ -8,110 +8,147 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 )
 
 type Gpu struct {
 	restapi.Gpu
 
-	availableVram uint64
+	vramAvailable uint64
+}
+
+type GpuSet struct {
+	gpus []*Gpu
 }
 
 type SelectedGpu struct {
 	gpu *Gpu
 
-	requiredVram uint64
+	vramRequired uint64
 }
 
-type GpuSet []*Gpu
-type SelectedGpuSet []SelectedGpu
+type SelectedGpuSet struct {
+	gpus []SelectedGpu
 
-func NewGpuSet(gpus []restapi.Gpu) GpuSet {
-	gpuSet := GpuSet{}
-	for _, gpu := range gpus {
-		gpuSet = append(gpuSet, &Gpu{
+	released bool
+}
+
+func NewGpuSet(apiGpus []restapi.Gpu) *GpuSet {
+	gpus := make([]*Gpu, 0)
+	for _, gpu := range apiGpus {
+		gpus = append(gpus, &Gpu{
 			Gpu:           gpu,
-			availableVram: gpu.Vram,
+			vramAvailable: gpu.Vram,
 		})
 	}
 
-	return gpuSet
+	return &GpuSet{
+		gpus: gpus,
+	}
 }
 
-func UnmarshalGpuSet(data []byte) (GpuSet, error) {
-	var gpus GpuSet
-	err := json.Unmarshal(data, &gpus)
+func NewGpuSetFromJson(data []byte) (*GpuSet, error) {
+	var apiGpus []restapi.Gpu
+	err := json.Unmarshal(data, &apiGpus)
 	if err != nil {
-		return gpus, err
+		return nil, fmt.Errorf("NewGpuSetFromJson: invalid json, %s", string(data))
 	}
 
-	for index, gpu := range gpus {
-		gpus[index].availableVram = gpu.Gpu.Vram
+	if len(apiGpus) == 0 {
+		return nil, errors.New("NewGpuSetFromJson: json does not specify any GPUs")
 	}
 
-	return gpus, nil
+	gpus := make([]*Gpu, 0)
+	for _, apiGpu := range apiGpus {
+		gpus = append(gpus, &Gpu{
+			Gpu:           apiGpu,
+			vramAvailable: apiGpu.Vram,
+		})
+	}
+
+	return &GpuSet{
+		gpus: gpus,
+	}, nil
 }
 
-func (gpus GpuSet) GetGpus() []restapi.Gpu {
-	publicGpus := make([]restapi.Gpu, len(gpus))
-	for index, gpu := range gpus {
+func (gpuSet *GpuSet) Count() int {
+	return len(gpuSet.gpus)
+}
+
+func (gpuSet *SelectedGpuSet) Count() int {
+	return len(gpuSet.gpus)
+}
+
+func (gpuSet *GpuSet) GetGpus() []restapi.Gpu {
+	publicGpus := make([]restapi.Gpu, len(gpuSet.gpus))
+	for index, gpu := range gpuSet.gpus {
 		publicGpus[index] = gpu.Gpu
 	}
 
 	return publicGpus
 }
 
-func (gpus SelectedGpuSet) GetGpus() []restapi.Gpu {
-	publicGpus := make([]restapi.Gpu, len(gpus))
-	for index, gpu := range gpus {
-		publicGpus[index] = gpu.gpu.Gpu
+func (gpuSet *SelectedGpuSet) GetGpus() []restapi.SessionGpu {
+	publicGpus := make([]restapi.SessionGpu, len(gpuSet.gpus))
+	for index, gpu := range gpuSet.gpus {
+		publicGpus[index] = restapi.SessionGpu{
+			Gpu:          gpu.gpu.Gpu,
+			VramRequired: gpu.vramRequired,
+		}
 	}
 
 	return publicGpus
 }
 
-func (gpus GpuSet) GetPciBusString() string {
+func (gpuSet *GpuSet) GetPciBusString() string {
 	pciBus := ""
 
-	if len(gpus) > 0 {
-		pciBus = gpus[0].PciBus
+	if len(gpuSet.gpus) > 0 {
+		pciBus = gpuSet.gpus[0].PciBus
 
-		for i := 1; i < len(gpus); i++ {
-			pciBus = fmt.Sprint(pciBus, ",", gpus[i].PciBus)
+		for i := 1; i < len(gpuSet.gpus); i++ {
+			pciBus = fmt.Sprint(pciBus, ",", gpuSet.gpus[i].PciBus)
 		}
 	}
 
 	return pciBus
 }
 
-func (gpus SelectedGpuSet) GetPciBusString() string {
+func (gpuSet *SelectedGpuSet) GetPciBusString() string {
 	pciBus := ""
 
-	if len(gpus) > 0 {
-		pciBus = gpus[0].gpu.PciBus
+	if len(gpuSet.gpus) > 0 {
+		pciBus = gpuSet.gpus[0].gpu.PciBus
 
-		for i := 1; i < len(gpus); i++ {
-			pciBus = fmt.Sprint(pciBus, ",", gpus[i].gpu.PciBus)
+		for i := 1; i < len(gpuSet.gpus); i++ {
+			pciBus = fmt.Sprint(pciBus, ",", gpuSet.gpus[i].gpu.PciBus)
 		}
 	}
 
 	return pciBus
 }
 
-func (gpus GpuSet) Find(requirements []restapi.GpuRequirements) (SelectedGpuSet, error) {
+func (gpuSet *GpuSet) Find(requirements []restapi.GpuRequirements) (*SelectedGpuSet, error) {
 	if len(requirements) == 0 {
-		return SelectedGpuSet{}, errors.New("must specify at least one GPU requirement")
+		logger.Panic("GpuSet.Find: expected at least one GPU requirement")
 	}
+
+	// Currently, this algorithm will choose the first GPU that matches both VRAM and the PCIBus, if specified.
+	// This algorithm does not allow GPUs to be reused though there is no reason why the GPUs could not be reused,
+	// though not preferrable if other GPUs are available.
+
+	// TODO: Better matching algorithm. Reuse of the same GPU can be done but should be the last option
 
 	availableGpus := map[int]*Gpu{}
-	for index, gpu := range gpus {
+	for index, gpu := range gpuSet.gpus {
 		availableGpus[index] = gpu
 	}
 
-	var selectedGpus SelectedGpuSet
+	selectedGpus := make([]SelectedGpu, 0)
 	for _, requirement := range requirements {
 		for index, potentialGpu := range availableGpus {
-			if requirement.VramRequired != 0 && potentialGpu.availableVram < requirement.VramRequired {
+			if requirement.VramRequired != 0 && potentialGpu.vramAvailable < requirement.VramRequired {
 				continue
 			}
 
@@ -121,7 +158,7 @@ func (gpus GpuSet) Find(requirements []restapi.GpuRequirements) (SelectedGpuSet,
 
 			selectedGpus = append(selectedGpus, SelectedGpu{
 				gpu:          potentialGpu,
-				requiredVram: requirement.VramRequired,
+				vramRequired: requirement.VramRequired,
 			})
 
 			delete(availableGpus, index)
@@ -129,63 +166,52 @@ func (gpus GpuSet) Find(requirements []restapi.GpuRequirements) (SelectedGpuSet,
 	}
 
 	if len(selectedGpus) != len(requirements) {
-		return SelectedGpuSet{}, errors.New("unable to find a matching set of GPUs")
+		return nil, errors.New("unable to find a matching set of GPUs")
 	}
 
 	for _, gpu := range selectedGpus {
-		gpu.gpu.availableVram -= gpu.requiredVram
+		gpu.gpu.vramAvailable -= gpu.vramRequired
 	}
 
-	return selectedGpus, nil
+	return &SelectedGpuSet{
+		gpus:     selectedGpus,
+		released: false,
+	}, nil
 }
 
-func (gpus GpuSet) Select(chosenGpus []restapi.Gpu) (SelectedGpuSet, error) {
+func (gpuSet *GpuSet) Select(chosenGpus []restapi.SessionGpu) (*SelectedGpuSet, error) {
 	if len(chosenGpus) == 0 {
-		return SelectedGpuSet{}, errors.New("must specify at least one chosen GPU")
+		logger.Panic("GpuSet.Select: expected at least one chosen GPU")
 	}
 
-	availableGpus := map[int]*Gpu{}
-	for index, gpu := range gpus {
-		availableGpus[index] = gpu
-	}
-
-	var selectedGpus SelectedGpuSet
+	selectedGpus := make([]SelectedGpu, 0)
 	for _, chosenGpu := range chosenGpus {
-		availableGpu, available := availableGpus[chosenGpu.Index]
-		if !available {
-			return nil, fmt.Errorf("chosen GPU is not available")
-		}
-
-		if chosenGpu.Name != availableGpu.Name {
-			return nil, fmt.Errorf("chosen GPU is does not have the correct Name")
-		}
-
-		if chosenGpu.Vram != availableGpu.Vram {
-			return nil, fmt.Errorf("chosen GPU is does not have the correct Vram")
-		}
-
-		if chosenGpu.PciBus != availableGpu.PciBus {
-			return nil, fmt.Errorf("chosen GPU is does not have the correct Vram")
+		gpu := gpuSet.gpus[chosenGpu.Index]
+		if chosenGpu.Gpu != gpu.Gpu {
+			logger.Panic("GpuSet.Select: chosen GPU does not match")
 		}
 
 		selectedGpus = append(selectedGpus, SelectedGpu{
-			gpu:          availableGpu,
-			requiredVram: 0,
+			gpu:          gpu,
+			vramRequired: chosenGpu.VramRequired,
 		})
-
-		delete(availableGpus, chosenGpu.Index)
+		gpu.vramAvailable -= chosenGpu.VramRequired
 	}
 
-	for _, gpu := range selectedGpus {
-		gpu.gpu.availableVram -= gpu.requiredVram
-	}
-
-	return selectedGpus, nil
+	return &SelectedGpuSet{
+		gpus:     selectedGpus,
+		released: false,
+	}, nil
 }
 
-func (gpus SelectedGpuSet) Release() {
-	for _, gpu := range gpus {
-		gpu.gpu.availableVram += gpu.requiredVram
-		gpu.requiredVram = 0
+func (gpuSet *SelectedGpuSet) Release() {
+	if gpuSet.released {
+		logger.Panic("SelectedGpuSet.Release: release called twice")
 	}
+
+	for _, gpu := range gpuSet.gpus {
+		gpu.gpu.vramAvailable += gpu.vramRequired
+	}
+
+	gpuSet.released = true
 }

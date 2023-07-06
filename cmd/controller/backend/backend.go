@@ -18,14 +18,14 @@ type Agent struct {
 	storage.Agent
 
 	ActiveSessions []*Session
-	GpuSet         gpu.GpuSet
+	GpuSet         *gpu.GpuSet
 }
 
 type Session struct {
 	storage.Session
 
 	AssignedAgent *Agent
-	GpuSet        gpu.SelectedGpuSet
+	GpuSet        *gpu.SelectedGpuSet
 }
 
 type Backend struct {

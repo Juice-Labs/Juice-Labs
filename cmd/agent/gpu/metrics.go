@@ -26,13 +26,13 @@ type MetricsConsumerFn = func([]restapi.Gpu)
 type MetricsProvider struct {
 	consumers []MetricsConsumerFn
 
-	gpus            gpu.GpuSet
+	pcibus          string
 	rendererWinPath string
 }
 
-func NewMetricsProvider(gpus gpu.GpuSet, rendererWinPath string) *MetricsProvider {
+func NewMetricsProvider(gpus *gpu.GpuSet, rendererWinPath string) *MetricsProvider {
 	return &MetricsProvider{
-		gpus:            gpus,
+		pcibus:          gpus.GetPciBusString(),
 		rendererWinPath: rendererWinPath,
 	}
 }
@@ -46,7 +46,7 @@ func (provider *MetricsProvider) Run(group task.Group) error {
 		cmd := exec.CommandContext(group.Ctx(), provider.rendererWinPath,
 			"--log_group", "Fatal",
 			"--dump_gpus", fmt.Sprint(*gpuMetricsInterval),
-			"--pcibus", provider.gpus.GetPciBusString())
+			"--pcibus", provider.pcibus)
 
 		stdoutReader, err := cmd.StdoutPipe()
 		if err != nil {
