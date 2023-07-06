@@ -25,7 +25,7 @@ const (
 
 var (
 	quiet       = flag.Bool("quiet", false, "Disables all logging output")
-	logLevelArg = flag.String("log-level", "info", "Sets the maximum level of output [Fatal, Error, Warning, Info (Default), Debug, Trace]")
+	logLevelArg = flag.String("log-level", "trace", "Sets the maximum level of output [Fatal, Error, Warning, Info (Default), Debug, Trace]")
 	logFile     = flag.String("log-file", "", "")
 
 	logLevel = LevelInfo
@@ -35,8 +35,8 @@ var (
 	errorLogger   = log.New(os.Stderr, "Error: ", log.LstdFlags|log.LUTC|log.Lmsgprefix)
 	warningLogger = log.New(os.Stderr, "Warning: ", log.LstdFlags|log.LUTC|log.Lmsgprefix)
 	infoLogger    = log.New(os.Stdout, "Info: ", log.LstdFlags|log.LUTC|log.Lmsgprefix)
-	debugLogger   = log.New(io.Discard, "Debug: ", log.LstdFlags|log.LUTC|log.Lmsgprefix)
-	traceLogger   = log.New(io.Discard, "Trace: ", log.LstdFlags|log.LUTC|log.Lmsgprefix)
+	debugLogger   = log.New(os.Stdout, "Debug: ", log.LstdFlags|log.LUTC|log.Lmsgprefix)
+	traceLogger   = log.New(os.Stdout, "Trace: ", log.LstdFlags|log.LUTC|log.Lmsgprefix)
 )
 
 func LogLevelAsString() (string, error) {
@@ -101,25 +101,25 @@ func Configure() error {
 	errorLogger = log.New(out, "Error: ", log.LstdFlags|log.LUTC|log.Lmsgprefix)
 
 	out = stderr
-	if logLevel < LevelError {
+	if logLevel < LevelWarning {
 		out = io.Discard
 	}
 	warningLogger = log.New(out, "Warning: ", log.LstdFlags|log.LUTC|log.Lmsgprefix)
 
 	out = stdout
-	if logLevel < LevelError {
+	if logLevel < LevelInfo {
 		out = io.Discard
 	}
 	infoLogger = log.New(out, "Info: ", log.LstdFlags|log.LUTC|log.Lmsgprefix)
 
 	out = stdout
-	if logLevel < LevelError {
+	if logLevel < LevelDebug {
 		out = io.Discard
 	}
 	debugLogger = log.New(out, "Debug: ", log.LstdFlags|log.LUTC|log.Lmsgprefix)
 
 	out = stdout
-	if logLevel < LevelError {
+	if logLevel < LevelTrace {
 		out = io.Discard
 	}
 	traceLogger = log.New(out, "Trace: ", log.LstdFlags|log.LUTC|log.Lmsgprefix)
