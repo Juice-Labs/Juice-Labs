@@ -5,6 +5,7 @@ package session
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -26,9 +27,11 @@ type Session struct {
 	id        string
 	juicePath string
 
-	cmd      *exec.Cmd
-	toPipe   *os.File
-	fromPipe *os.File
+	cmd       *exec.Cmd
+	readPipe  *os.File
+	writePipe *os.File
+
+	connections []net.Conn
 
 	gpus *gpu.SelectedGpuSet
 }
@@ -66,35 +69,56 @@ func (session *Session) Session() restapi.Session {
 	return session.session
 }
 
+func (session *Session) Close() error {
+	var err error
+	for _, connection := range session.connections {
+		err = errors.Join(err, connection.Close())
+	}
+
+	return err
+}
+
 func (session *Session) Run(group task.Group) error {
-	readPipe, writePipe, err := setupIpc()
+	ch1Read, ch1Write, err := setupIpc()
 	if err == nil {
-		defer writePipe.Close()
-		defer readPipe.Close()
+		defer ch1Read.Close()
+		defer ch1Write.Close()
 
-		logLevel, err_ := logger.LogLevelAsString()
+		ch2Read, ch2Write, err_ := setupIpc()
 		err = err_
-		if err_ == nil {
-			session.toPipe = writePipe
-			session.fromPipe = readPipe
+		if err == nil {
+			defer ch2Read.Close()
+			defer ch2Write.Close()
 
-			session.cmd = exec.CommandContext(group.Ctx(),
-				filepath.Join(session.juicePath, "Renderer_Win"),
-				"--id", session.id,
-				"--log_group", logLevel,
-				"--log_file", filepath.Join(session.juicePath, "logs", fmt.Sprint(session.id, ".log")),
-				"--go_ipc", fmt.Sprint(readPipe.Fd()),
-				"--pcibus", session.gpus.GetPciBusString())
+			logLevel, err_ := logger.LogLevelAsString()
+			err = err_
+			if err_ == nil {
+				session.readPipe = ch1Read
+				session.writePipe = ch2Write
 
-			inheritFile(session.cmd, readPipe)
+				session.cmd = exec.CommandContext(group.Ctx(),
+					filepath.Join(session.juicePath, "Renderer_Win"),
+					"--id", session.id,
+					"--log_group", logLevel,
+					"--log_file", filepath.Join(session.juicePath, "logs", fmt.Sprint(session.id, ".log")),
+					"--ipc_write", fmt.Sprint(ch1Write.Fd()),
+					"--ipc_read", fmt.Sprint(ch2Read.Fd()),
+					"--pcibus", session.gpus.GetPciBusString())
 
-			err = session.cmd.Start()
-			if err == nil {
-				session.sessionMutex.Lock()
-				session.session.State = restapi.StateActive
-				session.sessionMutex.Unlock()
+				inheritFiles(session.cmd, ch1Write, ch2Read)
 
-				err = session.cmd.Wait()
+				err = session.cmd.Start()
+				if err == nil {
+					session.sessionMutex.Lock()
+					session.session.State = restapi.StateActive
+					session.sessionMutex.Unlock()
+
+					err = session.cmd.Wait()
+				}
+
+				session.readPipe = nil
+				session.writePipe = nil
+				session.cmd = nil
 			}
 		}
 	}
@@ -111,6 +135,8 @@ func (session *Session) Signal() error {
 }
 
 func (session *Session) Connect(c net.Conn) error {
+	defer c.Close()
+
 	tcpConn := &net.TCPConn{}
 	tlsConn, err := utilities.Cast[*tls.Conn](c)
 	if err == nil {
@@ -124,7 +150,23 @@ func (session *Session) Connect(c net.Conn) error {
 		err = err_
 		if err == nil {
 			err = session.forwardSocket(rawConn)
+			if err == nil {
+				// Wait for the server to indicate it has created the socket
+				data := make([]byte, 1)
+				_, err = session.readPipe.Read(data)
+
+				// Close our socket handle
+				err = errors.Join(err, c.Close())
+
+				// And finally, inform the server that our side is closed
+				_, err_ := session.writePipe.Write(data)
+				err = errors.Join(err, err_)
+			}
 		}
+	}
+
+	if err != nil {
+		err = errors.Join(err, session.Signal())
 	}
 
 	return err

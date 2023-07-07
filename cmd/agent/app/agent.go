@@ -5,6 +5,7 @@ package app
 
 import (
 	"crypto/tls"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -131,21 +132,23 @@ func (agent *Agent) startSession(group task.Group, sessionRequirements restapi.S
 		err := session.Run(group)
 
 		agent.sessionsMutex.Lock()
-		defer agent.sessionsMutex.Unlock()
-
 		agent.sessions.Delete(id)
-		logger.Debugf("Removing Session %s", id)
+		agent.sessionsMutex.Unlock()
+
+		logger.Tracef("Removing Session %s", id)
+
+		err = errors.Join(err, session.Close())
 
 		selectedGpus.Release()
 
 		return err
 	})
 
-	agent.sessionsMutex.Lock()
-	defer agent.sessionsMutex.Unlock()
+	logger.Tracef("Starting Session %s", id)
 
+	agent.sessionsMutex.Lock()
 	agent.sessions.Set(id, session)
-	logger.Debugf("Starting Session %s", id)
+	agent.sessionsMutex.Unlock()
 
 	return id, nil
 }

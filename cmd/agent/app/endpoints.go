@@ -4,7 +4,9 @@
 package app
 
 import (
+	"bufio"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 
@@ -124,23 +126,23 @@ func (agent *Agent) connectSessionEp(group task.Group, router *mux.Router) error
 
 			hijacker, err := utilities.Cast[http.Hijacker](w)
 			if err == nil {
-				conn, _, err = hijacker.Hijack()
-				if err != nil {
-					err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+				var buf *bufio.ReadWriter
+				conn, buf, err = hijacker.Hijack()
+				if err == nil {
+					if buf.Reader.Buffered() > 0 {
+						err = fmt.Errorf("/v1/connect/session/%s: hijacked connection has buffered data", id)
+					}
 				}
-			} else {
-				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 			}
 
 			if err != nil {
+				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 				logger.Error(err)
 				return
 			}
 
 			err = session.Connect(conn)
 			if err != nil {
-				err = errors.Join(err, conn.Close())
-
 				logger.Error(err)
 			}
 		})

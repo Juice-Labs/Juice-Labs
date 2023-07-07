@@ -18,12 +18,14 @@ func setupIpc() (*os.File, *os.File, error) {
 	return os.Pipe()
 }
 
-func inheritFile(cmd *exec.Cmd, f *os.File) {
+func inheritFiles(cmd *exec.Cmd, files ...*os.File) {
 	if cmd.SysProcAttr == nil {
 		cmd.SysProcAttr = &syscall.SysProcAttr{}
 	}
 
-	cmd.SysProcAttr.AdditionalInheritedHandles = append(cmd.SysProcAttr.AdditionalInheritedHandles, syscall.Handle(f.Fd()))
+	for _, f := range files {
+		cmd.SysProcAttr.AdditionalInheritedHandles = append(cmd.SysProcAttr.AdditionalInheritedHandles, syscall.Handle(f.Fd()))
+	}
 }
 
 func (session *Session) forwardSocket(rawConn syscall.RawConn) error {
@@ -71,7 +73,7 @@ func (session *Session) forwardSocket(rawConn syscall.RawConn) error {
 		binary.Write(buffer, binary.LittleEndian, protocolInfo.ProtocolName[i])
 	}
 
-	_, err = session.toPipe.Write(buffer.Bytes())
+	_, err = session.writePipe.Write(buffer.Bytes())
 	if err != nil {
 		return err
 	}

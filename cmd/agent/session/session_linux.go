@@ -25,8 +25,10 @@ func setupIpc() (*os.File, *os.File, error) {
 	return readPipe, writePipe, nil
 }
 
-func inheritFile(cmd *exec.Cmd, f *os.File) {
-	cmd.ExtraFiles = append(cmd.ExtraFiles, f)
+func inheritFiles(cmd *exec.Cmd, files ...*os.File) {
+	for _, f := range files {
+		cmd.ExtraFiles = append(cmd.ExtraFiles, f)
+	}
 }
 
 func (session *Session) forwardSocket(rawConn syscall.RawConn) error {
@@ -38,6 +40,6 @@ func (session *Session) forwardSocket(rawConn syscall.RawConn) error {
 		return err
 	}
 
-	_, err = unix.SendmsgN(int(session.toPipe.Fd()), nil, rights, nil, 0)
+	_, err = unix.SendmsgN(int(session.writePipe.Fd()), nil, rights, nil, 0)
 	return err
 }

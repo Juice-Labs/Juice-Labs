@@ -91,7 +91,7 @@ func (group *TaskManager) GoFn(label string, task TaskFn) {
 }
 
 func (group *TaskManager) run(label string, task TaskFn) {
-	logger.Debugf("Task %s starting", label)
+	logger.Tracef("Task %s starting", label)
 
 	err := task(group)
 	if err != nil {
@@ -99,7 +99,7 @@ func (group *TaskManager) run(label string, task TaskFn) {
 		group.cancel()
 	}
 
-	logger.Debugf("Task %s finished", label)
+	logger.Tracef("Task %s finished", label)
 
 	group.errors <- err
 	group.waitGroup.Done()
