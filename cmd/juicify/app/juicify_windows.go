@@ -7,8 +7,9 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 	"github.com/kolesnikovae/go-winjob"
+
+	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
 
 func validateHost() error {

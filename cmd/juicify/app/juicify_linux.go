@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 
 	"github.com/NVIDIA/go-nvml/pkg/dl"
+	
+	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
 
 func check(name string) error {
