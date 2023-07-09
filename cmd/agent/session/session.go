@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sync"
 
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
@@ -21,40 +20,25 @@ import (
 )
 
 type Session struct {
-	sessionMutex sync.Mutex
-	session      restapi.Session
-
 	id        string
 	juicePath string
+	version   string
+
+	state int
+
+	gpus *gpu.SelectedGpuSet
 
 	cmd       *exec.Cmd
 	readPipe  *os.File
 	writePipe *os.File
-
-	connections []net.Conn
-
-	gpus *gpu.SelectedGpuSet
 }
 
 func New(id string, juicePath string, version string, gpus *gpu.SelectedGpuSet) *Session {
 	return &Session{
-		session: restapi.Session{
-			Id:      id,
-			State:   restapi.StateAssigned,
-			Version: version,
-			Gpus:    gpus.GetGpus(),
-		},
 		id:        id,
 		juicePath: juicePath,
-		gpus:      gpus,
-	}
-}
-
-func Register(apiSession restapi.Session, juicePath string, gpus *gpu.SelectedGpuSet) *Session {
-	return &Session{
-		session:   apiSession,
-		id:        apiSession.Id,
-		juicePath: juicePath,
+		version:   version,
+		state:     restapi.SessionActive,
 		gpus:      gpus,
 	}
 }
@@ -64,38 +48,44 @@ func (session *Session) Id() string {
 }
 
 func (session *Session) Session() restapi.Session {
-	session.sessionMutex.Lock()
-	defer session.sessionMutex.Unlock()
-	return session.session
+	return restapi.Session{
+		Id:      session.id,
+		State:   session.state,
+		Version: session.version,
+		Gpus:    session.gpus.GetGpus(),
+	}
 }
 
 func (session *Session) Close() error {
-	var err error
-	for _, connection := range session.connections {
-		err = errors.Join(err, connection.Close())
-	}
+	session.cmd = nil
 
+	err := errors.Join(
+		session.readPipe.Close(),
+		session.writePipe.Close(),
+	)
+
+	session.gpus.Release()
+	session.gpus = nil
+
+	session.state = restapi.SessionClosed
 	return err
 }
 
 func (session *Session) Run(group task.Group) error {
 	ch1Read, ch1Write, err := setupIpc()
 	if err == nil {
-		defer ch1Read.Close()
+		session.readPipe = ch1Read
 		defer ch1Write.Close()
 
 		ch2Read, ch2Write, err_ := setupIpc()
 		err = err_
 		if err == nil {
+			session.writePipe = ch2Write
 			defer ch2Read.Close()
-			defer ch2Write.Close()
 
 			logLevel, err_ := logger.LogLevelAsString()
 			err = err_
 			if err_ == nil {
-				session.readPipe = ch1Read
-				session.writePipe = ch2Write
-
 				session.cmd = exec.CommandContext(group.Ctx(),
 					filepath.Join(session.juicePath, "Renderer_Win"),
 					"--id", session.id,
@@ -107,18 +97,7 @@ func (session *Session) Run(group task.Group) error {
 
 				inheritFiles(session.cmd, ch1Write, ch2Read)
 
-				err = session.cmd.Start()
-				if err == nil {
-					session.sessionMutex.Lock()
-					session.session.State = restapi.StateActive
-					session.sessionMutex.Unlock()
-
-					err = session.cmd.Wait()
-				}
-
-				session.readPipe = nil
-				session.writePipe = nil
-				session.cmd = nil
+				err = session.cmd.Run()
 			}
 		}
 	}
@@ -130,7 +109,8 @@ func (session *Session) Run(group task.Group) error {
 	return err
 }
 
-func (session *Session) Signal() error {
+func (session *Session) Cancel() error {
+	session.state = restapi.SessionCanceled
 	return session.cmd.Cancel()
 }
 
@@ -166,7 +146,7 @@ func (session *Session) Connect(c net.Conn) error {
 	}
 
 	if err != nil {
-		err = errors.Join(err, session.Signal())
+		err = errors.Join(err, session.Cancel())
 	}
 
 	return err

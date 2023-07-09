@@ -9,29 +9,70 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 )
 
-type Agent struct {
-	restapi.Agent
-
-	LastUpdated time.Time
+type QueuedSession struct {
+	Id           string
+	Requirements restapi.SessionRequirements
 }
 
-type Session struct {
-	restapi.Session
+type Iterator[T any] interface {
+	Next() bool
+	Value() T
+}
 
-	AgentId         string
-	GpuRequirements []restapi.GpuRequirements `json:"gpuRequirements"`
+type SessionUpdate struct {
+	Id    string
+	State int
+}
 
-	LastUpdated time.Time
+type AgentUpdate struct {
+	Id       string
+	State    int
+	Sessions []SessionUpdate
 }
 
 type Storage interface {
 	Close() error
 
-	AddAgent(Agent) (string, error)
-	AddSession(Session) (string, error)
-	GetActiveAgents() ([]Agent, error)
-	UpdateAgentsAndSessions([]Agent, []Session) error
+	RegisterAgent(agent restapi.Agent) (string, error)
+	GetAgentById(id string) (restapi.Agent, error)
+	UpdateAgent(update AgentUpdate) error
 
-	GetSessionById(id string) (Session, error)
-	GetAgentsAndSessionsUpdatedSince(time.Time) ([]Agent, []Session, error)
+	RequestSession(requirements restapi.SessionRequirements) (string, error)
+	AssignSession(sessionId string, agentId string, gpus []restapi.SessionGpu) error
+	GetSessionById(id string) (restapi.Session, error)
+
+	GetAvailableAgentsMatching(totalAvailableVramGE uint64, tags map[string]string, tolerates map[string]string) (Iterator[restapi.Agent], error)
+	GetQueuedSessionsIterator() (Iterator[QueuedSession], error)
+
+	SetAgentsMissingIfNotUpdatedFor(duration time.Duration) error
+	RemoveMissingAgentsIfNotUpdatedFor(duration time.Duration) error
+}
+
+func IsSubset(set, subset map[string]string) bool {
+	for key, value := range subset {
+		checkValue, present := set[key]
+		if !present || value != checkValue {
+			return false
+		}
+	}
+
+	return true
+}
+
+func TotalVram(gpus []restapi.Gpu) uint64 {
+	var vram uint64
+	for _, gpu := range gpus {
+		vram += gpu.Vram
+	}
+
+	return vram
+}
+
+func TotalVramRequired(requirements restapi.SessionRequirements) uint64 {
+	var vramRequired uint64
+	for _, gpu := range requirements.Gpus {
+		vramRequired += gpu.VramRequired
+	}
+
+	return vramRequired
 }

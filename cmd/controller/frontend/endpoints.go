@@ -20,14 +20,15 @@ import (
 
 func (frontend *Frontend) initializeEndpoints() {
 	frontend.server.AddCreateEndpoint(frontend.getStatusFormer)
-	frontend.server.AddCreateEndpoint(frontend.getStatus)
-	frontend.server.AddCreateEndpoint(frontend.registerAgent)
-	frontend.server.AddCreateEndpoint(frontend.updateAgent)
-	frontend.server.AddCreateEndpoint(frontend.requestSession)
-	frontend.server.AddCreateEndpoint(frontend.getSession)
+	frontend.server.AddCreateEndpoint(frontend.getStatusEp)
+	frontend.server.AddCreateEndpoint(frontend.registerAgentEp)
+	frontend.server.AddCreateEndpoint(frontend.getAgentEp)
+	frontend.server.AddCreateEndpoint(frontend.updateAgentEp)
+	frontend.server.AddCreateEndpoint(frontend.requestSessionEp)
+	frontend.server.AddCreateEndpoint(frontend.getSessionEp)
 }
 
-func (frontend *Frontend) getStatus(group task.Group, router *mux.Router) error {
+func (frontend *Frontend) getStatusEp(group task.Group, router *mux.Router) error {
 	router.Methods("GET").Path("/v1/status").HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			err := pkgnet.Respond(w, http.StatusOK, restapi.Status{
@@ -45,7 +46,7 @@ func (frontend *Frontend) getStatus(group task.Group, router *mux.Router) error 
 	return nil
 }
 
-func (frontend *Frontend) registerAgent(group task.Group, router *mux.Router) error {
+func (frontend *Frontend) registerAgentEp(group task.Group, router *mux.Router) error {
 	router.Methods("POST").Path("/v1/register/agent").HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			agent, err := pkgnet.ReadRequestBody[restapi.Agent](r)
@@ -70,9 +71,8 @@ func (frontend *Frontend) registerAgent(group task.Group, router *mux.Router) er
 			}
 
 			agent.Address = fmt.Sprintf("%s:%s", ip, port)
-			agent.State = restapi.StateActive
 
-			id, err := frontend.RegisterAgent(agent)
+			id, err := frontend.registerAgent(agent)
 			if err != nil {
 				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 				logger.Error(err)
@@ -87,9 +87,28 @@ func (frontend *Frontend) registerAgent(group task.Group, router *mux.Router) er
 	return nil
 }
 
-func (frontend *Frontend) updateAgent(group task.Group, router *mux.Router) error {
+func (frontend *Frontend) getAgentEp(group task.Group, router *mux.Router) error {
+	router.Methods("GET").Path("/v1/agent/{id}").HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			id := mux.Vars(r)["id"]
+
+			agent, err := frontend.getAgentById(id)
+			if err != nil {
+				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+				logger.Error(err)
+				return
+			}
+
+			pkgnet.Respond(w, http.StatusOK, agent)
+		})
+	return nil
+}
+
+func (frontend *Frontend) updateAgentEp(group task.Group, router *mux.Router) error {
 	router.Methods("POST").Path("/v1/agent/{id}").HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
+			id := mux.Vars(r)["id"]
+
 			agent, err := pkgnet.ReadRequestBody[restapi.Agent](r)
 			if err != nil {
 				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
@@ -97,7 +116,14 @@ func (frontend *Frontend) updateAgent(group task.Group, router *mux.Router) erro
 				return
 			}
 
-			err = frontend.UpdateAgent(agent)
+			if agent.Id != id {
+				err = fmt.Errorf("/v1/agent/%s: ids do not match", id)
+				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusBadRequest, err.Error()))
+				logger.Error(err)
+				return
+			}
+
+			err = frontend.updateAgent(agent)
 			if err != nil {
 				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 				logger.Error(err)
@@ -109,7 +135,7 @@ func (frontend *Frontend) updateAgent(group task.Group, router *mux.Router) erro
 	return nil
 }
 
-func (frontend *Frontend) requestSession(group task.Group, router *mux.Router) error {
+func (frontend *Frontend) requestSessionEp(group task.Group, router *mux.Router) error {
 	router.Methods("POST").Path("/v1/request/session").HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			sessionRequirements, err := pkgnet.ReadRequestBody[restapi.SessionRequirements](r)
@@ -119,14 +145,14 @@ func (frontend *Frontend) requestSession(group task.Group, router *mux.Router) e
 				return
 			}
 
-			session, err := frontend.RequestSession(sessionRequirements)
+			id, err := frontend.requestSession(sessionRequirements)
 			if err != nil {
 				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 				logger.Error(err)
 				return
 			}
 
-			err = pkgnet.RespondWithString(w, http.StatusOK, session.Id)
+			err = pkgnet.RespondWithString(w, http.StatusOK, id)
 			if err != nil {
 				logger.Error(err)
 			}
@@ -134,12 +160,12 @@ func (frontend *Frontend) requestSession(group task.Group, router *mux.Router) e
 	return nil
 }
 
-func (frontend *Frontend) getSession(group task.Group, router *mux.Router) error {
+func (frontend *Frontend) getSessionEp(group task.Group, router *mux.Router) error {
 	router.Methods("GET").Path("/v1/session/{id}").HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			id := mux.Vars(r)["id"]
 
-			session, err := frontend.GetSession(id)
+			session, err := frontend.getSessionById(id)
 			if err != nil {
 				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 				logger.Error(err)

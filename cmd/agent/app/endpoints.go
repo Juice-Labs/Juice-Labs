@@ -14,7 +14,6 @@ import (
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/prometheus"
 	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
-	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	pkgnet "github.com/Juice-Labs/Juice-Labs/pkg/net"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
@@ -56,26 +55,14 @@ func (agent *Agent) getStatusEp(group task.Group, router *mux.Router) error {
 func (agent *Agent) requestSessionEp(group task.Group, router *mux.Router) error {
 	router.Methods("POST").Path("/v1/request/session").HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
-			var selectedGpus gpu.SelectedGpuSet
-
 			sessionRequirements, err := pkgnet.ReadRequestBody[restapi.SessionRequirements](r)
-			if err == nil {
-				// TODO: Verify version
-
-				if agent.sessions.Len()+1 >= agent.maxSessions {
-					err = errors.New("unable to add another session")
-				}
-			} else {
-				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
-			}
-
 			if err != nil {
+				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 				logger.Error(err)
-				selectedGpus.Release()
 				return
 			}
 
-			id, err := agent.startSession(group, sessionRequirements)
+			id, err := agent.requestSession(group, sessionRequirements)
 			if err != nil {
 				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 				logger.Error(err)
@@ -95,14 +82,15 @@ func (agent *Agent) getSessionEp(group task.Group, router *mux.Router) error {
 		func(w http.ResponseWriter, r *http.Request) {
 			id := mux.Vars(r)["id"]
 
-			session, err := agent.getSession(id)
+			reference, err := agent.getSession(id)
 			if err != nil {
 				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 				logger.Error(err)
 				return
 			}
+			defer reference.Release()
 
-			err = pkgnet.Respond(w, http.StatusOK, session.Session())
+			err = pkgnet.Respond(w, http.StatusOK, reference.Object.Session())
 			if err != nil {
 				logger.Error(err)
 			}
@@ -115,12 +103,13 @@ func (agent *Agent) connectSessionEp(group task.Group, router *mux.Router) error
 		func(w http.ResponseWriter, r *http.Request) {
 			id := mux.Vars(r)["id"]
 
-			session, err := agent.getSession(id)
+			reference, err := agent.getSession(id)
 			if err != nil {
 				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 				logger.Error(err)
 				return
 			}
+			defer reference.Release()
 
 			var conn net.Conn
 
@@ -141,7 +130,7 @@ func (agent *Agent) connectSessionEp(group task.Group, router *mux.Router) error
 				return
 			}
 
-			err = session.Connect(conn)
+			err = reference.Object.Connect(conn)
 			if err != nil {
 				logger.Error(err)
 			}

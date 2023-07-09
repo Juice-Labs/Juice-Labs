@@ -56,88 +56,41 @@ func NewFrontend(tlsConfig *tls.Config, storage storage.Storage) (*Frontend, err
 	return frontend, nil
 }
 
-func (frontend *Frontend) TimeSinceStart() time.Duration {
-	// TODO: This needs to be done in the database in some way
-	return time.Since(frontend.startTime)
-}
-
 func (frontend *Frontend) Run(group task.Group) error {
 	group.Go("Frontend Server", frontend.server)
 	return nil
 }
 
-func (frontend *Frontend) GetActiveAgents() ([]restapi.Agent, error) {
-	agents, err := frontend.storage.GetActiveAgents()
-	if err != nil {
-		return nil, err
-	}
-
-	apiAgents := make([]restapi.Agent, len(agents))
-	for index, agent := range agents {
-		apiAgents[index] = agent.Agent
-	}
-
-	return apiAgents, nil
+func (frontend *Frontend) registerAgent(agent restapi.Agent) (string, error) {
+	agent.State = restapi.AgentActive
+	return frontend.storage.RegisterAgent(agent)
 }
 
-func (frontend *Frontend) RegisterAgent(agent restapi.Agent) (string, error) {
-	storageAgent := storage.Agent{
-		Agent:       agent,
-		LastUpdated: time.Now().UTC(),
-	}
-
-	id, err := frontend.storage.AddAgent(storageAgent)
-	if err != nil {
-		return id, err
-	}
-
-	storageAgent.Id = id
-
-	return id, frontend.storage.UpdateAgentsAndSessions([]storage.Agent{storageAgent}, nil)
+func (frontend *Frontend) getAgentById(id string) (restapi.Agent, error) {
+	return frontend.storage.GetAgentById(id)
 }
 
-func (frontend *Frontend) UpdateAgent(agent restapi.Agent) error {
-	now := time.Now().UTC()
-
-	storageAgents := []storage.Agent{
-		storage.Agent{
-			Agent:       agent,
-			LastUpdated: now,
-		},
+func (frontend *Frontend) updateAgent(agent restapi.Agent) error {
+	update := storage.AgentUpdate{
+		Id:       agent.Id,
+		State:    agent.State,
+		Sessions: make([]storage.SessionUpdate, len(agent.Sessions)),
 	}
 
-	storageSessions := []storage.Session{}
-	for _, session := range agent.Sessions {
-		storageSessions = append(storageSessions, storage.Session{
-			Session:     session,
-			AgentId:     agent.Id,
-			LastUpdated: now,
-		})
+	for index, session := range agent.Sessions {
+		update.Sessions[index] = storage.SessionUpdate{
+			Id:    session.Id,
+			State: session.State,
+		}
 	}
 
-	return frontend.storage.UpdateAgentsAndSessions(storageAgents, storageSessions)
+	return frontend.storage.UpdateAgent(update)
 }
 
-func (frontend *Frontend) RequestSession(sessionRequirements restapi.SessionRequirements) (restapi.Session, error) {
-	storageSession := storage.Session{
-		Session: restapi.Session{
-			Version: sessionRequirements.Version,
-		},
-		GpuRequirements: sessionRequirements.Gpus,
-		LastUpdated:     time.Now().UTC(),
-	}
-
-	id, err := frontend.storage.AddSession(storageSession)
-	if err != nil {
-		return restapi.Session{}, err
-	}
-
-	storageSession.Id = id
-
-	return storageSession.Session, frontend.storage.UpdateAgentsAndSessions(nil, []storage.Session{storageSession})
+func (frontend *Frontend) requestSession(sessionRequirements restapi.SessionRequirements) (string, error) {
+	return frontend.storage.RequestSession(sessionRequirements)
 }
 
-func (frontend *Frontend) GetSession(id string) (restapi.Session, error) {
-	session, err := frontend.storage.GetSessionById(id)
-	return session.Session, err
+func (frontend *Frontend) getSessionById(id string) (restapi.Session, error) {
+	return frontend.storage.GetSessionById(id)
 }

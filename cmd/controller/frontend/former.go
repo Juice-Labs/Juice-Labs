@@ -9,10 +9,12 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	pkgnet "github.com/Juice-Labs/Juice-Labs/pkg/net"
+	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 	"github.com/gorilla/mux"
 )
@@ -57,6 +59,20 @@ type StatusFormer struct {
 	Version  string      `json:"version"`
 	UptimeMs int64       `json:"uptime_ms"`
 	Hosts    []AgentData `json:"hosts"`
+}
+
+func (frontend *Frontend) GetActiveAgents() ([]restapi.Agent, error) {
+	iterator, err := frontend.storage.GetAvailableAgentsMatching(0, map[string]string{}, map[string]string{})
+	if err != nil {
+		return nil, err
+	}
+
+	agents := make([]restapi.Agent, 0)
+	for iterator.Next() {
+		agents = append(agents, iterator.Value())
+	}
+
+	return agents, nil
 }
 
 func (frontend *Frontend) getStatusFormer(group task.Group, router *mux.Router) error {
@@ -120,7 +136,7 @@ func (frontend *Frontend) getStatusFormer(group task.Group, router *mux.Router) 
 					err = pkgnet.Respond(w, http.StatusOK, StatusFormer{
 						Status:   "ok",
 						Version:  build.Version,
-						UptimeMs: frontend.TimeSinceStart().Milliseconds(),
+						UptimeMs: time.Since(frontend.startTime).Milliseconds(),
 						Hosts:    hosts,
 					})
 				}

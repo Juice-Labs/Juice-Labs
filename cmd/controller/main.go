@@ -13,7 +13,8 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/frontend"
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage/memdb"
-	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage/postgres"
+
+	//"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage/postgres"
 	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
 	"github.com/Juice-Labs/Juice-Labs/pkg/appmain"
 	"github.com/Juice-Labs/Juice-Labs/pkg/crypto"
@@ -33,11 +34,11 @@ var (
 )
 
 func openStorage(ctx context.Context) (storage.Storage, error) {
-	if *useMemdb {
-		return memdb.OpenStorage(ctx)
-	}
+	//if *useMemdb {
+	return memdb.OpenStorage(ctx)
+	//}
 
-	return postgres.OpenStorage(ctx)
+	//return postgres.OpenStorage(ctx)
 }
 
 func main() {

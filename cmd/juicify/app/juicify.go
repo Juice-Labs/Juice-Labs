@@ -162,13 +162,13 @@ func Run(group task.Group) error {
 			return err
 		}
 
-		if session.State == restapi.StateQueued {
+		if session.State == restapi.SessionQueued {
 			logger.Info("Session queued")
 
 			ticker := time.NewTicker(5 * time.Second)
 			defer ticker.Stop()
 
-			for session.State == restapi.StateQueued {
+			for session.State == restapi.SessionQueued {
 				select {
 				case <-group.Ctx().Done():
 					return nil

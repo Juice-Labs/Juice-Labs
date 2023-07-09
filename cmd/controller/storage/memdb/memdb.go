@@ -5,9 +5,7 @@ package memdb
 
 import (
 	"context"
-	"encoding/binary"
-	"fmt"
-	"reflect"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,79 +16,23 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/pkg/utilities"
 )
 
-// TimeFieldIndex is used to extract a time field from an object using
-// reflection and builds an index on that field.
-type TimeFieldIndex struct {
-	Field string
+type Agent struct {
+	restapi.Agent
+
+	SessionIds    []string
+	VramAvailable uint64
+
+	LastUpdated int64
 }
 
-func (i *TimeFieldIndex) FromObject(obj interface{}) (bool, []byte, error) {
-	v := reflect.ValueOf(obj)
-	v = reflect.Indirect(v) // Dereference the pointer if any
+type Session struct {
+	restapi.Session
 
-	fv := v.FieldByName(i.Field)
-	if !fv.IsValid() {
-		return false, nil,
-			fmt.Errorf("field '%s' for %#v is invalid", i.Field, obj)
-	}
+	AgentId      string
+	Requirements restapi.SessionRequirements
+	VramRequired uint64
 
-	// Check the type
-	if fv.Type() != reflect.TypeOf(time.Time{}) {
-		return false, nil, fmt.Errorf("field %q is of type %v; want time.Time", i.Field, fv.Type())
-	}
-
-	// Get the value and encode it
-	val := utilities.Require[time.Time](fv.Interface())
-	buf := encodeInt(val.Unix(), 8)
-
-	return true, buf, nil
-}
-
-func (i *TimeFieldIndex) FromArgs(args ...interface{}) ([]byte, error) {
-	if len(args) != 1 {
-		return nil, fmt.Errorf("must provide only a single argument")
-	}
-
-	v := reflect.ValueOf(args[0])
-	if !v.IsValid() {
-		return nil, fmt.Errorf("%#v is invalid", args[0])
-	}
-
-	// Check the type
-	if v.Type() != reflect.TypeOf(time.Time{}) {
-		return nil, fmt.Errorf("field %q is of type %v; want time.Time", i.Field, v.Type())
-	}
-
-	// Get the value and encode it
-	val := utilities.Require[time.Time](v.Interface())
-	buf := encodeInt(val.Unix(), 8)
-
-	return buf, nil
-}
-
-func encodeInt(val int64, size int) []byte {
-	buf := make([]byte, size)
-
-	// This bit flips the sign bit on any sized signed twos-complement integer,
-	// which when truncated to a uint of the same size will bias the value such
-	// that the maximum negative int becomes 0, and the maximum positive int
-	// becomes the maximum positive uint.
-	scaled := val ^ int64(-1<<(size*8-1))
-
-	switch size {
-	case 1:
-		buf[0] = uint8(scaled)
-	case 2:
-		binary.BigEndian.PutUint16(buf, uint16(scaled))
-	case 4:
-		binary.BigEndian.PutUint32(buf, uint32(scaled))
-	case 8:
-		binary.BigEndian.PutUint64(buf, uint64(scaled))
-	default:
-		panic(fmt.Sprintf("unsupported int size parameter: %d", size))
-	}
-
-	return buf
+	LastUpdated int64
 }
 
 type storageDriver struct {
@@ -98,46 +40,72 @@ type storageDriver struct {
 	db  *memdb.MemDB
 }
 
+type Iterator[T any] struct {
+	index   int
+	objects []T
+}
+
+func NewIterator[T any](objects []T) storage.Iterator[T] {
+	return &Iterator[T]{
+		index:   -1,
+		objects: objects,
+	}
+}
+
+func (iterator *Iterator[T]) Next() bool {
+	index := iterator.index + 1
+	if index >= len(iterator.objects) {
+		return false
+	}
+
+	iterator.index = index
+	return true
+}
+
+func (iterator *Iterator[T]) Value() T {
+	return iterator.objects[iterator.index]
+}
+
 func OpenStorage(ctx context.Context) (storage.Storage, error) {
 	schema := &memdb.DBSchema{
 		Tables: map[string]*memdb.TableSchema{
-			"agents": &memdb.TableSchema{
+			"agents": {
 				Name: "agents",
 				Indexes: map[string]*memdb.IndexSchema{
-					"id": &memdb.IndexSchema{
+					"id": {
 						Name:    "id",
 						Unique:  true,
 						Indexer: &memdb.UUIDFieldIndex{Field: "Id"},
 					},
-					"state": &memdb.IndexSchema{
+					"state": {
 						Name:    "state",
 						Unique:  false,
 						Indexer: &memdb.IntFieldIndex{Field: "State"},
 					},
-					"last_updated": &memdb.IndexSchema{
+					"last_updated": {
 						Name:    "last_updated",
 						Unique:  false,
-						Indexer: &TimeFieldIndex{Field: "LastUpdated"},
+						Indexer: &memdb.IntFieldIndex{Field: "LastUpdated"},
 					},
 				},
 			},
-			"sessions": &memdb.TableSchema{
+			"sessions": {
 				Name: "sessions",
 				Indexes: map[string]*memdb.IndexSchema{
-					"id": &memdb.IndexSchema{
+					"id": {
 						Name:    "id",
 						Unique:  true,
 						Indexer: &memdb.UUIDFieldIndex{Field: "Id"},
 					},
-					"state": &memdb.IndexSchema{
+					"state": {
 						Name:    "state",
 						Unique:  false,
 						Indexer: &memdb.IntFieldIndex{Field: "State"},
 					},
-					"last_updated": &memdb.IndexSchema{
+					"last_updated": {
 						Name:    "last_updated",
 						Unique:  false,
-						Indexer: &TimeFieldIndex{Field: "LastUpdated"},
+						Indexer: &memdb.IntFieldIndex{Field: "LastUpdated"},
 					},
 				},
 			},
@@ -159,112 +127,267 @@ func (driver *storageDriver) Close() error {
 	return nil
 }
 
-func (driver *storageDriver) AddAgent(agent storage.Agent) (string, error) {
+func (driver *storageDriver) RegisterAgent(apiAgent restapi.Agent) (string, error) {
+	agent := Agent{
+		Agent:         apiAgent,
+		VramAvailable: storage.TotalVram(apiAgent.Gpus),
+		LastUpdated:   time.Now().Unix(),
+	}
+
 	agent.Id = uuid.NewString()
 
 	txn := driver.db.Txn(true)
 	err := txn.Insert("agents", agent)
 	if err != nil {
 		txn.Abort()
-		return "", nil
+		return "", err
 	}
 
 	txn.Commit()
 	return agent.Id, nil
 }
 
-func (driver *storageDriver) AddSession(session storage.Session) (string, error) {
-	session.Id = uuid.NewString()
+func (driver *storageDriver) GetAgentById(id string) (restapi.Agent, error) {
+	txn := driver.db.Txn(false)
+	defer txn.Abort()
+
+	obj, err := txn.First("agents", "id", id)
+	if err != nil {
+		return restapi.Agent{}, err
+	}
+
+	return utilities.Require[restapi.Agent](obj), nil
+}
+
+func (driver *storageDriver) UpdateAgent(update storage.AgentUpdate) error {
+	now := time.Now().Unix()
 
 	txn := driver.db.Txn(true)
+
+	obj, err := txn.First("agents", "id", update.Id)
+	if err != nil {
+		txn.Abort()
+		return err
+	}
+
+	sessionIndex := 0
+
+	agent := utilities.Require[Agent](obj)
+	agent.State = update.State
+	agent.LastUpdated = now
+	for _, sessionUpdate := range update.Sessions {
+		if agent.SessionIds[sessionIndex] != sessionUpdate.Id {
+			txn.Abort()
+			return errors.New("memdb.UpdateAgent: stored Agent sessions do not match Session updates")
+		}
+
+		obj, err = txn.First("sessions", "id", sessionUpdate.Id)
+		if err != nil {
+			txn.Abort()
+			return err
+		}
+		session := utilities.Require[Session](obj)
+		session.State = sessionUpdate.State
+		session.LastUpdated = now
+
+		if session.State == restapi.SessionClosed {
+			agent.SessionIds = append(agent.SessionIds[:sessionIndex], agent.SessionIds[sessionIndex+1:]...)
+			agent.Sessions = append(agent.Sessions[:sessionIndex], agent.Sessions[sessionIndex+1:]...)
+			agent.VramAvailable += session.VramRequired
+
+			_, err = txn.DeleteAll("sessions", "id", session.Id)
+		} else {
+			sessionIndex++
+
+			err = txn.Insert("sessions", session)
+		}
+
+		if err != nil {
+			txn.Abort()
+			return err
+		}
+	}
+
+	err = txn.Insert("agents", agent)
+	if err != nil {
+		txn.Abort()
+		return err
+	}
+
+	txn.Commit()
+	return nil
+}
+
+func (driver *storageDriver) RequestSession(requirements restapi.SessionRequirements) (string, error) {
+	session := Session{
+		Session: restapi.Session{
+			Id: uuid.NewString(),
+		},
+		Requirements: requirements,
+		VramRequired: storage.TotalVramRequired(requirements),
+		LastUpdated:  time.Now().Unix(),
+	}
+
+	txn := driver.db.Txn(true)
+
 	err := txn.Insert("sessions", session)
 	if err != nil {
 		txn.Abort()
-		return "", nil
+		return "", err
 	}
 
 	txn.Commit()
 	return session.Id, nil
 }
 
-func (driver *storageDriver) GetActiveAgents() ([]storage.Agent, error) {
-	txn := driver.db.Txn(false)
-	defer txn.Abort()
+func (driver *storageDriver) AssignSession(sessionId string, agentId string, gpus []restapi.SessionGpu) error {
+	now := time.Now().Unix()
 
-	iterator, err := txn.Get("agents", "state", restapi.StateActive)
+	txn := driver.db.Txn(true)
+
+	obj, err := txn.First("agents", "id", agentId)
 	if err != nil {
-		return nil, err
+		return err
+	}
+	agent := utilities.Require[Agent](obj)
+
+	obj, err = txn.First("sessions", "id", sessionId)
+	if err != nil {
+		return err
+	}
+	session := utilities.Require[Session](obj)
+	session.AgentId = agentId
+	session.Address = agent.Address
+	session.Gpus = gpus
+	session.LastUpdated = now
+
+	err = txn.Insert("sessions", session)
+	if err != nil {
+		txn.Abort()
+		return err
 	}
 
-	agents := make([]storage.Agent, 0)
-	for obj := iterator.Next(); obj != nil; obj = iterator.Next() {
-		agents = append(agents, utilities.Require[storage.Agent](obj))
+	agent.Sessions = append(agent.Sessions, session.Session)
+	agent.SessionIds = append(agent.SessionIds, sessionId)
+	agent.VramAvailable -= session.VramRequired
+	agent.LastUpdated = now
+
+	err = txn.Insert("agents", agent)
+	if err != nil {
+		txn.Abort()
+		return err
 	}
 
-	return agents, nil
-}
-
-func (driver *storageDriver) UpdateAgentsAndSessions(agents []storage.Agent, sessions []storage.Session) error {
-	if len(agents) > 0 || len(sessions) > 0 {
-		txn := driver.db.Txn(true)
-
-		for _, agent := range agents {
-			err := txn.Insert("agents", agent)
-			if err != nil {
-				txn.Abort()
-				return nil
-			}
-		}
-
-		for _, session := range sessions {
-			err := txn.Insert("sessions", session)
-			if err != nil {
-				txn.Abort()
-				return nil
-			}
-		}
-
-		txn.Commit()
-	}
-
+	txn.Commit()
 	return nil
 }
 
-func (driver *storageDriver) GetSessionById(id string) (storage.Session, error) {
+func (driver *storageDriver) GetSessionById(id string) (restapi.Session, error) {
 	txn := driver.db.Txn(false)
 	defer txn.Abort()
 
 	obj, err := txn.First("sessions", "id", id)
 	if err != nil {
-		return storage.Session{}, err
+		return restapi.Session{}, err
 	}
 
-	return utilities.Require[storage.Session](obj), nil
+	return utilities.Require[restapi.Session](obj), nil
 }
 
-func (driver *storageDriver) GetAgentsAndSessionsUpdatedSince(time time.Time) ([]storage.Agent, []storage.Session, error) {
+func (driver *storageDriver) GetAvailableAgentsMatching(totalAvailableVramMoreThan uint64, tags map[string]string, tolerates map[string]string) (storage.Iterator[restapi.Agent], error) {
 	txn := driver.db.Txn(false)
 	defer txn.Abort()
 
-	iterator, err := txn.Get("agents", "last_updated", time)
+	iterator, err := txn.Get("agents", "state", restapi.AgentActive)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	agents := make([]storage.Agent, 0)
-	for obj := iterator.Next(); obj != nil; obj = iterator.Next() {
-		agents = append(agents, utilities.Require[storage.Agent](obj))
+	var agents []restapi.Agent
+	for obj := iterator.Next(); obj != nil; iterator.Next() {
+		agent := utilities.Require[Agent](obj)
+
+		if agent.VramAvailable >= totalAvailableVramMoreThan && storage.IsSubset(agent.Tags, tags) && storage.IsSubset(agent.Taints, tolerates) {
+			agents = append(agents, agent.Agent)
+		}
 	}
 
-	iterator, err = txn.Get("sessions", "last_updated", time)
+	return NewIterator(agents), nil
+}
+
+func (driver *storageDriver) GetQueuedSessionsIterator() (storage.Iterator[storage.QueuedSession], error) {
+	txn := driver.db.Txn(false)
+	defer txn.Abort()
+
+	iterator, err := txn.Get("sessions", "state", restapi.SessionQueued)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	sessions := make([]storage.Session, 0)
+	var sessions []storage.QueuedSession
+	for obj := iterator.Next(); obj != nil; iterator.Next() {
+		session := utilities.Require[Session](obj)
+		sessions = append(sessions, storage.QueuedSession{
+			Id:           session.Id,
+			Requirements: session.Requirements,
+		})
+	}
+
+	return NewIterator(sessions), nil
+}
+
+func (driver *storageDriver) SetAgentsMissingIfNotUpdatedFor(duration time.Duration) error {
+	nowTime := time.Now()
+	now := nowTime.Unix()
+	since := nowTime.Add(-duration).Unix()
+
+	txn := driver.db.Txn(true)
+
+	iterator, err := txn.LowerBound("agents", "last_updated", since)
+	if err != nil {
+		txn.Abort()
+		return err
+	}
+
 	for obj := iterator.Next(); obj != nil; obj = iterator.Next() {
-		sessions = append(sessions, utilities.Require[storage.Session](obj))
+		agent := utilities.Require[Agent](obj)
+		agent.State = restapi.AgentMissing
+		agent.LastUpdated = now
+
+		err = txn.Insert("agents", agent)
+		if err != nil {
+			txn.Abort()
+			return err
+		}
 	}
 
-	return agents, sessions, nil
+	txn.Commit()
+	return nil
+}
+
+func (driver *storageDriver) RemoveMissingAgentsIfNotUpdatedFor(duration time.Duration) error {
+	since := time.Now().Add(-duration).Unix()
+
+	txn := driver.db.Txn(true)
+
+	iterator, err := txn.LowerBound("agents", "last_updated", since)
+	if err != nil {
+		txn.Abort()
+		return err
+	}
+
+	agentIds := make([]interface{}, 0)
+	for obj := iterator.Next(); obj != nil; obj = iterator.Next() {
+		agent := utilities.Require[Agent](obj)
+		agentIds = append(agentIds, agent.Id)
+	}
+
+	_, err = txn.DeleteAll("agents", "id", agentIds...)
+	if err != nil {
+		txn.Abort()
+		return err
+	}
+
+	txn.Commit()
+	return nil
 }

@@ -6,11 +6,16 @@ package restapi
 import "time"
 
 const (
-	StateQueued int = iota
-	StateAssigned
-	StateActive
-	StateInactive
-	StateClosed
+	SessionQueued int = iota
+	SessionAssigned
+	SessionActive
+	SessionCanceling
+	SessionCanceled
+	SessionClosed
+
+	AgentActive int = iota
+	AgentDisabled
+	AgentMissing
 )
 
 type GpuMetrics struct {
