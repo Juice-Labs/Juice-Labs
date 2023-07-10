@@ -72,12 +72,12 @@ func (session *Session) Close() error {
 }
 
 func (session *Session) Run(group task.Group) error {
-	ch1Read, ch1Write, err := os.Pipe()
+	ch1Read, ch1Write, err := setupIpc()
 	if err == nil {
 		session.readPipe = ch1Read
 		defer ch1Write.Close()
 
-		ch2Read, ch2Write, err_ := os.Pipe()
+		ch2Read, ch2Write, err_ := setupIpc()
 		err = err_
 		if err == nil {
 			session.writePipe = ch2Write

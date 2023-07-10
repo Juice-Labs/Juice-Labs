@@ -14,6 +14,10 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/session/windows"
 )
 
+func setupIpc() (*os.File, *os.File, error) {
+	return os.Pipe()
+}
+
 func inheritFiles(cmd *exec.Cmd, files ...*os.File) {
 	if cmd.SysProcAttr == nil {
 		cmd.SysProcAttr = &syscall.SysProcAttr{}
