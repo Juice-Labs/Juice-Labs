@@ -156,7 +156,11 @@ func (driver *storageDriver) GetAgentById(id string) (restapi.Agent, error) {
 		return restapi.Agent{}, err
 	}
 
-	return utilities.Require[restapi.Agent](obj), nil
+	if obj == nil {
+		return restapi.Agent{}, storage.ErrNotFound
+	}
+
+	return utilities.Require[Agent](obj).Agent, nil
 }
 
 func (driver *storageDriver) UpdateAgent(update storage.AgentUpdate) error {
@@ -180,6 +184,8 @@ func (driver *storageDriver) UpdateAgent(update storage.AgentUpdate) error {
 			txn.Abort()
 			return errors.New("memdb.UpdateAgent: stored Agent sessions do not match Session updates")
 		}
+
+		agent.Sessions[sessionIndex].State = sessionUpdate.State
 
 		obj, err = txn.First("sessions", "id", sessionUpdate.Id)
 		if err != nil {
@@ -221,7 +227,8 @@ func (driver *storageDriver) UpdateAgent(update storage.AgentUpdate) error {
 func (driver *storageDriver) RequestSession(requirements restapi.SessionRequirements) (string, error) {
 	session := Session{
 		Session: restapi.Session{
-			Id: uuid.NewString(),
+			Id:      uuid.NewString(),
+			Version: requirements.Version,
 		},
 		Requirements: requirements,
 		VramRequired: storage.TotalVramRequired(requirements),
@@ -256,6 +263,7 @@ func (driver *storageDriver) AssignSession(sessionId string, agentId string, gpu
 		return err
 	}
 	session := utilities.Require[Session](obj)
+	session.State = restapi.SessionAssigned
 	session.AgentId = agentId
 	session.Address = agent.Address
 	session.Gpus = gpus
@@ -291,10 +299,40 @@ func (driver *storageDriver) GetSessionById(id string) (restapi.Session, error) 
 		return restapi.Session{}, err
 	}
 
-	return utilities.Require[restapi.Session](obj), nil
+	if obj == nil {
+		return restapi.Session{}, storage.ErrNotFound
+	}
+
+	session := utilities.Require[Session](obj)
+	if session.State == restapi.SessionQueued {
+		return restapi.Session{}, storage.ErrNotSupported
+	}
+
+	return session.Session, nil
 }
 
-func (driver *storageDriver) GetAvailableAgentsMatching(totalAvailableVramMoreThan uint64, tags map[string]string, tolerates map[string]string) (storage.Iterator[restapi.Agent], error) {
+func (driver *storageDriver) GetQueuedSessionById(id string) (storage.QueuedSession, error) {
+	txn := driver.db.Txn(false)
+	defer txn.Abort()
+
+	obj, err := txn.First("sessions", "id", id)
+	if err != nil {
+		return storage.QueuedSession{}, err
+	}
+
+	if obj == nil {
+		return storage.QueuedSession{}, storage.ErrNotFound
+	}
+
+	session := utilities.Require[Session](obj)
+
+	return storage.QueuedSession{
+		Id:           session.Id,
+		Requirements: session.Requirements,
+	}, nil
+}
+
+func (driver *storageDriver) GetAvailableAgentsMatching(totalAvailableVramAtLeast uint64, tags map[string]string, tolerates map[string]string) (storage.Iterator[restapi.Agent], error) {
 	txn := driver.db.Txn(false)
 	defer txn.Abort()
 
@@ -307,7 +345,7 @@ func (driver *storageDriver) GetAvailableAgentsMatching(totalAvailableVramMoreTh
 	for obj := iterator.Next(); obj != nil; iterator.Next() {
 		agent := utilities.Require[Agent](obj)
 
-		if agent.VramAvailable >= totalAvailableVramMoreThan && storage.IsSubset(agent.Tags, tags) && storage.IsSubset(agent.Taints, tolerates) {
+		if agent.VramAvailable >= totalAvailableVramAtLeast && storage.IsSubset(agent.Tags, tags) && storage.IsSubset(agent.Taints, tolerates) {
 			agents = append(agents, agent.Agent)
 		}
 	}
@@ -325,7 +363,7 @@ func (driver *storageDriver) GetQueuedSessionsIterator() (storage.Iterator[stora
 	}
 
 	var sessions []storage.QueuedSession
-	for obj := iterator.Next(); obj != nil; iterator.Next() {
+	for obj := iterator.Next(); obj != nil; obj = iterator.Next() {
 		session := utilities.Require[Session](obj)
 		sessions = append(sessions, storage.QueuedSession{
 			Id:           session.Id,
@@ -343,7 +381,7 @@ func (driver *storageDriver) SetAgentsMissingIfNotUpdatedFor(duration time.Durat
 
 	txn := driver.db.Txn(true)
 
-	iterator, err := txn.LowerBound("agents", "last_updated", since)
+	iterator, err := txn.ReverseLowerBound("agents", "last_updated", since)
 	if err != nil {
 		txn.Abort()
 		return err
@@ -351,13 +389,15 @@ func (driver *storageDriver) SetAgentsMissingIfNotUpdatedFor(duration time.Durat
 
 	for obj := iterator.Next(); obj != nil; obj = iterator.Next() {
 		agent := utilities.Require[Agent](obj)
-		agent.State = restapi.AgentMissing
-		agent.LastUpdated = now
+		if agent.State == restapi.AgentActive {
+			agent.State = restapi.AgentMissing
+			agent.LastUpdated = now
 
-		err = txn.Insert("agents", agent)
-		if err != nil {
-			txn.Abort()
-			return err
+			err = txn.Insert("agents", agent)
+			if err != nil {
+				txn.Abort()
+				return err
+			}
 		}
 	}
 
@@ -370,7 +410,7 @@ func (driver *storageDriver) RemoveMissingAgentsIfNotUpdatedFor(duration time.Du
 
 	txn := driver.db.Txn(true)
 
-	iterator, err := txn.LowerBound("agents", "last_updated", since)
+	iterator, err := txn.ReverseLowerBound("agents", "last_updated", since)
 	if err != nil {
 		txn.Abort()
 		return err
@@ -379,7 +419,9 @@ func (driver *storageDriver) RemoveMissingAgentsIfNotUpdatedFor(duration time.Du
 	agentIds := make([]interface{}, 0)
 	for obj := iterator.Next(); obj != nil; obj = iterator.Next() {
 		agent := utilities.Require[Agent](obj)
-		agentIds = append(agentIds, agent.Id)
+		if agent.State == restapi.AgentMissing {
+			agentIds = append(agentIds, agent.Id)
+		}
 	}
 
 	_, err = txn.DeleteAll("agents", "id", agentIds...)

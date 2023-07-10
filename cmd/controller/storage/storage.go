@@ -4,6 +4,7 @@
 package storage
 
 import (
+	"errors"
 	"time"
 
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
@@ -40,13 +41,19 @@ type Storage interface {
 	RequestSession(requirements restapi.SessionRequirements) (string, error)
 	AssignSession(sessionId string, agentId string, gpus []restapi.SessionGpu) error
 	GetSessionById(id string) (restapi.Session, error)
+	GetQueuedSessionById(id string) (QueuedSession, error) // For Testing
 
-	GetAvailableAgentsMatching(totalAvailableVramGE uint64, tags map[string]string, tolerates map[string]string) (Iterator[restapi.Agent], error)
+	GetAvailableAgentsMatching(totalAvailableVramAtLeast uint64, tags map[string]string, tolerates map[string]string) (Iterator[restapi.Agent], error)
 	GetQueuedSessionsIterator() (Iterator[QueuedSession], error)
 
 	SetAgentsMissingIfNotUpdatedFor(duration time.Duration) error
 	RemoveMissingAgentsIfNotUpdatedFor(duration time.Duration) error
 }
+
+var (
+	ErrNotSupported = errors.New("operation is not supported")
+	ErrNotFound     = errors.New("object not found")
+)
 
 func IsSubset(set, subset map[string]string) bool {
 	for key, value := range subset {

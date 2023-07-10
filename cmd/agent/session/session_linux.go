@@ -13,18 +13,6 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 )
 
-func setupIpc() (*os.File, *os.File, error) {
-	fds, err := syscall.Socketpair(syscall.AF_LOCAL, syscall.SOCK_STREAM, 0)
-	if err != nil {
-		logger.Error(err)
-		return nil, nil, err
-	}
-	readPipe := os.NewFile(uintptr(fds[0]), "read")
-	writePipe := os.NewFile(uintptr(fds[1]), "write")
-
-	return readPipe, writePipe, nil
-}
-
 func inheritFiles(cmd *exec.Cmd, files ...*os.File) {
 	for _, f := range files {
 		cmd.ExtraFiles = append(cmd.ExtraFiles, f)
