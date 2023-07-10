@@ -342,7 +342,7 @@ func (driver *storageDriver) GetAvailableAgentsMatching(totalAvailableVramAtLeas
 	}
 
 	var agents []restapi.Agent
-	for obj := iterator.Next(); obj != nil; iterator.Next() {
+	for obj := iterator.Next(); obj != nil; obj = iterator.Next() {
 		agent := utilities.Require[Agent](obj)
 
 		if agent.VramAvailable >= totalAvailableVramAtLeast && storage.IsSubset(agent.Tags, tags) && storage.IsSubset(agent.Taints, tolerates) {
@@ -424,12 +424,17 @@ func (driver *storageDriver) RemoveMissingAgentsIfNotUpdatedFor(duration time.Du
 		}
 	}
 
-	_, err = txn.DeleteAll("agents", "id", agentIds...)
-	if err != nil {
+	if len(agentIds) > 0 {
+		_, err = txn.DeleteAll("agents", "id", agentIds...)
+		if err != nil {
+			txn.Abort()
+			return err
+		}
+
+		txn.Commit()
+	} else {
 		txn.Abort()
-		return err
 	}
 
-	txn.Commit()
 	return nil
 }

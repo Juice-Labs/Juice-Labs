@@ -226,7 +226,7 @@ func TestAssigningSessions(t *testing.T) {
 	sessionId := queueSession(t, db, requirements)
 
 	selectedGpus := []restapi.SessionGpu{
-		restapi.SessionGpu{
+		{
 			Gpu:          agent.Gpus[0],
 			VramRequired: requirements.Gpus[0].VramRequired,
 		},
@@ -256,7 +256,7 @@ func TestAssigningSessions(t *testing.T) {
 		Id:    agent.Id,
 		State: agent.State,
 		Sessions: []storage.SessionUpdate{
-			storage.SessionUpdate{
+			{
 				Id:    session.Id,
 				State: restapi.SessionActive,
 			},
@@ -278,7 +278,7 @@ func TestAssigningSessions(t *testing.T) {
 		},
 	})
 	checkAgent(t, db, agent)
-	_, err := db.GetSessionById(session.Id)
+	_, err = db.GetSessionById(session.Id)
 	if err == nil {
 		t.Error("expected storage.ErrNotFound, instead did not receive an error")
 	} else if err != storage.ErrNotFound {
@@ -286,7 +286,7 @@ func TestAssigningSessions(t *testing.T) {
 	}
 }
 
-func TestQueuedSessionsIterators(t *testing.T) {
+func TestGetQueuedSessionsIterator(t *testing.T) {
 	db := openStorage(t)
 	defer db.Close()
 
@@ -317,32 +317,60 @@ func TestQueuedSessionsIterators(t *testing.T) {
 	}
 }
 
-func TestQueuedSessionsIterators(t *testing.T) {
+func TestGetAvailableAgentsMatching(t *testing.T) {
 	db := openStorage(t)
 	defer db.Close()
 
-	agent := registerAgent(t, db, defaultAgent(4, 24*1024*1024*1024))
+	backend := NewBackend(db)
 
-	requirements := defaultSessionRequirements(4 * 1024 * 1024 * 1024)
-	sessionId1 := queueSession(t, db, requirements)
-	sessionId2 := queueSession(t, db, requirements)
-
-	selectedGpus := []restapi.SessionGpu{
-		restapi.SessionGpu{
-			Gpu:          agent.Gpus[0],
-			VramRequired: requirements.Gpus[0].VramRequired,
-		},
+	agentIds := []string{
+		registerAgent(t, db, defaultAgent(2, 24*1024*1024*1024)).Id,
+		registerAgent(t, db, defaultAgent(1, 4*1024*1024*1024)).Id,
+		registerAgent(t, db, defaultAgent(1, 4*1024*1024*1024)).Id,
 	}
 
-	err := db.AssignSession(sessionId1, agent.Id, selectedGpus)
-	if err != nil {
-		t.Log(err)
-		t.FailNow()
+	sessionIds := []string{
+		queueSession(t, db, defaultSessionRequirements(8*1024*1024*1024)),
+		queueSession(t, db, defaultSessionRequirements(4*1024*1024*1024)),
+		queueSession(t, db, defaultSessionRequirements(2*1024*1024*1024)),
+		queueSession(t, db, defaultSessionRequirements(4*1024*1024*1024)),
 	}
 
-	err = db.AssignSession(sessionId2, agent.Id, selectedGpus)
+	err := backend.Update(context.Background())
 	if err != nil {
-		t.Log(err)
-		t.FailNow()
+		t.Error(err)
+	}
+
+	for _, id := range sessionIds {
+		session, err := db.GetSessionById(id)
+		if err != nil {
+			t.Error(err)
+		} else if session.State != restapi.SessionAssigned {
+			t.Error("expected session to be assigned")
+		}
+	}
+
+	for _, id := range agentIds {
+		agent, err := db.GetAgentById(id)
+		if err != nil {
+			t.Error(err)
+		}
+
+		if len(agent.Sessions) > agent.MaxSessions {
+			t.Error("maximum sessions is not adhered to")
+		}
+
+		var sessionVram uint64
+		for _, session := range agent.Sessions {
+			sessionVram += session.Gpus[0].VramRequired
+
+			if session.Address > agent.Address {
+				t.Error("session Address is not the agent Address")
+			}
+		}
+
+		if sessionVram > agent.Gpus[0].Vram {
+			t.Error("maximum vram is not adhered to")
+		}
 	}
 }

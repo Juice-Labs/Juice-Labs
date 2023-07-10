@@ -102,5 +102,5 @@ func (backend *Backend) Update(ctx context.Context) error {
 		}
 	}
 
-	return nil
+	return err
 }
