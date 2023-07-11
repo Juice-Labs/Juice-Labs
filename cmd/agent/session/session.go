@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
@@ -20,6 +21,8 @@ import (
 )
 
 type Session struct {
+	mutex sync.Mutex
+
 	id        string
 	juicePath string
 	version   string
@@ -44,10 +47,16 @@ func New(id string, juicePath string, version string, gpus *gpu.SelectedGpuSet) 
 }
 
 func (session *Session) Id() string {
+	session.mutex.Lock()
+	defer session.mutex.Unlock()
+
 	return session.id
 }
 
 func (session *Session) Session() restapi.Session {
+	session.mutex.Lock()
+	defer session.mutex.Unlock()
+
 	return restapi.Session{
 		Id:      session.id,
 		State:   session.state,
@@ -57,6 +66,9 @@ func (session *Session) Session() restapi.Session {
 }
 
 func (session *Session) Close() error {
+	session.mutex.Lock()
+	defer session.mutex.Unlock()
+
 	session.cmd = nil
 
 	err := errors.Join(
@@ -67,7 +79,10 @@ func (session *Session) Close() error {
 	session.gpus.Release()
 	session.gpus = nil
 
-	session.state = restapi.SessionClosed
+	if session.state != restapi.SessionCanceled {
+		session.state = restapi.SessionClosed
+	}
+
 	return err
 }
 
@@ -86,6 +101,7 @@ func (session *Session) Run(group task.Group) error {
 			logLevel, err_ := logger.LogLevelAsString()
 			err = err_
 			if err_ == nil {
+				session.mutex.Lock()
 				session.cmd = exec.CommandContext(group.Ctx(),
 					filepath.Join(session.juicePath, "Renderer_Win"),
 					"--id", session.id,
@@ -94,10 +110,15 @@ func (session *Session) Run(group task.Group) error {
 					"--ipc_write", fmt.Sprint(ch1Write.Fd()),
 					"--ipc_read", fmt.Sprint(ch2Read.Fd()),
 					"--pcibus", session.gpus.GetPciBusString())
+				session.mutex.Unlock()
 
 				inheritFiles(session.cmd, ch1Write, ch2Read)
 
 				err = session.cmd.Run()
+
+				session.mutex.Lock()
+				session.cmd = nil
+				session.mutex.Unlock()
 			}
 		}
 	}
@@ -110,43 +131,57 @@ func (session *Session) Run(group task.Group) error {
 }
 
 func (session *Session) Cancel() error {
-	session.state = restapi.SessionCanceled
-	return session.cmd.Cancel()
+	session.mutex.Lock()
+	defer session.mutex.Unlock()
+
+	if session.state != restapi.SessionClosed {
+		session.state = restapi.SessionCanceled
+		return session.cmd.Cancel()
+	}
+
+	return nil
 }
 
 func (session *Session) Connect(c net.Conn) error {
+	session.mutex.Lock()
+	defer session.mutex.Unlock()
+
 	defer c.Close()
 
-	tcpConn := &net.TCPConn{}
-	tlsConn, err := utilities.Cast[*tls.Conn](c)
-	if err == nil {
-		tcpConn, err = utilities.Cast[*net.TCPConn](tlsConn.NetConn())
-	} else {
-		tcpConn, err = utilities.Cast[*net.TCPConn](c)
-	}
-
-	if err == nil {
-		rawConn, err_ := tcpConn.SyscallConn()
+	var err error
+	if session.cmd != nil {
+		tcpConn := &net.TCPConn{}
+		tlsConn, err_ := utilities.Cast[*tls.Conn](c)
 		err = err_
 		if err == nil {
-			err = session.forwardSocket(rawConn)
+			tcpConn, err = utilities.Cast[*net.TCPConn](tlsConn.NetConn())
+		} else {
+			tcpConn, err = utilities.Cast[*net.TCPConn](c)
+		}
+
+		if err == nil {
+			rawConn, err_ := tcpConn.SyscallConn()
+			err = err_
 			if err == nil {
-				// Wait for the server to indicate it has created the socket
-				data := make([]byte, 1)
-				_, err = session.readPipe.Read(data)
+				err = session.forwardSocket(rawConn)
+				if err == nil {
+					// Wait for the server to indicate it has created the socket
+					data := make([]byte, 1)
+					_, err = session.readPipe.Read(data)
 
-				// Close our socket handle
-				err = errors.Join(err, c.Close())
+					// Close our socket handle
+					err = errors.Join(err, c.Close())
 
-				// And finally, inform the server that our side is closed
-				_, err_ := session.writePipe.Write(data)
-				err = errors.Join(err, err_)
+					// And finally, inform the server that our side is closed
+					_, err_ := session.writePipe.Write(data)
+					err = errors.Join(err, err_)
+				}
 			}
 		}
-	}
 
-	if err != nil {
-		err = errors.Join(err, session.Cancel())
+		if err != nil {
+			err = errors.Join(err, session.Cancel())
+		}
 	}
 
 	return err

@@ -27,8 +27,8 @@ var (
 	generateCert = flag.Bool("generate-cert", false, "Generates a certificate for https")
 	disableTls   = flag.Bool("disable-tls", true, "")
 
-	enableFrontend = flag.Bool("enable-frontend", false, "")
-	enableBackend  = flag.Bool("enable-backend", false, "")
+	enableBackend = flag.Bool("backend", false, "")
+	enableBoth    = flag.Bool("both", true, "")
 
 	useMemdb = flag.Bool("use-memdb", false, "")
 )
@@ -53,7 +53,7 @@ func main() {
 			})
 		}
 
-		if *enableFrontend {
+		if !*enableBackend || *enableBoth {
 			var tlsConfig *tls.Config
 
 			if !*disableTls {
@@ -81,7 +81,7 @@ func main() {
 			}
 		}
 
-		if *enableBackend {
+		if *enableBackend || *enableBoth {
 			if err == nil {
 				group.Go("Backend", backend.NewBackend(storage))
 			}

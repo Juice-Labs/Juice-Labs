@@ -137,7 +137,7 @@ func (api Client) GetAgent(id string) (Agent, error) {
 }
 
 func (api Client) GetAgentWithContext(ctx context.Context, id string) (Agent, error) {
-	response, err := api.get(ctx, fmt.Sprint("/v1/agent", id))
+	response, err := api.get(ctx, fmt.Sprint("/v1/agent/", id))
 	if err != nil {
 		return Agent{}, err
 	}
@@ -156,7 +156,7 @@ func (api Client) UpdateAgentWithContext(ctx context.Context, agent Agent) error
 		return err
 	}
 
-	response, err := api.putWithJson(ctx, fmt.Sprint("/v1/agent", agent.Id), body)
+	response, err := api.putWithJson(ctx, fmt.Sprint("/v1/agent/", agent.Id), body)
 	if err != nil {
 		return err
 	}

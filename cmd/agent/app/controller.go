@@ -65,15 +65,21 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 					}
 
 					for _, session := range agentUpdate.Sessions {
+						reference, err_ := agent.getSession(session.Id)
+
 						switch session.State {
 						case restapi.SessionAssigned:
-							err = errors.Join(err, agent.registerSession(group, session))
+							if reference == nil {
+								err = errors.Join(err, agent.registerSession(group, session))
+							}
 
 						case restapi.SessionCanceling:
-							reference, err_ := agent.getSession(session.Id)
-							err = errors.Join(err, err_, reference.Object.Cancel())
-							reference.Release()
+							if reference != nil {
+								err = errors.Join(err, err_, reference.Object.Cancel())
+							}
 						}
+
+						reference.Release()
 					}
 
 					// Update the controller with our current state

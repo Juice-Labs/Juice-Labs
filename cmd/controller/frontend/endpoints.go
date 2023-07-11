@@ -105,7 +105,7 @@ func (frontend *Frontend) getAgentEp(group task.Group, router *mux.Router) error
 }
 
 func (frontend *Frontend) updateAgentEp(group task.Group, router *mux.Router) error {
-	router.Methods("POST").Path("/v1/agent/{id}").HandlerFunc(
+	router.Methods("PUT").Path("/v1/agent/{id}").HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			id := mux.Vars(r)["id"]
 
