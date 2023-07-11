@@ -202,6 +202,10 @@ func (agent *Agent) getAllSessions() []restapi.Session {
 
 	sessions := make([]restapi.Session, 0)
 
+	for pair := agent.sessions.Oldest(); pair != nil; pair = pair.Next() {
+		sessions = append(sessions, pair.Value.Object.Session())
+	}
+
 	return sessions
 }
 
@@ -209,11 +213,11 @@ func (agent *Agent) getSession(id string) (*Reference[session.Session], error) {
 	agent.sessionsMutex.Lock()
 	defer agent.sessionsMutex.Unlock()
 
-	session, found := agent.sessions.Get(id)
+	reference, found := agent.sessions.Get(id)
 	if found {
 		// If Acquire returns false, it is in the middle of being cleaned up
-		if session.Acquire() {
-			return session, nil
+		if reference.Acquire() {
+			return reference, nil
 		}
 	}
 

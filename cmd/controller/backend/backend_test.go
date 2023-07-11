@@ -207,13 +207,6 @@ func TestSessions(t *testing.T) {
 	}
 
 	checkQueuedSession(t, db, queuedSession)
-
-	_, err := db.GetSessionById(id)
-	if err == nil {
-		t.Error("expected storage.ErrNotSupported, instead did not receive an error")
-	} else if err != storage.ErrNotSupported {
-		t.Errorf("expected storage.ErrNotSupported, instead received %s", err)
-	}
 }
 
 func TestAssigningSessions(t *testing.T) {

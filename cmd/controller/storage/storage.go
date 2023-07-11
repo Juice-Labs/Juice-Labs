@@ -51,8 +51,7 @@ type Storage interface {
 }
 
 var (
-	ErrNotSupported = errors.New("operation is not supported")
-	ErrNotFound     = errors.New("object not found")
+	ErrNotFound = errors.New("object not found")
 )
 
 func IsSubset(set, subset map[string]string) bool {

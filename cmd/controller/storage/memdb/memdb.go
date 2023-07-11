@@ -303,12 +303,7 @@ func (driver *storageDriver) GetSessionById(id string) (restapi.Session, error) 
 		return restapi.Session{}, storage.ErrNotFound
 	}
 
-	session := utilities.Require[Session](obj)
-	if session.State == restapi.SessionQueued {
-		return restapi.Session{}, storage.ErrNotSupported
-	}
-
-	return session.Session, nil
+	return utilities.Require[Session](obj).Session, nil
 }
 
 func (driver *storageDriver) GetQueuedSessionById(id string) (storage.QueuedSession, error) {
