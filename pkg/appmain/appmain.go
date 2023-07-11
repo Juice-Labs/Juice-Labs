@@ -15,6 +15,10 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
 
+type closable interface {
+	Close() error
+}
+
 const (
 	ExitSuccess = 0
 	ExitFailure = 1
@@ -35,6 +39,10 @@ func Run(name string, version string, logic task.TaskFn) {
 	err := logger.Configure()
 	if err == nil {
 		logger.Info(name, ", v", version)
+
+		// Only available on Windows for cleaning up subprocesses
+		job := newJobObject()
+		defer job.Close()
 
 		ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 
