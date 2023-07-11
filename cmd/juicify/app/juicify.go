@@ -187,7 +187,10 @@ func Run(group task.Group) error {
 				Host: session.Address,
 			}
 
-			config.Host = uri.Hostname()
+			hostname := uri.Hostname()
+			if hostname != "" {
+				config.Host = uri.Hostname()
+			}
 
 			portStr := uri.Port()
 			if portStr != "" {

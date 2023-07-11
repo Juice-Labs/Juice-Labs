@@ -70,6 +70,10 @@ func (frontend *Frontend) registerAgentEp(group task.Group, router *mux.Router) 
 				return
 			}
 
+			if ip == "127.0.0.1" {
+				ip = ""
+			}
+
 			agent.Address = fmt.Sprintf("%s:%s", ip, port)
 
 			id, err := frontend.registerAgent(agent)

@@ -32,7 +32,7 @@ func defaultAgent(maxSessions int, gpuVram uint64) restapi.Agent {
 		Version:     "Test",
 		MaxSessions: maxSessions,
 		Gpus: []restapi.Gpu{
-			restapi.Gpu{
+			{
 				Index:       0,
 				Name:        "Test",
 				VendorId:    0x0001,
@@ -50,7 +50,7 @@ func defaultSessionRequirements(gpuVram uint64) restapi.SessionRequirements {
 	return restapi.SessionRequirements{
 		Version: "Test",
 		Gpus: []restapi.GpuRequirements{
-			restapi.GpuRequirements{
+			{
 				VramRequired: gpuVram,
 				Tags:         map[string]string{},
 				Tolerates:    map[string]string{},
