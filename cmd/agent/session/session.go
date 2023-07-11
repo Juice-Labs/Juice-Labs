@@ -147,12 +147,15 @@ func (session *Session) Start(group task.Group) error {
 
 func (session *Session) Wait() error {
 	err := session.cmd.Wait()
+	if err != nil {
+		logger.Error(fmt.Sprintf("Session: session %s crashed with %s", session.id, err))
+	}
 
 	session.mutex.Lock()
 	defer session.mutex.Unlock()
 
 	session.cmd = nil
-	return err
+	return nil
 }
 
 func (session *Session) Cancel() error {
