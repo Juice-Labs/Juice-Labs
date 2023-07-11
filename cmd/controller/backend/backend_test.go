@@ -356,7 +356,7 @@ func TestGetAvailableAgentsMatching(t *testing.T) {
 			t.Error(err)
 		}
 
-		if len(agent.Sessions) > agent.MaxSessions {
+		if agent.MaxSessions > 0 && len(agent.Sessions) > agent.MaxSessions {
 			t.Error("maximum sessions is not adhered to")
 		}
 
