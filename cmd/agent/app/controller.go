@@ -79,7 +79,9 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 							}
 						}
 
-						reference.Release()
+						if reference != nil {
+							reference.Release()
+						}
 					}
 
 					// Update the controller with our current state

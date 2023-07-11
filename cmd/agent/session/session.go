@@ -7,11 +7,13 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
@@ -104,18 +106,34 @@ func (session *Session) Start(group task.Group) error {
 			logLevel, err_ := logger.LogLevelAsString()
 			err = err_
 			if err_ == nil {
-				session.cmd = exec.CommandContext(group.Ctx(),
-					filepath.Join(session.juicePath, "Renderer_Win"),
-					"--id", session.id,
-					"--log_group", logLevel,
-					"--log_file", filepath.Join(session.juicePath, "logs", fmt.Sprint(session.id, ".log")),
-					"--ipc_write", fmt.Sprint(ch1Write.Fd()),
-					"--ipc_read", fmt.Sprint(ch2Read.Fd()),
-					"--pcibus", session.gpus.GetPciBusString())
+				logsPath := filepath.Join(session.juicePath, "logs")
+				_, err_ = os.Stat(logsPath)
+				if err_ != nil && os.IsNotExist(err_) {
+					err_ = os.MkdirAll(logsPath, fs.ModeDir|fs.ModePerm)
+					if err_ != nil {
+						logger.Error("unable to create directory %s, %s", logsPath, err_)
+					}
+				}
 
-				inheritFiles(session.cmd, ch1Write, ch2Read)
+				now := time.Now()
 
-				err = session.cmd.Start()
+				// NOTE: time.Format is really weird. The string below equates to YYYYMMDD-HHMMSS_
+				logName := fmt.Sprint(now.Format("20060102-150405_"), session.id, ".log")
+
+				if err == nil {
+					session.cmd = exec.CommandContext(group.Ctx(),
+						filepath.Join(session.juicePath, "Renderer_Win"),
+						"--id", session.id,
+						"--log_group", logLevel,
+						"--log_file", filepath.Join(logsPath, logName),
+						"--ipc_write", fmt.Sprint(ch1Write.Fd()),
+						"--ipc_read", fmt.Sprint(ch2Read.Fd()),
+						"--pcibus", session.gpus.GetPciBusString())
+
+					inheritFiles(session.cmd, ch1Write, ch2Read)
+
+					err = session.cmd.Start()
+				}
 			}
 		}
 	}
