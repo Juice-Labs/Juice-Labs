@@ -244,14 +244,21 @@ func (agent *Agent) Run(group task.Group) error {
 	return nil
 }
 
-func (agent *Agent) runSession(group task.Group, id string, juicePath string, version string, gpus *gpu.SelectedGpuSet) {
+func (agent *Agent) runSession(group task.Group, id string, juicePath string, version string, gpus *gpu.SelectedGpuSet) error {
 	reference := agent.addSession(session.New(id, juicePath, version, gpus))
 
-	group.GoFn("Agent runSession", func(group task.Group) error {
-		err := reference.Object.Run(group)
+	err := reference.Object.Start(group)
+	if err == nil {
+		group.GoFn("Agent runSession", func(group task.Group) error {
+			err := reference.Object.Wait()
+			reference.Release()
+			return err
+		})
+	} else {
 		reference.Release()
-		return err
-	})
+	}
+
+	return err
 }
 
 func (agent *Agent) requestSession(group task.Group, sessionRequirements restapi.SessionRequirements) (string, error) {
@@ -265,9 +272,7 @@ func (agent *Agent) requestSession(group task.Group, sessionRequirements restapi
 	}
 
 	id := uuid.NewString()
-	agent.runSession(group, id, agent.JuicePath, sessionRequirements.Version, selectedGpus)
-
-	return id, nil
+	return id, agent.runSession(group, id, agent.JuicePath, sessionRequirements.Version, selectedGpus)
 }
 
 func (agent *Agent) registerSession(group task.Group, apiSession restapi.Session) error {
@@ -276,6 +281,5 @@ func (agent *Agent) registerSession(group task.Group, apiSession restapi.Session
 		return fmt.Errorf("Agent.registerSession: unable to select a matching set of GPUs")
 	}
 
-	agent.runSession(group, apiSession.Id, agent.JuicePath, apiSession.Version, selectedGpus)
-	return nil
+	return agent.runSession(group, apiSession.Id, agent.JuicePath, apiSession.Version, selectedGpus)
 }

@@ -86,7 +86,10 @@ func (session *Session) Close() error {
 	return err
 }
 
-func (session *Session) Run(group task.Group) error {
+func (session *Session) Start(group task.Group) error {
+	session.mutex.Lock()
+	defer session.mutex.Unlock()
+
 	ch1Read, ch1Write, err := setupIpc()
 	if err == nil {
 		session.readPipe = ch1Read
@@ -101,7 +104,6 @@ func (session *Session) Run(group task.Group) error {
 			logLevel, err_ := logger.LogLevelAsString()
 			err = err_
 			if err_ == nil {
-				session.mutex.Lock()
 				session.cmd = exec.CommandContext(group.Ctx(),
 					filepath.Join(session.juicePath, "Renderer_Win"),
 					"--id", session.id,
@@ -110,15 +112,10 @@ func (session *Session) Run(group task.Group) error {
 					"--ipc_write", fmt.Sprint(ch1Write.Fd()),
 					"--ipc_read", fmt.Sprint(ch2Read.Fd()),
 					"--pcibus", session.gpus.GetPciBusString())
-				session.mutex.Unlock()
 
 				inheritFiles(session.cmd, ch1Write, ch2Read)
 
-				err = session.cmd.Run()
-
-				session.mutex.Lock()
-				session.cmd = nil
-				session.mutex.Unlock()
+				err = session.cmd.Start()
 			}
 		}
 	}
@@ -127,6 +124,16 @@ func (session *Session) Run(group task.Group) error {
 		err = fmt.Errorf("Session: failed to start Renderer_Win with %s", err)
 	}
 
+	return err
+}
+
+func (session *Session) Wait() error {
+	err := session.cmd.Wait()
+
+	session.mutex.Lock()
+	defer session.mutex.Unlock()
+
+	session.cmd = nil
 	return err
 }
 
