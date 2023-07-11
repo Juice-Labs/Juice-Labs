@@ -81,7 +81,7 @@ func (session *Session) Close() error {
 	session.gpus.Release()
 	session.gpus = nil
 
-	if session.state != restapi.SessionCanceled {
+	if session.state < restapi.SessionClosed {
 		session.state = restapi.SessionClosed
 	}
 
@@ -133,6 +133,8 @@ func (session *Session) Start(group task.Group) error {
 					inheritFiles(session.cmd, ch1Write, ch2Read)
 
 					err = session.cmd.Start()
+
+					session.state = restapi.SessionActive
 				}
 			}
 		}
@@ -140,6 +142,8 @@ func (session *Session) Start(group task.Group) error {
 
 	if err != nil {
 		err = fmt.Errorf("Session: failed to start Renderer_Win with %s", err)
+
+		session.state = restapi.SessionFailed
 	}
 
 	return err
@@ -149,6 +153,8 @@ func (session *Session) Wait() error {
 	err := session.cmd.Wait()
 	if err != nil {
 		logger.Error(fmt.Sprintf("Session: session %s crashed with %s", session.id, err))
+
+		session.state = restapi.SessionFailed
 	}
 
 	session.mutex.Lock()
@@ -162,7 +168,7 @@ func (session *Session) Cancel() error {
 	session.mutex.Lock()
 	defer session.mutex.Unlock()
 
-	if session.state != restapi.SessionClosed {
+	if session.state < restapi.SessionClosed {
 		session.state = restapi.SessionCanceled
 		return session.cmd.Cancel()
 	}

@@ -9,9 +9,12 @@ const (
 	SessionQueued int = iota
 	SessionAssigned
 	SessionActive
+
+	// Closed/Closing states
+	SessionClosed
+	SessionFailed
 	SessionCanceling
 	SessionCanceled
-	SessionClosed
 
 	AgentActive int = iota
 	AgentDisabled

@@ -3,10 +3,6 @@
  */
 package appmain
 
-import (
-	"github.com/kolesnikovae/go-winjob"
-)
-
 type jobObject struct{}
 
 func (job *jobObject) Close() error {
