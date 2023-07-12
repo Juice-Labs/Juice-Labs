@@ -10,6 +10,7 @@ import (
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
+	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
@@ -94,6 +95,7 @@ func (backend *Backend) Update(ctx context.Context) error {
 
 					selectedGpus := AgentMatches(agent, session.Requirements)
 					if selectedGpus != nil {
+						logger.Tracef("assigning %s to %s", session.Id, agent.Id)
 						err = errors.Join(err, backend.storage.AssignSession(session.Id, agent.Id, selectedGpus.GetGpus()))
 						break
 					}

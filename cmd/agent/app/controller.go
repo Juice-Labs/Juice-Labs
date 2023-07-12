@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
+	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
@@ -46,7 +47,8 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 			Address: *controllerAddress,
 		}
 
-		agent.sessionUpdates = make(chan sessionUpdate, agent.maxSessions*4)
+		// maxSessions may be 0
+		agent.sessionUpdates = make(chan sessionUpdate, (agent.maxSessions+1)*4)
 
 		if *disableControllerTls {
 			agent.api.Scheme = "http"
@@ -111,9 +113,17 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 					// Update the controller with our current state
 					// Multiple updates can occur within one cycle so create a map to get the latest updates
 					sessionsUpdates := map[string]restapi.SessionUpdate{}
-					for update := range agent.sessionUpdates {
-						sessionsUpdates[update.Id] = restapi.SessionUpdate{
-							State: update.State,
+
+				CopySessions:
+					for {
+						select {
+						case update := <-agent.sessionUpdates:
+							sessionsUpdates[update.Id] = restapi.SessionUpdate{
+								State: update.State,
+							}
+
+						default:
+							break CopySessions
 						}
 					}
 
@@ -134,6 +144,7 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 
 func (agent *Agent) SessionStateChanged(id string, state int) {
 	if agent.sessionUpdates != nil {
+		logger.Tracef("session %s changed state to %d", id, state)
 		agent.sessionUpdates <- sessionUpdate{
 			Id:    id,
 			State: state,

@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/go-memdb"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
+	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/utilities"
 )
@@ -135,6 +136,10 @@ func (driver *storageDriver) RegisterAgent(apiAgent restapi.Agent) (string, erro
 		LastUpdated:       time.Now().Unix(),
 	}
 
+	if agent.SessionsAvailable == 0 {
+		agent.SessionsAvailable = -1
+	}
+
 	agent.Id = uuid.NewString()
 
 	txn := driver.db.Txn(true)
@@ -198,9 +203,11 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 			session.State = sessionUpdate.State
 			session.LastUpdated = now
 
-			if session.State == restapi.SessionClosed {
+			if session.State >= restapi.SessionClosed {
 				agent.VramAvailable += session.VramRequired
 				agent.SessionsAvailable++
+
+				logger.Tracef("removing session %s from %s", session.Id, agent.Id)
 
 				_, err = txn.DeleteAll("sessions", "id", session.Id)
 			} else {
@@ -214,6 +221,9 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 				txn.Abort()
 				return err
 			}
+		} else {
+			sessionIds = append(sessionIds, sessionId)
+			sessions = append(sessions, agent.Sessions[index])
 		}
 	}
 
@@ -347,7 +357,7 @@ func (driver *storageDriver) GetAvailableAgentsMatching(totalAvailableVramAtLeas
 	for obj := iterator.Next(); obj != nil; obj = iterator.Next() {
 		agent := utilities.Require[Agent](obj)
 
-		if agent.SessionsAvailable > 0 && agent.VramAvailable >= totalAvailableVramAtLeast && storage.IsSubset(agent.Tags, tags) && storage.IsSubset(agent.Taints, tolerates) {
+		if agent.SessionsAvailable != 0 && agent.VramAvailable >= totalAvailableVramAtLeast && storage.IsSubset(agent.Tags, tags) && storage.IsSubset(agent.Taints, tolerates) {
 			agents = append(agents, agent.Agent)
 		}
 	}

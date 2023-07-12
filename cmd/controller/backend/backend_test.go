@@ -352,7 +352,7 @@ func TestGetAvailableAgentsMatching(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		} else if session.State != restapi.SessionAssigned {
-			t.Error("expected session to be assigned")
+			t.Errorf("expected session to be assigned, state = %d", session.State)
 		}
 	}
 

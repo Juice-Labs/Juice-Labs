@@ -239,6 +239,7 @@ func (agent *Agent) runSession(group task.Group, id string, juicePath string, ve
 	if err == nil {
 		group.GoFn("Agent runSession", func(group task.Group) error {
 			err := reference.Object.Wait()
+			err = errors.Join(err, reference.Object.Close())
 			reference.Release()
 			return err
 		})

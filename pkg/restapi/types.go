@@ -15,7 +15,10 @@ const (
 	SessionFailed
 	SessionCanceling
 	SessionCanceled
+)
 
+// Restarting iota in a new block
+const (
 	AgentActive int = iota
 	AgentDisabled
 	AgentMissing
