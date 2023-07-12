@@ -6,6 +6,7 @@ package session
 import (
 	"crypto/tls"
 	"errors"
+	"flag"
 	"fmt"
 	"io/fs"
 	"net"
@@ -115,39 +116,40 @@ func (session *Session) Start(group task.Group) error {
 			session.writePipe = ch2Write
 			defer ch2Read.Close()
 
-			logLevel, err_ := logger.LogLevelAsString()
-			err = err_
-			if err_ == nil {
-				logsPath := filepath.Join(session.juicePath, "logs")
-				_, err_ = os.Stat(logsPath)
-				if err_ != nil && os.IsNotExist(err_) {
-					err_ = os.MkdirAll(logsPath, fs.ModeDir|fs.ModePerm)
-					if err_ != nil {
-						logger.Errorf("unable to create directory %s, %s", logsPath, err_.Error())
-					}
+			logsPath := filepath.Join(session.juicePath, "logs")
+			_, err_ = os.Stat(logsPath)
+			if err_ != nil && os.IsNotExist(err_) {
+				err_ = os.MkdirAll(logsPath, fs.ModeDir|fs.ModePerm)
+				if err_ != nil {
+					logger.Errorf("unable to create directory %s, %s", logsPath, err_.Error())
 				}
+			}
 
-				now := time.Now()
+			now := time.Now()
 
-				// NOTE: time.Format is really weird. The string below equates to YYYYMMDD-HHMMSS_
-				logName := fmt.Sprint(now.Format("20060102-150405_"), session.id, ".log")
+			// NOTE: time.Format is really weird. The string below equates to YYYYMMDD-HHMMSS_
+			logName := fmt.Sprint(now.Format("20060102-150405_"), session.id, ".log")
 
-				if err == nil {
-					session.cmd = exec.CommandContext(group.Ctx(),
-						filepath.Join(session.juicePath, "Renderer_Win"),
-						"--id", session.id,
-						"--log_group", logLevel,
-						"--log_file", filepath.Join(logsPath, logName),
-						"--ipc_write", fmt.Sprint(ch1Write.Fd()),
-						"--ipc_read", fmt.Sprint(ch2Read.Fd()),
-						"--pcibus", session.gpus.GetPciBusString())
+			if err == nil {
+				session.cmd = exec.CommandContext(group.Ctx(),
+					filepath.Join(session.juicePath, "Renderer_Win"),
+					append(
+						[]string{
+							"--id", session.id,
+							"--log_file", filepath.Join(logsPath, logName),
+							"--ipc_write", fmt.Sprint(ch1Write.Fd()),
+							"--ipc_read", fmt.Sprint(ch2Read.Fd()),
+							"--pcibus", session.gpus.GetPciBusString(),
+						},
+						flag.Args()[0:]...,
+					)...,
+				)
 
-					inheritFiles(session.cmd, ch1Write, ch2Read)
+				inheritFiles(session.cmd, ch1Write, ch2Read)
 
-					err = session.cmd.Start()
+				err = session.cmd.Start()
 
-					session.changeState(restapi.SessionActive)
-				}
+				session.changeState(restapi.SessionActive)
 			}
 		}
 	}
