@@ -19,7 +19,6 @@ import (
 
 	cmdgpu "github.com/Juice-Labs/Juice-Labs/cmd/agent/gpu"
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/session"
-	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
@@ -84,7 +83,7 @@ type Agent struct {
 	sessionsMutex sync.Mutex
 	sessions      *orderedmap.OrderedMap[string, *Reference[session.Session]]
 
-	api restapi.Client
+	controllerData
 }
 
 func NewAgent(tlsConfig *tls.Config) (*Agent, error) {
@@ -174,21 +173,6 @@ func NewAgent(tlsConfig *tls.Config) (*Agent, error) {
 	return agent, nil
 }
 
-func (agent *Agent) getState() restapi.Agent {
-	return restapi.Agent{
-		Id:          agent.Id,
-		State:       restapi.AgentActive,
-		Hostname:    agent.Hostname,
-		Address:     agent.Server.Address(),
-		Version:     build.Version,
-		MaxSessions: agent.maxSessions,
-		Gpus:        agent.Gpus.GetGpus(),
-		Tags:        agent.tags,
-		Taints:      agent.taints,
-		Sessions:    agent.getAllSessions(),
-	}
-}
-
 func (agent *Agent) getSessionsCount() int {
 	agent.sessionsMutex.Lock()
 	defer agent.sessionsMutex.Unlock()
@@ -249,7 +233,7 @@ func (agent *Agent) Run(group task.Group) error {
 }
 
 func (agent *Agent) runSession(group task.Group, id string, juicePath string, version string, gpus *gpu.SelectedGpuSet) error {
-	reference := agent.addSession(session.New(id, juicePath, version, gpus))
+	reference := agent.addSession(session.New(id, juicePath, version, gpus, agent))
 
 	err := reference.Object.Start(group)
 	if err == nil {

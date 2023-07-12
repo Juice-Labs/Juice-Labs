@@ -5,6 +5,7 @@ package backend
 
 import (
 	"context"
+	"encoding/json"
 	"math/rand"
 	"reflect"
 	"testing"
@@ -70,6 +71,7 @@ func createAgent() restapi.Agent {
 		MaxSessions: rand.Intn(7) + 1,
 		Tags:        map[string]string{},
 		Taints:      map[string]string{},
+		Sessions:    make([]restapi.Session, 0),
 	}
 
 	agent.Gpus = make([]restapi.Gpu, rand.Intn(7)+1)
@@ -114,7 +116,23 @@ func compare[T any](t *testing.T, check T, against T, err error) {
 	}
 
 	if !reflect.DeepEqual(check, against) {
-		t.Error("objects do not match")
+		var checkStr, againstStr string
+
+		bytes, err := json.Marshal(check)
+		if err == nil {
+			checkStr = string(bytes)
+		} else {
+			checkStr = err.Error()
+		}
+
+		bytes, err = json.Marshal(against)
+		if err == nil {
+			againstStr = string(bytes)
+		} else {
+			againstStr = err.Error()
+		}
+
+		t.Errorf("objects do not match\ncheck:\n%s\n====\nagainst:\n%s", checkStr, againstStr)
 	}
 }
 
@@ -171,9 +189,8 @@ func TestAgents(t *testing.T) {
 	checkAgent(t, db, agent)
 
 	agent.State = restapi.AgentActive
-	db.UpdateAgent(storage.AgentUpdate{
-		Id:    agent.Id,
-		State: restapi.AgentActive,
+	db.UpdateAgent(restapi.AgentUpdate{
+		Id: agent.Id,
 	})
 	checkAgent(t, db, agent)
 
@@ -245,12 +262,10 @@ func TestAssigningSessions(t *testing.T) {
 
 	agent.Sessions[0].State = restapi.SessionActive
 	session.State = restapi.SessionActive
-	db.UpdateAgent(storage.AgentUpdate{
-		Id:    agent.Id,
-		State: agent.State,
-		Sessions: []storage.SessionUpdate{
-			{
-				Id:    session.Id,
+	db.UpdateAgent(restapi.AgentUpdate{
+		Id: agent.Id,
+		Sessions: map[string]restapi.SessionUpdate{
+			session.Id: {
 				State: restapi.SessionActive,
 			},
 		},
@@ -260,12 +275,10 @@ func TestAssigningSessions(t *testing.T) {
 	checkSession(t, db, session)
 
 	agent.Sessions = make([]restapi.Session, 0)
-	db.UpdateAgent(storage.AgentUpdate{
-		Id:    agent.Id,
-		State: agent.State,
-		Sessions: []storage.SessionUpdate{
-			storage.SessionUpdate{
-				Id:    session.Id,
+	db.UpdateAgent(restapi.AgentUpdate{
+		Id: agent.Id,
+		Sessions: map[string]restapi.SessionUpdate{
+			session.Id: {
 				State: restapi.SessionClosed,
 			},
 		},
@@ -350,7 +363,7 @@ func TestGetAvailableAgentsMatching(t *testing.T) {
 		}
 
 		if agent.MaxSessions > 0 && len(agent.Sessions) > agent.MaxSessions {
-			t.Error("maximum sessions is not adhered to")
+			t.Errorf("maximum sessions is not adhered to, %d > %d", len(agent.Sessions), agent.MaxSessions)
 		}
 
 		var sessionVram uint64

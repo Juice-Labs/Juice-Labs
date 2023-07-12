@@ -5,7 +5,6 @@ package memdb
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,8 +18,9 @@ import (
 type Agent struct {
 	restapi.Agent
 
-	SessionIds    []string
-	VramAvailable uint64
+	SessionIds        []string
+	VramAvailable     uint64
+	SessionsAvailable int
 
 	LastUpdated int64
 }
@@ -129,9 +129,10 @@ func (driver *storageDriver) Close() error {
 
 func (driver *storageDriver) RegisterAgent(apiAgent restapi.Agent) (string, error) {
 	agent := Agent{
-		Agent:         apiAgent,
-		VramAvailable: storage.TotalVram(apiAgent.Gpus),
-		LastUpdated:   time.Now().Unix(),
+		Agent:             apiAgent,
+		VramAvailable:     storage.TotalVram(apiAgent.Gpus),
+		SessionsAvailable: apiAgent.MaxSessions,
+		LastUpdated:       time.Now().Unix(),
 	}
 
 	agent.Id = uuid.NewString()
@@ -163,7 +164,7 @@ func (driver *storageDriver) GetAgentById(id string) (restapi.Agent, error) {
 	return utilities.Require[Agent](obj).Agent, nil
 }
 
-func (driver *storageDriver) UpdateAgent(update storage.AgentUpdate) error {
+func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 	now := time.Now().Unix()
 
 	txn := driver.db.Txn(true)
@@ -174,45 +175,50 @@ func (driver *storageDriver) UpdateAgent(update storage.AgentUpdate) error {
 		return err
 	}
 
-	sessionIndex := 0
-
 	agent := utilities.Require[Agent](obj)
-	agent.State = update.State
+	agent.State = restapi.AgentActive
 	agent.LastUpdated = now
-	for _, sessionUpdate := range update.Sessions {
-		if agent.SessionIds[sessionIndex] != sessionUpdate.Id {
-			txn.Abort()
-			return errors.New("memdb.UpdateAgent: stored Agent sessions do not match Session updates")
-		}
 
-		agent.Sessions[sessionIndex].State = sessionUpdate.State
+	sessionIds := make([]string, 0, len(agent.SessionIds))
+	sessions := make([]restapi.Session, 0, len(agent.Sessions))
 
-		obj, err = txn.First("sessions", "id", sessionUpdate.Id)
-		if err != nil {
-			txn.Abort()
-			return err
-		}
-		session := utilities.Require[Session](obj)
-		session.State = sessionUpdate.State
-		session.LastUpdated = now
+	for index, sessionId := range agent.SessionIds {
+		sessionUpdate, present := update.Sessions[sessionId]
+		if present {
+			// First, update the session information within the agent structure
+			agent.Sessions[index].State = sessionUpdate.State
 
-		if session.State == restapi.SessionClosed {
-			agent.SessionIds = append(agent.SessionIds[:sessionIndex], agent.SessionIds[sessionIndex+1:]...)
-			agent.Sessions = append(agent.Sessions[:sessionIndex], agent.Sessions[sessionIndex+1:]...)
-			agent.VramAvailable += session.VramRequired
+			// Next, update the session object itself
+			obj, err = txn.First("sessions", "id", sessionId)
+			if err != nil {
+				txn.Abort()
+				return err
+			}
+			session := utilities.Require[Session](obj)
+			session.State = sessionUpdate.State
+			session.LastUpdated = now
 
-			_, err = txn.DeleteAll("sessions", "id", session.Id)
-		} else {
-			sessionIndex++
+			if session.State == restapi.SessionClosed {
+				agent.VramAvailable += session.VramRequired
+				agent.SessionsAvailable++
 
-			err = txn.Insert("sessions", session)
-		}
+				_, err = txn.DeleteAll("sessions", "id", session.Id)
+			} else {
+				sessionIds = append(sessionIds, sessionId)
+				sessions = append(sessions, session.Session)
 
-		if err != nil {
-			txn.Abort()
-			return err
+				err = txn.Insert("sessions", session)
+			}
+
+			if err != nil {
+				txn.Abort()
+				return err
+			}
 		}
 	}
+
+	agent.SessionIds = sessionIds
+	agent.Sessions = sessions
 
 	err = txn.Insert("agents", agent)
 	if err != nil {
@@ -278,6 +284,7 @@ func (driver *storageDriver) AssignSession(sessionId string, agentId string, gpu
 	agent.Sessions = append(agent.Sessions, session.Session)
 	agent.SessionIds = append(agent.SessionIds, sessionId)
 	agent.VramAvailable -= session.VramRequired
+	agent.SessionsAvailable--
 	agent.LastUpdated = now
 
 	err = txn.Insert("agents", agent)
@@ -340,7 +347,7 @@ func (driver *storageDriver) GetAvailableAgentsMatching(totalAvailableVramAtLeas
 	for obj := iterator.Next(); obj != nil; obj = iterator.Next() {
 		agent := utilities.Require[Agent](obj)
 
-		if agent.VramAvailable >= totalAvailableVramAtLeast && storage.IsSubset(agent.Tags, tags) && storage.IsSubset(agent.Taints, tolerates) {
+		if agent.SessionsAvailable > 0 && agent.VramAvailable >= totalAvailableVramAtLeast && storage.IsSubset(agent.Tags, tags) && storage.IsSubset(agent.Taints, tolerates) {
 			agents = append(agents, agent.Agent)
 		}
 	}

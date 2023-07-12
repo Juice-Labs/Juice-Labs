@@ -21,6 +21,40 @@ const (
 	AgentMissing
 )
 
+type GpuRequirements struct {
+	VramRequired uint64 `json:"vramRequired"`
+	PciBus       string `json:"pciBus"`
+
+	Tags      map[string]string `json:"tags"`
+	Tolerates map[string]string `json:"taints"`
+}
+
+type SessionRequirements struct {
+	Version    string `json:"version"`
+	Persistent bool   `json:"persistent"`
+
+	Gpus []GpuRequirements `json:"gpus"`
+
+	Tags      map[string]string `json:"tags"`
+	Tolerates map[string]string `json:"taints"`
+}
+
+type SessionGpu struct {
+	Gpu
+
+	VramRequired uint64 `json:"vramRequired"`
+}
+
+type Session struct {
+	Id         string `json:"id"`
+	State      int    `json:"state"`
+	Address    string `json:"address"`
+	Version    string `json:"version"`
+	Persistent bool   `json:"persistent"`
+
+	Gpus []SessionGpu `json:"gpus"`
+}
+
 type GpuMetrics struct {
 	Time            time.Time `json:"time"`
 	ClockCore       uint32    `json:"clockCore"`
@@ -51,47 +85,6 @@ type Gpu struct {
 	Metrics GpuMetrics `json:"metrics"`
 }
 
-type GpuRequirements struct {
-	VramRequired uint64 `json:"vramRequired"`
-	PciBus       string `json:"pciBus"`
-
-	Tags      map[string]string `json:"tags"`
-	Tolerates map[string]string `json:"taints"`
-}
-
-type SessionRequirements struct {
-	Version    string `json:"version"`
-	Persistent bool   `json:"persistent"`
-
-	Gpus []GpuRequirements `json:"gpus"`
-
-	Tags      map[string]string `json:"tags"`
-	Tolerates map[string]string `json:"taints"`
-}
-
-type Status struct {
-	State    string `json:"status"`
-	Version  string `json:"version"`
-	Hostname string `json:"hostname"`
-	Address  string `json:"address"`
-}
-
-type SessionGpu struct {
-	Gpu
-
-	VramRequired uint64 `json:"vramRequired"`
-}
-
-type Session struct {
-	Id         string `json:"id"`
-	State      int    `json:"state"`
-	Address    string `json:"address"`
-	Version    string `json:"version"`
-	Persistent bool   `json:"persistent"`
-
-	Gpus []SessionGpu `json:"gpus"`
-}
-
 type Agent struct {
 	Id       string `json:"id"`
 	State    int    `json:"state"`
@@ -106,4 +99,20 @@ type Agent struct {
 	Taints map[string]string `json:"taints"`
 
 	Sessions []Session `json:"sessions"`
+}
+
+type Status struct {
+	State    string `json:"status"`
+	Version  string `json:"version"`
+	Hostname string `json:"hostname"`
+	Address  string `json:"address"`
+}
+
+type SessionUpdate struct {
+	State int `json:"state"`
+}
+
+type AgentUpdate struct {
+	Id       string                   `json:"id"`
+	Sessions map[string]SessionUpdate `json:"sessions"`
 }

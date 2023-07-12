@@ -146,17 +146,17 @@ func (api Client) GetAgentWithContext(ctx context.Context, id string) (Agent, er
 	return parseJsonResponse[Agent](response)
 }
 
-func (api Client) UpdateAgent(agent Agent) error {
-	return api.UpdateAgentWithContext(context.Background(), agent)
+func (api Client) UpdateAgent(update AgentUpdate) error {
+	return api.UpdateAgentWithContext(context.Background(), update)
 }
 
-func (api Client) UpdateAgentWithContext(ctx context.Context, agent Agent) error {
-	body, err := jsonReaderFromObject(agent)
+func (api Client) UpdateAgentWithContext(ctx context.Context, update AgentUpdate) error {
+	body, err := jsonReaderFromObject(update)
 	if err != nil {
 		return err
 	}
 
-	response, err := api.putWithJson(ctx, fmt.Sprint("/v1/agent/", agent.Id), body)
+	response, err := api.putWithJson(ctx, fmt.Sprint("/v1/agent/", update.Id), body)
 	if err != nil {
 		return err
 	}

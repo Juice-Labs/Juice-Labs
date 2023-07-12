@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
@@ -19,6 +20,17 @@ var (
 	controllerAddress    = flag.String("controller", "", "The IP address and port of the controller")
 	disableControllerTls = flag.Bool("controller-disable-tls", true, "")
 )
+
+type sessionUpdate struct {
+	Id    string
+	State int
+}
+
+type controllerData struct {
+	api restapi.Client
+
+	sessionUpdates chan sessionUpdate
+}
 
 func (agent *Agent) ConnectToController(group task.Group) error {
 	if *controllerAddress != "" {
@@ -34,11 +46,23 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 			Address: *controllerAddress,
 		}
 
+		agent.sessionUpdates = make(chan sessionUpdate, agent.maxSessions*4)
+
 		if *disableControllerTls {
 			agent.api.Scheme = "http"
 		}
 
-		id, err := agent.api.RegisterAgentWithContext(group.Ctx(), agent.getState())
+		id, err := agent.api.RegisterAgentWithContext(group.Ctx(), restapi.Agent{
+			Id:          agent.Id,
+			State:       restapi.AgentActive,
+			Hostname:    agent.Hostname,
+			Address:     agent.Server.Address(),
+			Version:     build.Version,
+			MaxSessions: agent.maxSessions,
+			Gpus:        agent.Gpus.GetGpus(),
+			Tags:        agent.tags,
+			Taints:      agent.taints,
+		})
 		if err != nil {
 			return fmt.Errorf("Agent.ConnectToController: failed to register with Controller at %s with %s", *controllerAddress, err)
 		}
@@ -59,12 +83,12 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 
 				case <-ticker.C:
 					// Update our state from what is on the controller
-					agentUpdate, err := agent.api.GetAgentWithContext(group.Ctx(), agent.Id)
+					controllerAgent, err := agent.api.GetAgentWithContext(group.Ctx(), agent.Id)
 					if err != nil {
 						return err
 					}
 
-					for _, session := range agentUpdate.Sessions {
+					for _, session := range controllerAgent.Sessions {
 						reference, err_ := agent.getSession(session.Id)
 
 						switch session.State {
@@ -85,8 +109,18 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 					}
 
 					// Update the controller with our current state
-					// NOTE: Currently, this may miss state transitions
-					err = errors.Join(err, agent.api.UpdateAgentWithContext(group.Ctx(), agent.getState()))
+					// Multiple updates can occur within one cycle so create a map to get the latest updates
+					sessionsUpdates := map[string]restapi.SessionUpdate{}
+					for update := range agent.sessionUpdates {
+						sessionsUpdates[update.Id] = restapi.SessionUpdate{
+							State: update.State,
+						}
+					}
+
+					err = errors.Join(err, agent.api.UpdateAgentWithContext(group.Ctx(), restapi.AgentUpdate{
+						Id:       agent.Id,
+						Sessions: sessionsUpdates,
+					}))
 					if err != nil {
 						return err
 					}
@@ -96,4 +130,13 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 	}
 
 	return nil
+}
+
+func (agent *Agent) SessionStateChanged(id string, state int) {
+	if agent.sessionUpdates != nil {
+		agent.sessionUpdates <- sessionUpdate{
+			Id:    id,
+			State: state,
+		}
+	}
 }

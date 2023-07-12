@@ -22,6 +22,10 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/pkg/utilities"
 )
 
+type EventListener interface {
+	SessionStateChanged(id string, state int)
+}
+
 type Session struct {
 	mutex sync.Mutex
 
@@ -36,15 +40,18 @@ type Session struct {
 	cmd       *exec.Cmd
 	readPipe  *os.File
 	writePipe *os.File
+
+	eventListener EventListener
 }
 
-func New(id string, juicePath string, version string, gpus *gpu.SelectedGpuSet) *Session {
+func New(id string, juicePath string, version string, gpus *gpu.SelectedGpuSet, eventListener EventListener) *Session {
 	return &Session{
-		id:        id,
-		juicePath: juicePath,
-		version:   version,
-		state:     restapi.SessionActive,
-		gpus:      gpus,
+		id:            id,
+		juicePath:     juicePath,
+		version:       version,
+		state:         restapi.SessionActive,
+		gpus:          gpus,
+		eventListener: eventListener,
 	}
 }
 
@@ -67,6 +74,11 @@ func (session *Session) Session() restapi.Session {
 	}
 }
 
+func (session *Session) changeState(newState int) {
+	session.eventListener.SessionStateChanged(session.id, newState)
+	session.state = newState
+}
+
 func (session *Session) Close() error {
 	session.mutex.Lock()
 	defer session.mutex.Unlock()
@@ -82,7 +94,7 @@ func (session *Session) Close() error {
 	session.gpus = nil
 
 	if session.state < restapi.SessionClosed {
-		session.state = restapi.SessionClosed
+		session.changeState(restapi.SessionClosed)
 	}
 
 	return err
@@ -111,7 +123,7 @@ func (session *Session) Start(group task.Group) error {
 				if err_ != nil && os.IsNotExist(err_) {
 					err_ = os.MkdirAll(logsPath, fs.ModeDir|fs.ModePerm)
 					if err_ != nil {
-						logger.Error("unable to create directory %s, %s", logsPath, err_)
+						logger.Errorf("unable to create directory %s, %s", logsPath, err_.Error())
 					}
 				}
 
@@ -134,7 +146,7 @@ func (session *Session) Start(group task.Group) error {
 
 					err = session.cmd.Start()
 
-					session.state = restapi.SessionActive
+					session.changeState(restapi.SessionActive)
 				}
 			}
 		}
@@ -143,7 +155,7 @@ func (session *Session) Start(group task.Group) error {
 	if err != nil {
 		err = fmt.Errorf("Session: failed to start Renderer_Win with %s", err)
 
-		session.state = restapi.SessionFailed
+		session.changeState(restapi.SessionFailed)
 	}
 
 	return err
@@ -154,7 +166,7 @@ func (session *Session) Wait() error {
 	if err != nil {
 		logger.Error(fmt.Sprintf("Session: session %s crashed with %s", session.id, err))
 
-		session.state = restapi.SessionFailed
+		session.changeState(restapi.SessionFailed)
 	}
 
 	session.mutex.Lock()
@@ -169,7 +181,7 @@ func (session *Session) Cancel() error {
 	defer session.mutex.Unlock()
 
 	if session.state < restapi.SessionClosed {
-		session.state = restapi.SessionCanceled
+		session.changeState(restapi.SessionCanceled)
 		return session.cmd.Cancel()
 	}
 

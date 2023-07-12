@@ -113,21 +113,21 @@ func (frontend *Frontend) updateAgentEp(group task.Group, router *mux.Router) er
 		func(w http.ResponseWriter, r *http.Request) {
 			id := mux.Vars(r)["id"]
 
-			agent, err := pkgnet.ReadRequestBody[restapi.Agent](r)
+			update, err := pkgnet.ReadRequestBody[restapi.AgentUpdate](r)
 			if err != nil {
 				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 				logger.Error(err)
 				return
 			}
 
-			if agent.Id != id {
+			if update.Id != id {
 				err = fmt.Errorf("/v1/agent/%s: ids do not match", id)
 				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusBadRequest, err.Error()))
 				logger.Error(err)
 				return
 			}
 
-			err = frontend.updateAgent(agent)
+			err = frontend.updateAgent(update)
 			if err != nil {
 				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 				logger.Error(err)

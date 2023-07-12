@@ -70,20 +70,7 @@ func (frontend *Frontend) getAgentById(id string) (restapi.Agent, error) {
 	return frontend.storage.GetAgentById(id)
 }
 
-func (frontend *Frontend) updateAgent(agent restapi.Agent) error {
-	update := storage.AgentUpdate{
-		Id:       agent.Id,
-		State:    agent.State,
-		Sessions: make([]storage.SessionUpdate, len(agent.Sessions)),
-	}
-
-	for index, session := range agent.Sessions {
-		update.Sessions[index] = storage.SessionUpdate{
-			Id:    session.Id,
-			State: session.State,
-		}
-	}
-
+func (frontend *Frontend) updateAgent(update restapi.AgentUpdate) error {
 	return frontend.storage.UpdateAgent(update)
 }
 

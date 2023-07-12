@@ -20,23 +20,12 @@ type Iterator[T any] interface {
 	Value() T
 }
 
-type SessionUpdate struct {
-	Id    string
-	State int
-}
-
-type AgentUpdate struct {
-	Id       string
-	State    int
-	Sessions []SessionUpdate
-}
-
 type Storage interface {
 	Close() error
 
 	RegisterAgent(agent restapi.Agent) (string, error)
 	GetAgentById(id string) (restapi.Agent, error)
-	UpdateAgent(update AgentUpdate) error
+	UpdateAgent(update restapi.AgentUpdate) error
 
 	RequestSession(requirements restapi.SessionRequirements) (string, error)
 	AssignSession(sessionId string, agentId string, gpus []restapi.SessionGpu) error
