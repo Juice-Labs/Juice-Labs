@@ -25,7 +25,7 @@ const (
 
 var (
 	quiet       = flag.Bool("quiet", false, "Disables all logging output")
-	logLevelArg = flag.String("log-level", "trace", "Sets the maximum level of output [Fatal, Error, Warning, Info (Default), Debug, Trace]")
+	logLevelArg = flag.String("log-level", "info", "Sets the maximum level of output [Fatal, Error, Warning, Info (Default), Debug, Trace]")
 	logFile     = flag.String("log-file", "", "")
 
 	logLevel = LevelInfo
