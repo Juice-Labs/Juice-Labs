@@ -165,7 +165,7 @@ func (gpuSet *GpuSet) Find(requirements []restapi.GpuRequirements) (*SelectedGpu
 		}
 	}
 
-	if len(selectedGpus) != len(requirements) {
+	if len(selectedGpus) < len(requirements) {
 		return nil, errors.New("unable to find a matching set of GPUs")
 	}
 
