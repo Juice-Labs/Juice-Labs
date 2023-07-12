@@ -5,12 +5,11 @@ package app
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 
 	"github.com/NVIDIA/go-nvml/pkg/dl"
-	
+
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
 
@@ -49,7 +48,7 @@ func runCommand(group task.Group, cmd *exec.Cmd, config Configuration) error {
 
 	juiceLibraryPath := filepath.Join(*juicePath, "libjuicejuda.so")
 
-	cmd.Env = append(os.Environ(), fmt.Sprintf("LD_PRELOAD=%s", juiceLibraryPath))
+	cmd.Env = append(cmd.Env, fmt.Sprintf("LD_PRELOAD=%s", juiceLibraryPath))
 
 	return cmd.Run()
 }
