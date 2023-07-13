@@ -152,8 +152,12 @@ func (gpuSet *GpuSet) Find(requirements []restapi.GpuRequirements) (*SelectedGpu
 				continue
 			}
 
-			if requirement.PciBus != "" && potentialGpu.PciBus != requirement.PciBus {
-				continue
+			if requirement.PciBus != "" {
+				potential := NewPCIAddressFromString(potentialGpu.PciBus)
+				required := NewPCIAddressFromString(requirement.PciBus)
+				if potential != required {
+					continue
+				}
 			}
 
 			selectedGpus = append(selectedGpus, SelectedGpu{
