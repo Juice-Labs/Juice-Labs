@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	address = flag.String("address", "0.0.0.0:43210", "The IP address and port to use for listening for client connections")
+	address = flag.String("address", "0.0.0.0:8080", "The IP address and port to use for listening for client connections")
 )
 
 type Frontend struct {

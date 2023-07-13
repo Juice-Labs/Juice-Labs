@@ -69,11 +69,10 @@ type Agent struct {
 	Hostname  string
 	JuicePath string
 
-	Gpus *gpu.GpuSet
+	Gpus               *gpu.GpuSet
+	GpuMetricsProvider *cmdgpu.MetricsProvider
 
 	Server *server.Server
-
-	GpuMetricsProvider *cmdgpu.MetricsProvider
 
 	maxSessions int
 
@@ -178,19 +177,6 @@ func (agent *Agent) getSessionsCount() int {
 	defer agent.sessionsMutex.Unlock()
 
 	return agent.sessions.Len()
-}
-
-func (agent *Agent) getAllSessions() []restapi.Session {
-	agent.sessionsMutex.Lock()
-	defer agent.sessionsMutex.Unlock()
-
-	sessions := make([]restapi.Session, 0)
-
-	for pair := agent.sessions.Oldest(); pair != nil; pair = pair.Next() {
-		sessions = append(sessions, pair.Value.Object.Session())
-	}
-
-	return sessions
 }
 
 func (agent *Agent) getSession(id string) (*Reference[session.Session], error) {

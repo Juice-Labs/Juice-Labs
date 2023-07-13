@@ -116,7 +116,6 @@ func (frontend *Frontend) getStatusFormer(group task.Group, router *mux.Router) 
 							ClockCore:      gpu.Metrics.ClockCore,
 							ClockMemory:    gpu.Metrics.ClockMemory,
 							Uuid:           gpu.Uuid,
-							Ordinal:        strconv.FormatInt(int64(gpu.Ordinal), 10),
 						}
 					}
 

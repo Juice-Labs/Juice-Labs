@@ -128,6 +128,72 @@ func (driver *storageDriver) Close() error {
 	return nil
 }
 
+func (driver *storageDriver) AggregateData() (storage.AggregatedData, error) {
+	txn := driver.db.Snapshot().Txn(false)
+	defer txn.Abort()
+
+	iterator, err := txn.Get("agents", "id")
+	if err != nil {
+		return storage.AggregatedData{}, err
+	}
+
+	data := storage.AggregatedData{
+		AgentsByStatus:       make([]int, restapi.AgentStateCount),
+		SessionsByStatus:     make([]int, restapi.SessionStateCount),
+		GpusByGpuName:        map[string]int{},
+		VramByGpuName:        map[string]uint64{},
+		VramUsedByGpuName:    map[string]uint64{},
+		UtilizationByGpuName: map[string]float64{},
+		PowerDrawByGpuName:   map[string]float64{},
+	}
+
+	var utilization uint64
+	utilizationByGpuName := map[string]uint64{}
+
+	var powerDraw uint64
+	powerDrawByGpuName := map[string]uint64{}
+
+	for obj := iterator.Next(); obj != nil; obj = iterator.Next() {
+		agent := utilities.Require[Agent](obj)
+
+		data.Agents++
+		data.AgentsByStatus[agent.State]++
+
+		data.Sessions += len(agent.Sessions)
+		for _, session := range agent.Sessions {
+			data.SessionsByStatus[session.State]++
+		}
+
+		data.Gpus += len(agent.Gpus)
+		for _, gpu := range agent.Gpus {
+			data.GpusByGpuName[gpu.Name]++
+			data.Vram += gpu.Vram
+			data.VramByGpuName[gpu.Name] += gpu.Vram
+			data.VramUsed += gpu.Metrics.VramUsed
+			data.VramUsedByGpuName[gpu.Name] += gpu.Metrics.VramUsed
+
+			utilization += uint64(gpu.Metrics.UtilizationGpu)
+			utilizationByGpuName[gpu.Name] += uint64(gpu.Metrics.UtilizationGpu)
+			powerDraw += uint64(gpu.Metrics.PowerDraw)
+			powerDrawByGpuName[gpu.Name] += uint64(gpu.Metrics.PowerDraw)
+		}
+	}
+
+	if data.Gpus > 0 {
+		data.Utilization = float64(utilization) / float64(data.Gpus)
+		for key, value := range utilizationByGpuName {
+			data.UtilizationByGpuName[key] = float64(value) / float64(data.Gpus)
+		}
+
+		data.PowerDraw = float64(powerDraw) / float64(data.Gpus) / 1000.0
+		for key, value := range powerDrawByGpuName {
+			data.PowerDrawByGpuName[key] = float64(value) / float64(data.Gpus) / 1000.0
+		}
+	}
+
+	return data, nil
+}
+
 func (driver *storageDriver) RegisterAgent(apiAgent restapi.Agent) (string, error) {
 	agent := Agent{
 		Agent:             apiAgent,
@@ -181,59 +247,82 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 	}
 
 	agent := utilities.Require[Agent](obj)
-	agent.State = restapi.AgentActive
+	agent.State = update.State
 	agent.LastUpdated = now
 
-	sessionIds := make([]string, 0, len(agent.SessionIds))
-	sessions := make([]restapi.Session, 0, len(agent.Sessions))
+	if agent.State != restapi.AgentClosed {
+		sessionIds := make([]string, 0, len(agent.SessionIds))
+		sessions := make([]restapi.Session, 0, len(agent.Sessions))
 
-	for index, sessionId := range agent.SessionIds {
-		sessionUpdate, present := update.Sessions[sessionId]
-		if present {
-			// First, update the session information within the agent structure
-			agent.Sessions[index].State = sessionUpdate.State
+		for index, sessionId := range agent.SessionIds {
+			sessionUpdate, present := update.Sessions[sessionId]
+			if present {
+				// First, update the session information within the agent structure
+				agent.Sessions[index].State = sessionUpdate.State
 
-			// Next, update the session object itself
-			obj, err = txn.First("sessions", "id", sessionId)
-			if err != nil {
-				txn.Abort()
-				return err
-			}
-			session := utilities.Require[Session](obj)
-			session.State = sessionUpdate.State
-			session.LastUpdated = now
+				// Next, update the session object itself
+				obj, err = txn.First("sessions", "id", sessionId)
+				if err != nil {
+					txn.Abort()
+					return err
+				}
+				session := utilities.Require[Session](obj)
+				session.State = sessionUpdate.State
+				session.LastUpdated = now
 
-			if session.State >= restapi.SessionClosed {
-				agent.VramAvailable += session.VramRequired
-				agent.SessionsAvailable++
+				if session.State >= restapi.SessionClosed {
+					agent.VramAvailable += session.VramRequired
+					agent.SessionsAvailable++
 
-				logger.Tracef("removing session %s from %s", session.Id, agent.Id)
+					logger.Tracef("removing session %s from %s", session.Id, agent.Id)
 
-				_, err = txn.DeleteAll("sessions", "id", session.Id)
+					_, err = txn.DeleteAll("sessions", "id", session)
+				} else {
+					sessionIds = append(sessionIds, sessionId)
+					sessions = append(sessions, session.Session)
+
+					err = txn.Insert("sessions", session)
+				}
+
+				if err != nil {
+					txn.Abort()
+					return err
+				}
 			} else {
 				sessionIds = append(sessionIds, sessionId)
-				sessions = append(sessions, session.Session)
-
-				err = txn.Insert("sessions", session)
+				sessions = append(sessions, agent.Sessions[index])
 			}
-
-			if err != nil {
-				txn.Abort()
-				return err
-			}
-		} else {
-			sessionIds = append(sessionIds, sessionId)
-			sessions = append(sessions, agent.Sessions[index])
 		}
-	}
 
-	agent.SessionIds = sessionIds
-	agent.Sessions = sessions
+		for index, gpuMetrics := range update.Gpus {
+			agent.Gpus[index].Metrics = gpuMetrics
+		}
 
-	err = txn.Insert("agents", agent)
-	if err != nil {
-		txn.Abort()
-		return err
+		agent.SessionIds = sessionIds
+		agent.Sessions = sessions
+
+		err = txn.Insert("agents", agent)
+		if err != nil {
+			txn.Abort()
+			return err
+		}
+	} else {
+		sessions := make([]interface{}, len(agent.Sessions))
+		for index, session := range agent.Sessions {
+			sessions[index] = session
+		}
+
+		_, err = txn.DeleteAll("sessions", "id", sessions...)
+		if err != nil {
+			txn.Abort()
+			return err
+		}
+
+		_, err = txn.DeleteAll("agents", "id", agent)
+		if err != nil {
+			txn.Abort()
+			return err
+		}
 	}
 
 	txn.Commit()

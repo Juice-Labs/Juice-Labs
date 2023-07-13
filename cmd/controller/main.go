@@ -11,6 +11,7 @@ import (
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/backend"
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/frontend"
+	"github.com/Juice-Labs/Juice-Labs/cmd/controller/prometheus"
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage/memdb"
 
@@ -27,8 +28,9 @@ var (
 	generateCert = flag.Bool("generate-cert", false, "Generates a certificate for https")
 	disableTls   = flag.Bool("disable-tls", true, "")
 
-	enableBackend = flag.Bool("backend", false, "")
-	enableBoth    = flag.Bool("both", true, "")
+	enableFrontend   = flag.Bool("frontend", false, "")
+	enableBackend    = flag.Bool("backend", false, "")
+	enablePrometheus = flag.Bool("prometheus", false, "")
 
 	useMemdb = flag.Bool("use-memdb", false, "")
 )
@@ -53,26 +55,26 @@ func main() {
 			})
 		}
 
-		if !*enableBackend || *enableBoth {
-			var tlsConfig *tls.Config
+		var tlsConfig *tls.Config
 
-			if !*disableTls {
-				var certificate tls.Certificate
-				if *certFile != "" && *keyFile != "" {
-					certificate, err = tls.LoadX509KeyPair(*certFile, *keyFile)
-				} else if *generateCert {
-					certificate, err = crypto.GenerateCertificate()
-				} else {
-					err = errors.New("https is required, use both --cert-file and --key-file or --generate-cert")
-				}
-
-				if err == nil {
-					tlsConfig = &tls.Config{
-						Certificates: []tls.Certificate{certificate},
-					}
-				}
+		if (*enableFrontend || *enablePrometheus) && !*disableTls {
+			var certificate tls.Certificate
+			if *certFile != "" && *keyFile != "" {
+				certificate, err = tls.LoadX509KeyPair(*certFile, *keyFile)
+			} else if *generateCert {
+				certificate, err = crypto.GenerateCertificate()
+			} else {
+				err = errors.New("https is required, use both --cert-file and --key-file or --generate-cert")
 			}
 
+			if err == nil {
+				tlsConfig = &tls.Config{
+					Certificates: []tls.Certificate{certificate},
+				}
+			}
+		}
+
+		if *enableFrontend {
 			if err == nil {
 				frontend, err := frontend.NewFrontend(tlsConfig, storage)
 				if err == nil {
@@ -81,9 +83,18 @@ func main() {
 			}
 		}
 
-		if *enableBackend || *enableBoth {
+		if *enableBackend {
 			if err == nil {
 				group.Go("Backend", backend.NewBackend(storage))
+			}
+		}
+
+		if *enablePrometheus {
+			if err == nil {
+				frontend, err := prometheus.NewFrontend(tlsConfig, storage)
+				if err == nil {
+					group.Go("Prometheus", frontend)
+				}
 			}
 		}
 

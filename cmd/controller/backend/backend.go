@@ -26,21 +26,18 @@ func NewBackend(storage storage.Storage) *Backend {
 }
 
 func (backend *Backend) Run(group task.Group) error {
-	err := backend.Update(group.Ctx())
+	err := backend.update(group.Ctx())
 	if err == nil {
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 
-		for {
+		for err == nil {
 			select {
 			case <-group.Ctx().Done():
 				return err
 
 			case <-ticker.C:
-				err = backend.Update(group.Ctx())
-				if err != nil {
-					return err
-				}
+				err = backend.update(group.Ctx())
 			}
 		}
 	}
@@ -62,13 +59,13 @@ func AgentMatches(agent restapi.Agent, requirements restapi.SessionRequirements)
 	return selectedGpus
 }
 
-func (backend *Backend) Update(ctx context.Context) error {
-	err := backend.storage.SetAgentsMissingIfNotUpdatedFor(10 * time.Minute)
+func (backend *Backend) update(ctx context.Context) error {
+	err := backend.storage.SetAgentsMissingIfNotUpdatedFor(30 * time.Second)
 	if err != nil {
 		return err
 	}
 
-	err = backend.storage.RemoveMissingAgentsIfNotUpdatedFor(time.Hour)
+	err = backend.storage.RemoveMissingAgentsIfNotUpdatedFor(5 * time.Minute)
 	if err != nil {
 		return err
 	}

@@ -10,6 +10,23 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 )
 
+type AggregatedData struct {
+	Agents               int
+	AgentsByStatus       []int
+	Sessions             int
+	SessionsByStatus     []int
+	Gpus                 int
+	GpusByGpuName        map[string]int
+	Vram                 uint64
+	VramByGpuName        map[string]uint64
+	VramUsed             uint64
+	VramUsedByGpuName    map[string]uint64
+	Utilization          float64
+	UtilizationByGpuName map[string]float64
+	PowerDraw            float64
+	PowerDrawByGpuName   map[string]float64
+}
+
 type QueuedSession struct {
 	Id           string
 	Requirements restapi.SessionRequirements
@@ -22,6 +39,8 @@ type Iterator[T any] interface {
 
 type Storage interface {
 	Close() error
+
+	AggregateData() (AggregatedData, error)
 
 	RegisterAgent(agent restapi.Agent) (string, error)
 	GetAgentById(id string) (restapi.Agent, error)

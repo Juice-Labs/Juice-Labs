@@ -3,8 +3,6 @@
  */
 package restapi
 
-import "time"
-
 const (
 	SessionQueued int = iota
 	SessionAssigned
@@ -15,6 +13,8 @@ const (
 	SessionFailed
 	SessionCanceling
 	SessionCanceled
+
+	SessionStateCount
 )
 
 // Restarting iota in a new block
@@ -22,6 +22,9 @@ const (
 	AgentActive int = iota
 	AgentDisabled
 	AgentMissing
+	AgentClosed
+
+	AgentStateCount
 )
 
 type GpuRequirements struct {
@@ -59,21 +62,19 @@ type Session struct {
 }
 
 type GpuMetrics struct {
-	Time            time.Time `json:"time"`
-	ClockCore       uint32    `json:"clockCore"`
-	ClockMemory     uint32    `json:"clockMemory"`
-	UtilizationGpu  uint32    `json:"utilizationGpu"`
-	UtilizationVram uint32    `json:"utilizationVram"`
-	TemperatureGpu  uint32    `json:"temperatureGpu"`
-	VramUsed        uint64    `json:"vramUsed"`
-	PowerDraw       uint32    `json:"powerDraw"`
-	PowerLimit      uint32    `json:"powerLimit"`
-	FanSpeed        uint32    `json:"fanSpeed"`
+	ClockCore       uint32 `json:"clockCore"`
+	ClockMemory     uint32 `json:"clockMemory"`
+	UtilizationGpu  uint32 `json:"utilizationGpu"`
+	UtilizationVram uint32 `json:"utilizationVram"`
+	TemperatureGpu  uint32 `json:"temperatureGpu"`
+	VramUsed        uint64 `json:"vramUsed"`
+	PowerDraw       uint32 `json:"powerDraw"`
+	PowerLimit      uint32 `json:"powerLimit"`
+	FanSpeed        uint32 `json:"fanSpeed"`
 }
 
 type Gpu struct {
 	Index       int    `json:"index"`
-	Ordinal     int    `json:"ordinal"`
 	Uuid        string `json:"uuid"`
 	Name        string `json:"name"`
 	Vendor      string `json:"vendor"`
@@ -117,5 +118,7 @@ type SessionUpdate struct {
 
 type AgentUpdate struct {
 	Id       string                   `json:"id"`
+	State    int                      `json:"state"`
 	Sessions map[string]SessionUpdate `json:"sessions"`
+	Gpus     []GpuMetrics             `json:"gpus"`
 }

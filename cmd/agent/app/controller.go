@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
@@ -31,6 +32,9 @@ type controllerData struct {
 	api restapi.Client
 
 	sessionUpdates chan sessionUpdate
+
+	gpuMetricsMutex sync.Mutex
+	gpuMetrics      []restapi.GpuMetrics
 }
 
 func (agent *Agent) ConnectToController(group task.Group) error {
@@ -74,6 +78,16 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 		// When connected to the controller, the agent must not allow requests
 		agent.Server.SetCreateEndpoint(RequestSessionName, nil)
 
+		agent.gpuMetrics = make([]restapi.GpuMetrics, agent.Gpus.Count())
+		agent.GpuMetricsProvider.AddConsumer(func(gpus []restapi.Gpu) {
+			agent.gpuMetricsMutex.Lock()
+			defer agent.gpuMetricsMutex.Unlock()
+
+			for index, gpu := range gpus {
+				agent.gpuMetrics[index] = gpu.Metrics
+			}
+		})
+
 		group.GoFn("Controller Update", func(group task.Group) error {
 			ticker := time.NewTicker(5 * time.Second)
 			defer ticker.Stop()
@@ -81,7 +95,13 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 			for {
 				select {
 				case <-group.Ctx().Done():
-					return err
+					// TODO: Split the api http client from the base context so we can update here
+					// Put "http://127.0.0.1:8080/v1/agent/0a7fdbe7-7ab6-4647-a608-e36228e58e78": context canceled
+					//return agent.api.UpdateAgentWithContext(group.Ctx(), restapi.AgentUpdate{
+					//	Id:    agent.Id,
+					//	State: restapi.AgentClosed,
+					//})
+					return nil
 
 				case <-ticker.C:
 					// Update our state from what is on the controller
@@ -130,6 +150,7 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 					err = errors.Join(err, agent.api.UpdateAgentWithContext(group.Ctx(), restapi.AgentUpdate{
 						Id:       agent.Id,
 						Sessions: sessionsUpdates,
+						Gpus:     agent.getGpuMetrics(),
 					}))
 					if err != nil {
 						return err
@@ -150,4 +171,12 @@ func (agent *Agent) SessionStateChanged(id string, state int) {
 			State: state,
 		}
 	}
+}
+
+func (agent *Agent) getGpuMetrics() []restapi.GpuMetrics {
+	agent.gpuMetricsMutex.Lock()
+	defer agent.gpuMetricsMutex.Unlock()
+
+	// Make a copy
+	return append(make([]restapi.GpuMetrics, 0, len(agent.gpuMetrics)), agent.gpuMetrics...)
 }
