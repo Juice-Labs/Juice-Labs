@@ -51,7 +51,7 @@ const (
 		"address text NOT NULL," +
 		"max_sessions int NOT NULL," +
 		"gpus gpu[] NOT NULL," +
-		"tags keyvalue[] NOT NULL," +
+		"labels keyvalue[] NOT NULL," +
 		"taints keyvalue[] NOT NULL," +
 		"sessions uuid[]," +
 		"lastUpdated timestamp NOT NULL," +
@@ -70,7 +70,7 @@ const (
 		")"
 
 	InsertIntoAgentsTable = "INSERT INTO agents (" +
-		"state, version, hostname, address, max_sessions, gpus, tags, taints, sessions, lastUpdated, data" +
+		"state, version, hostname, address, max_sessions, gpus, labels, taints, sessions, lastUpdated, data" +
 		") VALUES (" +
 		"$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11" +
 		") RETURNING id"
@@ -294,7 +294,7 @@ func (driver *storageDriver) AddAgent(agent storage.Agent) (string, error) {
 		err = driver.db.QueryRowContext(driver.ctx, InsertIntoAgentsTable,
 			agent.State, agent.Version, agent.Hostname, agent.Address,
 			agent.MaxSessions, gpuValuer{Data: &agent.Gpus},
-			mapStringStringValuer{Data: &agent.Tags},
+			mapStringStringValuer{Data: &agent.Labels},
 			mapStringStringValuer{Data: &agent.Taints},
 			sessionUuidValuer{Data: &agent.Sessions},
 			agent.LastUpdated, jsonb).Scan(&id)

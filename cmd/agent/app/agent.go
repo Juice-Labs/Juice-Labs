@@ -31,7 +31,7 @@ var (
 
 	address     = flag.String("address", "0.0.0.0:43210", "The IP address and port to use for listening for client connections")
 	maxSessions = flag.Int("max-sessions", 0, "Maximum number of simultaneous sessions allowed on this Agent")
-	tags        = flag.String("tags", "", "Comma separated list of key=value pairs")
+	labels      = flag.String("labels", "", "Comma separated list of key=value pairs")
 	taints      = flag.String("taints", "", "Comma separated list of key=value pairs")
 )
 
@@ -76,7 +76,7 @@ type Agent struct {
 
 	maxSessions int
 
-	tags   map[string]string
+	labels map[string]string
 	taints map[string]string
 
 	sessionsMutex sync.Mutex
@@ -100,24 +100,24 @@ func NewAgent(tlsConfig *tls.Config) (*Agent, error) {
 		JuicePath:   *juicePath,
 		Server:      server,
 		maxSessions: *maxSessions,
-		tags:        map[string]string{},
+		labels:      map[string]string{},
 		taints:      map[string]string{},
 		sessions:    orderedmap.New[string, *Reference[session.Session]](),
 	}
 
-	if *tags != "" {
+	if *labels != "" {
 		var err error
-		for _, tag := range strings.Split(*tags, ",") {
+		for _, tag := range strings.Split(*labels, ",") {
 			keyValue := strings.Split(tag, "=")
 			if len(keyValue) != 2 {
 				err = errors.Join(err, fmt.Errorf("tag '%s' must be in the format key=value", tag))
 			} else {
-				agent.tags[strings.TrimSpace(keyValue[0])] = strings.TrimSpace(keyValue[1])
+				agent.labels[strings.TrimSpace(keyValue[0])] = strings.TrimSpace(keyValue[1])
 			}
 		}
 
 		if err != nil {
-			return nil, fmt.Errorf("Agent.NewAgent: failed to parse --tags with %s", err)
+			return nil, fmt.Errorf("Agent.NewAgent: failed to parse --labels with %s", err)
 		}
 	}
 

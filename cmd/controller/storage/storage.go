@@ -63,7 +63,7 @@ type Storage interface {
 	GetQueuedSessionById(id string) (QueuedSession, error) // For Testing
 
 	GetAgents() (Iterator[restapi.Agent], error)
-	GetAvailableAgentsMatching(totalAvailableVramAtLeast uint64, tags map[string]string, tolerates map[string]string) (Iterator[restapi.Agent], error)
+	GetAvailableAgentsMatching(totalAvailableVramAtLeast uint64, matchLabels map[string]string, tolerates map[string]string) (Iterator[restapi.Agent], error)
 	GetQueuedSessionsIterator() (Iterator[QueuedSession], error)
 
 	SetAgentsMissingIfNotUpdatedFor(duration time.Duration) error
@@ -73,17 +73,6 @@ type Storage interface {
 var (
 	ErrNotFound = errors.New("object not found")
 )
-
-func IsSubset(set, subset map[string]string) bool {
-	for key, value := range subset {
-		checkValue, present := set[key]
-		if !present || value != checkValue {
-			return false
-		}
-	}
-
-	return true
-}
 
 func TotalVram(gpus []restapi.Gpu) uint64 {
 	var vram uint64

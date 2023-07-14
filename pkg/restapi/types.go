@@ -30,9 +30,6 @@ const (
 type GpuRequirements struct {
 	VramRequired uint64 `json:"vramRequired"`
 	PciBus       string `json:"pciBus"`
-
-	Tags      map[string]string `json:"tags"`
-	Tolerates map[string]string `json:"taints"`
 }
 
 type SessionRequirements struct {
@@ -41,8 +38,8 @@ type SessionRequirements struct {
 
 	Gpus []GpuRequirements `json:"gpus"`
 
-	Tags      map[string]string `json:"tags"`
-	Tolerates map[string]string `json:"taints"`
+	MatchLabels map[string]string `json:"matchLabels"`
+	Tolerates   map[string]string `json:"tolerates"`
 }
 
 type SessionGpu struct {
@@ -99,7 +96,7 @@ type Agent struct {
 	MaxSessions int   `json:"maxSessions"`
 	Gpus        []Gpu `json:"gpus"`
 
-	Tags   map[string]string `json:"tags"`
+	Labels map[string]string `json:"labels"`
 	Taints map[string]string `json:"taints"`
 
 	Sessions []Session `json:"sessions"`

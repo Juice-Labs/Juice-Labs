@@ -12,7 +12,7 @@ CREATE TABLE agents (
     updated_at TIMESTAMP
 );
 
-create table tags (
+create table labels (
     id BIGSERIAL PRIMARY KEY,
     name varchar(255) NOT NULL,
     created_at TIMESTAMP default now(),
@@ -27,13 +27,13 @@ create table taints (
     updated_at TIMESTAMP
 );
 
-create table agent_tags (
+create table agent_labels (
     agent_id BIGINT NOT NULL,
     tag_id BIGINT NOT NULL,
     created_at TIMESTAMP default now(),
     PRIMARY KEY (agent_id, tag_id),
     FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE,
-    FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+    FOREIGN KEY (tag_id) REFERENCES labels(id) ON DELETE CASCADE
 );
 
 create table agent_taints (

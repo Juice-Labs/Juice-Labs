@@ -527,7 +527,27 @@ func (driver *storageDriver) GetAgents() (storage.Iterator[restapi.Agent], error
 	return NewIterator(agents), nil
 }
 
-func (driver *storageDriver) GetAvailableAgentsMatching(totalAvailableVramAtLeast uint64, tags map[string]string, tolerates map[string]string) (storage.Iterator[restapi.Agent], error) {
+func isSubset(set, subset map[string]string) bool {
+	for key, value := range subset {
+		checkValue, present := set[key]
+		if !present || value != checkValue {
+			return false
+		}
+	}
+
+	return true
+}
+
+func matchesLabels(set, subset map[string]string) bool {
+	return isSubset(set, subset)
+}
+
+func canTolerate(taints, tolerates map[string]string) bool {
+	// tolerates must be a superset of taints to be acceptable
+	return isSubset(tolerates, taints)
+}
+
+func (driver *storageDriver) GetAvailableAgentsMatching(totalAvailableVramAtLeast uint64, matchLabels map[string]string, tolerates map[string]string) (storage.Iterator[restapi.Agent], error) {
 	txn := driver.db.Txn(false)
 	defer txn.Abort()
 
@@ -540,7 +560,7 @@ func (driver *storageDriver) GetAvailableAgentsMatching(totalAvailableVramAtLeas
 	for obj := iterator.Next(); obj != nil; obj = iterator.Next() {
 		agent := utilities.Require[Agent](obj)
 
-		if agent.SessionsAvailable != 0 && agent.VramAvailable >= totalAvailableVramAtLeast && storage.IsSubset(agent.Tags, tags) && storage.IsSubset(agent.Taints, tolerates) {
+		if agent.SessionsAvailable != 0 && agent.VramAvailable >= totalAvailableVramAtLeast && matchesLabels(agent.Labels, matchLabels) && canTolerate(agent.Taints, tolerates) {
 			agents = append(agents, agent.Agent)
 		}
 	}

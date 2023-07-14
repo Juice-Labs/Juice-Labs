@@ -72,7 +72,7 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 			Version:     build.Version,
 			MaxSessions: agent.maxSessions,
 			Gpus:        agent.Gpus.GetGpus(),
-			Tags:        agent.tags,
+			Labels:      agent.labels,
 			Taints:      agent.taints,
 		})
 		if err != nil {

@@ -84,7 +84,7 @@ func (backend *Backend) update(ctx context.Context) error {
 			session := sessionIterator.Value()
 
 			// Get an iterator of the agents matching a subset of the requirements
-			agentIterator, err_ := backend.storage.GetAvailableAgentsMatching(storage.TotalVramRequired(session.Requirements), session.Requirements.Tags, session.Requirements.Tolerates)
+			agentIterator, err_ := backend.storage.GetAvailableAgentsMatching(storage.TotalVramRequired(session.Requirements), session.Requirements.MatchLabels, session.Requirements.Tolerates)
 			err = errors.Join(err, err_)
 			if err_ == nil {
 				for agentIterator.Next() {

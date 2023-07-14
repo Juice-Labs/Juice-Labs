@@ -42,7 +42,7 @@ func defaultAgent(maxSessions int, gpuVram uint64) restapi.Agent {
 				Vram:        gpuVram,
 			},
 		},
-		Tags:   map[string]string{},
+		Labels: map[string]string{},
 		Taints: map[string]string{},
 	}
 }
@@ -53,12 +53,10 @@ func defaultSessionRequirements(gpuVram uint64) restapi.SessionRequirements {
 		Gpus: []restapi.GpuRequirements{
 			{
 				VramRequired: gpuVram,
-				Tags:         map[string]string{},
-				Tolerates:    map[string]string{},
 			},
 		},
-		Tags:      map[string]string{},
-		Tolerates: map[string]string{},
+		MatchLabels: map[string]string{},
+		Tolerates:   map[string]string{},
 	}
 }
 
@@ -69,7 +67,7 @@ func createAgent() restapi.Agent {
 		Address:     "127.0.0.1:43210",
 		Version:     "Test",
 		MaxSessions: rand.Intn(7) + 1,
-		Tags:        map[string]string{},
+		Labels:      map[string]string{},
 		Taints:      map[string]string{},
 		Sessions:    make([]restapi.Session, 0),
 	}
@@ -91,17 +89,15 @@ func createAgent() restapi.Agent {
 
 func createSessionRequirements() restapi.SessionRequirements {
 	requirements := restapi.SessionRequirements{
-		Version:   "Test",
-		Tags:      map[string]string{},
-		Tolerates: map[string]string{},
+		Version:     "Test",
+		MatchLabels: map[string]string{},
+		Tolerates:   map[string]string{},
 	}
 
 	requirements.Gpus = make([]restapi.GpuRequirements, rand.Intn(7)+1)
 	for index := range requirements.Gpus {
 		requirements.Gpus[index] = restapi.GpuRequirements{
-			VramRequired: uint64(rand.Intn(8192+1)) * 1024 * 1024,
-			Tags:         map[string]string{},
-			Tolerates:    map[string]string{},
+			VramRequired: uint64(rand.Intn(8192+1)) * 1024 * 1024
 		}
 	}
 
