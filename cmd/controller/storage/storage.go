@@ -10,21 +10,32 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 )
 
+type Percentile[T any] struct {
+	P100 T
+	P90  T
+	P75  T
+	P50  T
+	P25  T
+	P10  T
+}
+
 type AggregatedData struct {
-	Agents               int
-	AgentsByStatus       []int
-	Sessions             int
-	SessionsByStatus     []int
-	Gpus                 int
-	GpusByGpuName        map[string]int
-	Vram                 uint64
-	VramByGpuName        map[string]uint64
-	VramUsed             uint64
-	VramUsedByGpuName    map[string]uint64
-	Utilization          float64
-	UtilizationByGpuName map[string]float64
-	PowerDraw            float64
-	PowerDrawByGpuName   map[string]float64
+	Agents                   int
+	AgentsByStatus           []int
+	Sessions                 int
+	SessionsByStatus         []int
+	Gpus                     int
+	GpusByGpuName            map[string]int
+	Vram                     uint64
+	VramByGpuName            map[string]uint64
+	VramUsed                 uint64
+	VramUsedByGpuName        map[string]uint64
+	VramGBAvailable          Percentile[int]            // Nearest-Rank Method
+	VramGBAvailableByGpuName map[string]Percentile[int] // Nearest-Rank Method
+	Utilization              float64
+	UtilizationByGpuName     map[string]float64
+	PowerDraw                float64
+	PowerDrawByGpuName       map[string]float64
 }
 
 type QueuedSession struct {

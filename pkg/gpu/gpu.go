@@ -93,7 +93,7 @@ func (gpuSet *SelectedGpuSet) GetGpus() []restapi.SessionGpu {
 	publicGpus := make([]restapi.SessionGpu, len(gpuSet.gpus))
 	for index, gpu := range gpuSet.gpus {
 		publicGpus[index] = restapi.SessionGpu{
-			Gpu:          gpu.gpu.Gpu,
+			Index:        gpu.gpu.Index,
 			VramRequired: gpu.vramRequired,
 		}
 	}
@@ -191,10 +191,6 @@ func (gpuSet *GpuSet) Select(chosenGpus []restapi.SessionGpu) (*SelectedGpuSet, 
 	selectedGpus := make([]SelectedGpu, 0)
 	for _, chosenGpu := range chosenGpus {
 		gpu := gpuSet.gpus[chosenGpu.Index]
-		if chosenGpu.Gpu != gpu.Gpu {
-			logger.Panic("GpuSet.Select: chosen GPU does not match")
-		}
-
 		selectedGpus = append(selectedGpus, SelectedGpu{
 			gpu:          gpu,
 			vramRequired: chosenGpu.VramRequired,

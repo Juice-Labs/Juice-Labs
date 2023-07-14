@@ -46,7 +46,7 @@ type SessionRequirements struct {
 }
 
 type SessionGpu struct {
-	Gpu
+	Index int `json:"index"`
 
 	VramRequired uint64 `json:"vramRequired"`
 }

@@ -5,6 +5,7 @@ package memdb
 
 import (
 	"context"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -138,14 +139,18 @@ func (driver *storageDriver) AggregateData() (storage.AggregatedData, error) {
 	}
 
 	data := storage.AggregatedData{
-		AgentsByStatus:       make([]int, restapi.AgentStateCount),
-		SessionsByStatus:     make([]int, restapi.SessionStateCount),
-		GpusByGpuName:        map[string]int{},
-		VramByGpuName:        map[string]uint64{},
-		VramUsedByGpuName:    map[string]uint64{},
-		UtilizationByGpuName: map[string]float64{},
-		PowerDrawByGpuName:   map[string]float64{},
+		AgentsByStatus:           make([]int, restapi.AgentStateCount),
+		SessionsByStatus:         make([]int, restapi.SessionStateCount),
+		GpusByGpuName:            map[string]int{},
+		VramByGpuName:            map[string]uint64{},
+		VramUsedByGpuName:        map[string]uint64{},
+		VramGBAvailableByGpuName: map[string]storage.Percentile[int]{},
+		UtilizationByGpuName:     map[string]float64{},
+		PowerDrawByGpuName:       map[string]float64{},
 	}
+
+	vramGBAvailable := map[int]int{}
+	vramGBAvailableByGpuName := map[string]map[int]int{}
 
 	var utilization uint64
 	utilizationByGpuName := map[string]uint64{}
@@ -172,6 +177,15 @@ func (driver *storageDriver) AggregateData() (storage.AggregatedData, error) {
 			data.VramUsed += gpu.Metrics.VramUsed
 			data.VramUsedByGpuName[gpu.Name] += gpu.Metrics.VramUsed
 
+			gb := int((gpu.Vram - gpu.Metrics.VramUsed) / (1024 * 1024 * 1024))
+			vramGBAvailable[gb]++
+
+			if _, ok := vramGBAvailableByGpuName[gpu.Name]; !ok {
+				vramGBAvailableByGpuName[gpu.Name] = map[int]int{}
+			}
+
+			vramGBAvailableByGpuName[gpu.Name][gb]++
+
 			utilization += uint64(gpu.Metrics.UtilizationGpu)
 			utilizationByGpuName[gpu.Name] += uint64(gpu.Metrics.UtilizationGpu)
 			powerDraw += uint64(gpu.Metrics.PowerDraw)
@@ -180,6 +194,74 @@ func (driver *storageDriver) AggregateData() (storage.AggregatedData, error) {
 	}
 
 	if data.Gpus > 0 {
+		calculatePercentiles := func(counts map[int]int, total int) storage.Percentile[int] {
+			sortedKeys := []int{}
+			for key := range counts {
+				sortedKeys = append(sortedKeys, key)
+			}
+			sort.Ints(sortedKeys)
+
+			indexP90 := int(float64(total) * 0.90)
+			indexP75 := int(float64(total) * 0.75)
+			indexP50 := int(float64(total) * 0.50)
+			indexP25 := int(float64(total) * 0.25)
+			indexP10 := int(float64(total) * 0.10)
+
+			percentile := storage.Percentile[int]{
+				P100: sortedKeys[len(sortedKeys)-1],
+			}
+
+			index := 0
+			keysIndex := 0
+			key := sortedKeys[keysIndex]
+			for keysIndex < len(sortedKeys) && index < indexP10 {
+				key = sortedKeys[keysIndex]
+				keysIndex++
+
+				index += counts[key]
+			}
+			percentile.P10 = key
+
+			for keysIndex < len(sortedKeys) && index < indexP25 {
+				key = sortedKeys[keysIndex]
+				keysIndex++
+
+				index += counts[key]
+			}
+			percentile.P25 = key
+
+			for keysIndex < len(sortedKeys) && index < indexP50 {
+				key = sortedKeys[keysIndex]
+				keysIndex++
+
+				index += counts[key]
+			}
+			percentile.P50 = key
+
+			for keysIndex < len(sortedKeys) && index < indexP75 {
+				key = sortedKeys[keysIndex]
+				keysIndex++
+
+				index += counts[key]
+			}
+			percentile.P75 = key
+
+			for keysIndex < len(sortedKeys) && index < indexP90 {
+				key = sortedKeys[keysIndex]
+				keysIndex++
+
+				index += counts[key]
+			}
+			percentile.P90 = key
+
+			return percentile
+		}
+
+		data.VramGBAvailable = calculatePercentiles(vramGBAvailable, data.Gpus)
+		for key, gbAvailable := range vramGBAvailableByGpuName {
+			data.VramGBAvailableByGpuName[key] = calculatePercentiles(gbAvailable, data.GpusByGpuName[key])
+		}
+
 		data.Utilization = float64(utilization) / float64(data.Gpus)
 		for key, value := range utilizationByGpuName {
 			data.UtilizationByGpuName[key] = float64(value) / float64(data.Gpus)

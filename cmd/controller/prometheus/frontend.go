@@ -30,20 +30,22 @@ type Frontend struct {
 	server  *server.Server
 	storage storage.Storage
 
-	agents               prometheus.Gauge
-	agentsByStatus       *prometheus.GaugeVec
-	sessions             prometheus.Gauge
-	sessionsByStatus     *prometheus.GaugeVec
-	gpus                 prometheus.Gauge
-	gpusByGpuName        *prometheus.GaugeVec
-	vram                 prometheus.Gauge
-	vramByGpuName        *prometheus.GaugeVec
-	vramUsed             prometheus.Gauge
-	vramUsedByGpuName    *prometheus.GaugeVec
-	utilization          prometheus.Gauge
-	utilizationByGpuName *prometheus.GaugeVec
-	powerDraw            prometheus.Gauge
-	powerDrawByGpuName   *prometheus.GaugeVec
+	agents                   prometheus.Gauge
+	agentsByStatus           *prometheus.GaugeVec
+	sessions                 prometheus.Gauge
+	sessionsByStatus         *prometheus.GaugeVec
+	gpus                     prometheus.Gauge
+	gpusByGpuName            *prometheus.GaugeVec
+	vram                     prometheus.Gauge
+	vramByGpuName            *prometheus.GaugeVec
+	vramUsed                 prometheus.Gauge
+	vramUsedByGpuName        *prometheus.GaugeVec
+	vramGBAvailable          *prometheus.GaugeVec
+	vramGBAvailableByGpuName *prometheus.GaugeVec
+	utilization              prometheus.Gauge
+	utilizationByGpuName     *prometheus.GaugeVec
+	powerDraw                prometheus.Gauge
+	powerDrawByGpuName       *prometheus.GaugeVec
 }
 
 func getGaugeOpts(name string) prometheus.GaugeOpts {
@@ -68,20 +70,22 @@ func NewFrontend(tlsConfig *tls.Config, storage storage.Storage) (*Frontend, err
 		server:  server,
 		storage: storage,
 
-		agents:               prometheus.NewGauge(getGaugeOpts("agents")),
-		agentsByStatus:       prometheus.NewGaugeVec(getGaugeOpts("agentsByStatus"), []string{"status"}),
-		sessions:             prometheus.NewGauge(getGaugeOpts("sessions")),
-		sessionsByStatus:     prometheus.NewGaugeVec(getGaugeOpts("sessionsByStatus"), []string{"status"}),
-		gpus:                 prometheus.NewGauge(getGaugeOpts("gpus")),
-		gpusByGpuName:        prometheus.NewGaugeVec(getGaugeOpts("gpusByGpuName"), []string{"gpu"}),
-		vram:                 prometheus.NewGauge(getGaugeOpts("vram")),
-		vramByGpuName:        prometheus.NewGaugeVec(getGaugeOpts("vramByGpuName"), []string{"gpu"}),
-		vramUsed:             prometheus.NewGauge(getGaugeOpts("vramUsed")),
-		vramUsedByGpuName:    prometheus.NewGaugeVec(getGaugeOpts("vramUsedByGpuName"), []string{"gpu"}),
-		utilization:          prometheus.NewGauge(getGaugeOpts("utilization")),
-		utilizationByGpuName: prometheus.NewGaugeVec(getGaugeOpts("utilizationByGpuName"), []string{"gpu"}),
-		powerDraw:            prometheus.NewGauge(getGaugeOpts("powerDrawWatts")),
-		powerDrawByGpuName:   prometheus.NewGaugeVec(getGaugeOpts("powerDrawWattsByGpuName"), []string{"gpu"}),
+		agents:                   prometheus.NewGauge(getGaugeOpts("agents")),
+		agentsByStatus:           prometheus.NewGaugeVec(getGaugeOpts("agentsByStatus"), []string{"status"}),
+		sessions:                 prometheus.NewGauge(getGaugeOpts("sessions")),
+		sessionsByStatus:         prometheus.NewGaugeVec(getGaugeOpts("sessionsByStatus"), []string{"status"}),
+		gpus:                     prometheus.NewGauge(getGaugeOpts("gpus")),
+		gpusByGpuName:            prometheus.NewGaugeVec(getGaugeOpts("gpusByGpuName"), []string{"gpu"}),
+		vram:                     prometheus.NewGauge(getGaugeOpts("vram")),
+		vramByGpuName:            prometheus.NewGaugeVec(getGaugeOpts("vramByGpuName"), []string{"gpu"}),
+		vramUsed:                 prometheus.NewGauge(getGaugeOpts("vramUsed")),
+		vramUsedByGpuName:        prometheus.NewGaugeVec(getGaugeOpts("vramUsedByGpuName"), []string{"gpu"}),
+		vramGBAvailable:          prometheus.NewGaugeVec(getGaugeOpts("vramGBAvailable"), []string{"percentile"}),
+		vramGBAvailableByGpuName: prometheus.NewGaugeVec(getGaugeOpts("vramGBAvailableByGpuName"), []string{"gpu", "percentile"}),
+		utilization:              prometheus.NewGauge(getGaugeOpts("utilization")),
+		utilizationByGpuName:     prometheus.NewGaugeVec(getGaugeOpts("utilizationByGpuName"), []string{"gpu"}),
+		powerDraw:                prometheus.NewGauge(getGaugeOpts("powerDrawWatts")),
+		powerDrawByGpuName:       prometheus.NewGaugeVec(getGaugeOpts("powerDrawWattsByGpuName"), []string{"gpu"}),
 	}
 	prometheus.MustRegister(frontend)
 
@@ -175,6 +179,21 @@ func (c *Frontend) update() error {
 		c.vramUsedByGpuName.WithLabelValues(key).Set(float64(value))
 	}
 
+	c.vramGBAvailable.WithLabelValues("100").Set(float64(data.VramGBAvailable.P100))
+	c.vramGBAvailable.WithLabelValues("90").Set(float64(data.VramGBAvailable.P90))
+	c.vramGBAvailable.WithLabelValues("75").Set(float64(data.VramGBAvailable.P75))
+	c.vramGBAvailable.WithLabelValues("50").Set(float64(data.VramGBAvailable.P50))
+	c.vramGBAvailable.WithLabelValues("25").Set(float64(data.VramGBAvailable.P25))
+	c.vramGBAvailable.WithLabelValues("10").Set(float64(data.VramGBAvailable.P10))
+	for key, value := range data.VramGBAvailableByGpuName {
+		c.vramGBAvailableByGpuName.WithLabelValues(key, "100").Set(float64(value.P100))
+		c.vramGBAvailableByGpuName.WithLabelValues(key, "90").Set(float64(value.P90))
+		c.vramGBAvailableByGpuName.WithLabelValues(key, "75").Set(float64(value.P75))
+		c.vramGBAvailableByGpuName.WithLabelValues(key, "50").Set(float64(value.P50))
+		c.vramGBAvailableByGpuName.WithLabelValues(key, "25").Set(float64(value.P25))
+		c.vramGBAvailableByGpuName.WithLabelValues(key, "10").Set(float64(value.P10))
+	}
+
 	c.utilization.Set(float64(data.Utilization))
 	for key, value := range data.UtilizationByGpuName {
 		c.utilizationByGpuName.WithLabelValues(key).Set(float64(value))
@@ -199,6 +218,8 @@ func (c *Frontend) Describe(ch chan<- *prometheus.Desc) {
 	c.vramByGpuName.Describe(ch)
 	c.vramUsed.Describe(ch)
 	c.vramUsedByGpuName.Describe(ch)
+	c.vramGBAvailable.Describe(ch)
+	c.vramGBAvailableByGpuName.Describe(ch)
 	c.utilization.Describe(ch)
 	c.utilizationByGpuName.Describe(ch)
 	c.powerDraw.Describe(ch)
@@ -219,6 +240,8 @@ func (c *Frontend) Collect(ch chan<- prometheus.Metric) {
 	c.vramByGpuName.Collect(ch)
 	c.vramUsed.Collect(ch)
 	c.vramUsedByGpuName.Collect(ch)
+	c.vramGBAvailable.Collect(ch)
+	c.vramGBAvailableByGpuName.Collect(ch)
 	c.utilization.Collect(ch)
 	c.utilizationByGpuName.Collect(ch)
 	c.powerDraw.Collect(ch)
