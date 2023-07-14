@@ -276,7 +276,7 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 
 					logger.Tracef("removing session %s from %s", session.Id, agent.Id)
 
-					_, err = txn.DeleteAll("sessions", "id", session)
+					_, err = txn.DeleteAll("sessions", "id", session.Id)
 				} else {
 					sessionIds = append(sessionIds, sessionId)
 					sessions = append(sessions, session.Session)
@@ -307,18 +307,18 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 			return err
 		}
 	} else {
-		sessions := make([]interface{}, len(agent.Sessions))
-		for index, session := range agent.Sessions {
-			sessions[index] = session
+		sessionIds := make([]interface{}, len(agent.SessionIds))
+		for index, id := range agent.SessionIds {
+			sessionIds[index] = id
 		}
 
-		_, err = txn.DeleteAll("sessions", "id", sessions...)
+		_, err = txn.DeleteAll("sessions", "id", sessionIds...)
 		if err != nil {
 			txn.Abort()
 			return err
 		}
 
-		_, err = txn.DeleteAll("agents", "id", agent)
+		_, err = txn.DeleteAll("agents", "id", agent.Id)
 		if err != nil {
 			txn.Abort()
 			return err
@@ -431,6 +431,23 @@ func (driver *storageDriver) GetQueuedSessionById(id string) (storage.QueuedSess
 		Id:           session.Id,
 		Requirements: session.Requirements,
 	}, nil
+}
+
+func (driver *storageDriver) GetAgents() (storage.Iterator[restapi.Agent], error) {
+	txn := driver.db.Txn(false)
+	defer txn.Abort()
+
+	iterator, err := txn.Get("agents", "id")
+	if err != nil {
+		return nil, err
+	}
+
+	var agents []restapi.Agent
+	for obj := iterator.Next(); obj != nil; obj = iterator.Next() {
+		agents = append(agents, utilities.Require[Agent](obj).Agent)
+	}
+
+	return NewIterator(agents), nil
 }
 
 func (driver *storageDriver) GetAvailableAgentsMatching(totalAvailableVramAtLeast uint64, tags map[string]string, tolerates map[string]string) (storage.Iterator[restapi.Agent], error) {

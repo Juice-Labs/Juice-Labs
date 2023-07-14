@@ -21,6 +21,8 @@ import (
 var (
 	controllerAddress    = flag.String("controller", "", "The IP address and port of the controller")
 	disableControllerTls = flag.Bool("controller-disable-tls", true, "")
+
+	expose = flag.String("expose", "", "The IP address and port to expose through the controller for clients to see. The value is not checked for correctness.")
 )
 
 type sessionUpdate struct {
@@ -58,11 +60,15 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 			agent.api.Scheme = "http"
 		}
 
+		if *expose == "" {
+			return errors.New("--expose must be set when connecting to a controller")
+		}
+
 		id, err := agent.api.RegisterAgentWithContext(group.Ctx(), restapi.Agent{
 			Id:          agent.Id,
 			State:       restapi.AgentActive,
 			Hostname:    agent.Hostname,
-			Address:     agent.Server.Address(),
+			Address:     *expose,
 			Version:     build.Version,
 			MaxSessions: agent.maxSessions,
 			Gpus:        agent.Gpus.GetGpus(),
@@ -95,13 +101,10 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 			for {
 				select {
 				case <-group.Ctx().Done():
-					// TODO: Split the api http client from the base context so we can update here
-					// Put "http://127.0.0.1:8080/v1/agent/0a7fdbe7-7ab6-4647-a608-e36228e58e78": context canceled
-					//return agent.api.UpdateAgentWithContext(group.Ctx(), restapi.AgentUpdate{
-					//	Id:    agent.Id,
-					//	State: restapi.AgentClosed,
-					//})
-					return nil
+					return agent.api.UpdateAgent(restapi.AgentUpdate{
+						Id:    agent.Id,
+						State: restapi.AgentClosed,
+					})
 
 				case <-ticker.C:
 					// Update our state from what is on the controller

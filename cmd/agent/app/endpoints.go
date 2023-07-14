@@ -41,7 +41,6 @@ func (agent *Agent) getStatusEp(group task.Group, router *mux.Router) error {
 				State:    "Active",
 				Version:  build.Version,
 				Hostname: agent.Hostname,
-				Address:  agent.Server.Address(),
 			})
 
 			if err != nil {

@@ -109,7 +109,6 @@ type Status struct {
 	State    string `json:"status"`
 	Version  string `json:"version"`
 	Hostname string `json:"hostname"`
-	Address  string `json:"address"`
 }
 
 type SessionUpdate struct {

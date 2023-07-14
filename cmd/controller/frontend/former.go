@@ -62,14 +62,16 @@ type StatusFormer struct {
 }
 
 func (frontend *Frontend) GetActiveAgents() ([]restapi.Agent, error) {
-	iterator, err := frontend.storage.GetAvailableAgentsMatching(0, map[string]string{}, map[string]string{})
+	iterator, err := frontend.storage.GetAgents()
 	if err != nil {
 		return nil, err
 	}
 
 	agents := make([]restapi.Agent, 0)
 	for iterator.Next() {
-		agents = append(agents, iterator.Value())
+		if iterator.Value().State == restapi.AgentActive {
+			agents = append(agents, iterator.Value())
+		}
 	}
 
 	return agents, nil

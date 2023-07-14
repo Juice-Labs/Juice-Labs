@@ -24,8 +24,7 @@ type CreateEndpointFn = func(group task.Group, router *mux.Router) error
 type Server struct {
 	url url.URL
 
-	address string // Takes the form ":<port>"
-	port    int
+	port int
 
 	tlsConfig *tls.Config
 
@@ -50,15 +49,10 @@ func NewServer(address string, tlsConfig *tls.Config) (*Server, error) {
 
 	return &Server{
 		url:             url,
-		address:         fmt.Sprintf(":%d", port),
 		port:            port,
 		tlsConfig:       tlsConfig,
 		createEndpoints: map[string]CreateEndpointFn{},
 	}, nil
-}
-
-func (server *Server) Address() string {
-	return server.address
 }
 
 func (server *Server) Port() int {
@@ -103,7 +97,7 @@ func (server *Server) Run(group task.Group) error {
 		BaseContext: func(_ net.Listener) context.Context {
 			return group.Ctx()
 		},
-		Addr:      server.Address(),
+		Addr:      server.url.Host,
 		Handler:   loggerRouter,
 		TLSConfig: server.tlsConfig,
 	}

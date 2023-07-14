@@ -66,6 +66,20 @@ func (frontend *Frontend) registerAgent(agent restapi.Agent) (string, error) {
 	return frontend.storage.RegisterAgent(agent)
 }
 
+func (frontend *Frontend) getAgents() ([]restapi.Agent, error) {
+	iterator, err := frontend.storage.GetAgents()
+	if err != nil {
+		return nil, err
+	}
+
+	agents := make([]restapi.Agent, 0)
+	for iterator.Next() {
+		agents = append(agents, iterator.Value())
+	}
+
+	return agents, nil
+}
+
 func (frontend *Frontend) getAgentById(id string) (restapi.Agent, error) {
 	return frontend.storage.GetAgentById(id)
 }

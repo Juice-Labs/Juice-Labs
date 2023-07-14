@@ -6,7 +6,6 @@ package frontend
 import (
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -23,6 +22,7 @@ func (frontend *Frontend) initializeEndpoints() {
 	frontend.server.AddCreateEndpoint(frontend.getStatusEp)
 	frontend.server.AddCreateEndpoint(frontend.registerAgentEp)
 	frontend.server.AddCreateEndpoint(frontend.getAgentEp)
+	frontend.server.AddCreateEndpoint(frontend.getAgentsEp)
 	frontend.server.AddCreateEndpoint(frontend.updateAgentEp)
 	frontend.server.AddCreateEndpoint(frontend.requestSessionEp)
 	frontend.server.AddCreateEndpoint(frontend.getSessionEp)
@@ -35,7 +35,6 @@ func (frontend *Frontend) getStatusEp(group task.Group, router *mux.Router) erro
 				State:    "Active",
 				Version:  build.Version,
 				Hostname: frontend.hostname,
-				Address:  frontend.server.Address(),
 			})
 
 			if err != nil {
@@ -55,26 +54,6 @@ func (frontend *Frontend) registerAgentEp(group task.Group, router *mux.Router) 
 				logger.Error(err)
 				return
 			}
-
-			ip, _, err := net.SplitHostPort(r.RemoteAddr)
-			if err != nil {
-				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
-				logger.Error(err)
-				return
-			}
-
-			_, port, err := net.SplitHostPort(agent.Address)
-			if err != nil {
-				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
-				logger.Error(err)
-				return
-			}
-
-			if ip == "127.0.0.1" {
-				ip = ""
-			}
-
-			agent.Address = fmt.Sprintf("%s:%s", ip, port)
 
 			id, err := frontend.registerAgent(agent)
 			if err != nil {
@@ -104,6 +83,21 @@ func (frontend *Frontend) getAgentEp(group task.Group, router *mux.Router) error
 			}
 
 			pkgnet.Respond(w, http.StatusOK, agent)
+		})
+	return nil
+}
+
+func (frontend *Frontend) getAgentsEp(group task.Group, router *mux.Router) error {
+	router.Methods("GET").Path("/v1/agents").HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			agents, err := frontend.getAgents()
+			if err != nil {
+				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+				logger.Error(err)
+				return
+			}
+
+			pkgnet.Respond(w, http.StatusOK, agents)
 		})
 	return nil
 }
