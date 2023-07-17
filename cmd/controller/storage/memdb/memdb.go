@@ -42,32 +42,6 @@ type storageDriver struct {
 	db  *memdb.MemDB
 }
 
-type Iterator[T any] struct {
-	index   int
-	objects []T
-}
-
-func NewIterator[T any](objects []T) storage.Iterator[T] {
-	return &Iterator[T]{
-		index:   -1,
-		objects: objects,
-	}
-}
-
-func (iterator *Iterator[T]) Next() bool {
-	index := iterator.index + 1
-	if index >= len(iterator.objects) {
-		return false
-	}
-
-	iterator.index = index
-	return true
-}
-
-func (iterator *Iterator[T]) Value() T {
-	return iterator.objects[iterator.index]
-}
-
 func OpenStorage(ctx context.Context) (storage.Storage, error) {
 	schema := &memdb.DBSchema{
 		Tables: map[string]*memdb.TableSchema{
@@ -524,30 +498,10 @@ func (driver *storageDriver) GetAgents() (storage.Iterator[restapi.Agent], error
 		agents = append(agents, utilities.Require[Agent](obj).Agent)
 	}
 
-	return NewIterator(agents), nil
+	return storage.NewDefaultIterator(agents), nil
 }
 
-func isSubset(set, subset map[string]string) bool {
-	for key, value := range subset {
-		checkValue, present := set[key]
-		if !present || value != checkValue {
-			return false
-		}
-	}
-
-	return true
-}
-
-func matchesLabels(set, subset map[string]string) bool {
-	return isSubset(set, subset)
-}
-
-func canTolerate(taints, tolerates map[string]string) bool {
-	// tolerates must be a superset of taints to be acceptable
-	return isSubset(tolerates, taints)
-}
-
-func (driver *storageDriver) GetAvailableAgentsMatching(totalAvailableVramAtLeast uint64, matchLabels map[string]string, tolerates map[string]string) (storage.Iterator[restapi.Agent], error) {
+func (driver *storageDriver) GetAvailableAgentsMatching(totalAvailableVramAtLeast uint64) (storage.Iterator[restapi.Agent], error) {
 	txn := driver.db.Txn(false)
 	defer txn.Abort()
 
@@ -560,12 +514,12 @@ func (driver *storageDriver) GetAvailableAgentsMatching(totalAvailableVramAtLeas
 	for obj := iterator.Next(); obj != nil; obj = iterator.Next() {
 		agent := utilities.Require[Agent](obj)
 
-		if agent.SessionsAvailable != 0 && agent.VramAvailable >= totalAvailableVramAtLeast && matchesLabels(agent.Labels, matchLabels) && canTolerate(agent.Taints, tolerates) {
+		if agent.SessionsAvailable != 0 && agent.VramAvailable >= totalAvailableVramAtLeast {
 			agents = append(agents, agent.Agent)
 		}
 	}
 
-	return NewIterator(agents), nil
+	return storage.NewDefaultIterator(agents), nil
 }
 
 func (driver *storageDriver) GetQueuedSessionsIterator() (storage.Iterator[storage.QueuedSession], error) {
@@ -586,7 +540,7 @@ func (driver *storageDriver) GetQueuedSessionsIterator() (storage.Iterator[stora
 		})
 	}
 
-	return NewIterator(sessions), nil
+	return storage.NewDefaultIterator(sessions), nil
 }
 
 func (driver *storageDriver) SetAgentsMissingIfNotUpdatedFor(duration time.Duration) error {

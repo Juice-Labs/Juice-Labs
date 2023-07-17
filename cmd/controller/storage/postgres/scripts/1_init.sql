@@ -8,19 +8,27 @@ create type session_state as enum (
     'queued',
     'assigned',
     'active',
+    'canceling',
     'closed',
     'failed',
-    'canceling',
     'canceled'
 );
 
 create extension "uuid-ossp";
 
+create table log (
+    created_at TIMESTAMP DEFAULT now(),
+    operation text NOT NULL,
+    data jsonb NOT NULL
+);
+
+create index on log (created_at);
+
 create table agents (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     state agent_state NOT NULL,
     hostname text NOT NULL,
-    address inet NOT NULL,
+    address text NOT NULL,
     version text NOT NULL,
     max_sessions int NOT NULL,
     gpus jsonb NOT NULL,
@@ -30,23 +38,33 @@ create table agents (
     updated_at TIMESTAMP
 );
 
+create index on agents (state, vram_available, sessions_available);
+create index on agents (created_at);
+create index on agents (state, created_at);
+create index on agents (state, updated_at);
+
 create table sessions (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     agent_id uuid,
     state session_state NOT NULL,
-    address inet NOT NULL,
+    address text,
     version text NOT NULL,
     persistent boolean NOT NULL,
-    gpus jsonb NOT NULL,
+    gpus jsonb,
+    vram_required bigint NOT NULL,
+    requirements jsonb NOT NULL,
     created_at TIMESTAMP DEFAULT now(),
     updated_at TIMESTAMP,
     FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE
 );
 
+create index on sessions (agent_id);
+create index on sessions (created_at);
+create index on sessions (state, created_at);
+
 create table key_values (
     id BIGSERIAL PRIMARY KEY,
-    key text NOT NULL,
-    value text NOT NULL
+    keyvalue jsonb NOT NULL
 );
 
 create table agent_labels (

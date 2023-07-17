@@ -7,11 +7,11 @@ const (
 	SessionQueued int = iota
 	SessionAssigned
 	SessionActive
+	SessionCanceling
 
-	// Closed/Closing states
+	// Closed states
 	SessionClosed
 	SessionFailed
-	SessionCanceling
 	SessionCanceled
 
 	SessionStateCount

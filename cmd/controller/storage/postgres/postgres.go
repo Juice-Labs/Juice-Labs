@@ -4,274 +4,308 @@
 package postgres
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
-	"database/sql/driver"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/lib/pq"
 	_ "github.com/lib/pq"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
+	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 )
-
-const (
-	CreateUuidExtension = "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\""
-
-	CreateGpuType = "DO $$ " +
-		"BEGIN " +
-		"IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'gpu') THEN " +
-		"CREATE TYPE Gpu AS (" +
-		"name text," +
-		"vendorId smallint," +
-		"deviceId smallint," +
-		"vram bigint" +
-		");" +
-		"END IF; " +
-		"END; $$"
-
-	CreateKeyValueType = "DO $$ " +
-		"BEGIN " +
-		"IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'keyvalue') THEN " +
-		"CREATE TYPE keyvalue AS (" +
-		"key text," +
-		"value text" +
-		");" +
-		"END IF; " +
-		"END; $$"
-
-	CreateAgentsTable = "CREATE TABLE IF NOT EXISTS agents (" +
-		"id uuid NOT NULL PRIMARY KEY DEFAULT uuid_generate_v4()," +
-		"state smallint NOT NULL," +
-		"version text NOT NULL," +
-		"hostname text NOT NULL," +
-		"address text NOT NULL," +
-		"max_sessions int NOT NULL," +
-		"gpus gpu[] NOT NULL," +
-		"labels keyvalue[] NOT NULL," +
-		"taints keyvalue[] NOT NULL," +
-		"sessions uuid[]," +
-		"lastUpdated timestamp NOT NULL," +
-		"data text NOT NULL" +
-		")"
-
-	CreateSessionsTable = "CREATE TABLE IF NOT EXISTS sessions (" +
-		"id uuid NOT NULL PRIMARY KEY DEFAULT uuid_generate_v4()," +
-		"agent_id uuid REFERENCES agents (id)," +
-		"state smallint NOT NULL," +
-		"address text," +
-		"version text NOT NULL," +
-		"gpus gpu[]," +
-		"lastUpdated timestamp NOT NULL," +
-		"data text NOT NULL" +
-		")"
-
-	InsertIntoAgentsTable = "INSERT INTO agents (" +
-		"state, version, hostname, address, max_sessions, gpus, labels, taints, sessions, lastUpdated, data" +
-		") VALUES (" +
-		"$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11" +
-		") RETURNING id"
-
-	UpdateAgent = "UPDATE agents SET (" +
-		"state, sessions, lastUpdated, data" +
-		") = (" +
-		"$1, $2, $3, $4" +
-		")" +
-		"WHERE id = $5"
-
-	SelectActiveAgents = "SELECT data FROM agents WHERE state = 2"
-
-	SelectAgentsUpdatedSince = "SELECT data FROM agents WHERE lastUpdated > $1"
-
-	InsertIntoSessionsTable = "INSERT INTO sessions (" +
-		"agent_id, state, address, version, gpus, lastUpdated, data" +
-		") VALUES (" +
-		"$1, $2, $3, $4, $5, $6, $7" +
-		") RETURNING id"
-
-	UpdateSession = "UPDATE sessions SET (" +
-		"agent_id, state, address, gpus, lastUpdated, data" +
-		") = (" +
-		"$1, $2, $3, $4, $5, $6" +
-		")" +
-		"WHERE id = $7"
-
-	SelectSessionById = "SELECT data FROM sessions WHERE id = $1"
-
-	SelectSessionsNotClosedUpdatedSince = "SELECT data FROM sessions " +
-		"WHERE state < 4 AND lastUpdated > $1"
-)
-
-func appendArrayQuotedBytes(b, v []byte) []byte {
-	b = append(b, '"')
-	for {
-		i := bytes.IndexAny(v, `"\`)
-		if i < 0 {
-			b = append(b, v...)
-			break
-		}
-		if i > 0 {
-			b = append(b, v[:i]...)
-		}
-		b = append(b, '\\', v[i])
-		v = v[i+1:]
-	}
-	return append(b, '"')
-}
-
-func gpuValuerAppend(b []byte, gpu restapi.Gpu) []byte {
-	b1 := make([]byte, 0, 64)
-
-	b1 = append(b1, '(')
-	b1 = appendArrayQuotedBytes(b1, []byte(gpu.Name))
-	b1 = append(b1, ',')
-	b1 = fmt.Append(b1, gpu.VendorId)
-	b1 = append(b1, ',')
-	b1 = fmt.Append(b1, gpu.DeviceId)
-	b1 = append(b1, ',')
-	b1 = fmt.Append(b1, gpu.Vram)
-	b1 = append(b1, ')')
-
-	return appendArrayQuotedBytes(b, b1)
-}
-
-type gpuValuer struct {
-	Data *[]restapi.Gpu
-}
-
-func (valuer gpuValuer) Value() (driver.Value, error) {
-	if n := len(*valuer.Data); n > 0 {
-		b := make([]byte, 1, 64)
-		b[0] = '{'
-
-		b = gpuValuerAppend(b, (*valuer.Data)[0])
-		for i := 1; i < n; i++ {
-			b = append(b, ',')
-			b = gpuValuerAppend(b, (*valuer.Data)[i])
-		}
-
-		return string(append(b, '}')), nil
-	}
-
-	return "{}", nil
-}
-
-type sessionGpuValuer struct {
-	Data *[]restapi.SessionGpu
-}
-
-func (valuer sessionGpuValuer) Value() (driver.Value, error) {
-	if n := len(*valuer.Data); n > 0 {
-		b := make([]byte, 1, 64)
-		b[0] = '{'
-
-		b = gpuValuerAppend(b, (*valuer.Data)[0].Gpu)
-		for i := 1; i < n; i++ {
-			b = append(b, ',')
-			b = gpuValuerAppend(b, (*valuer.Data)[i].Gpu)
-		}
-
-		return string(append(b, '}')), nil
-	}
-
-	return "{}", nil
-}
-
-type mapStringStringValuer struct {
-	Data *map[string]string
-}
-
-func mapStringStringValuerAppend(b []byte, key, value string) []byte {
-	b1 := make([]byte, 0, 64)
-
-	b1 = append(b1, '(')
-	b1 = appendArrayQuotedBytes(b1, []byte(key))
-	b1 = append(b1, ',')
-	b1 = appendArrayQuotedBytes(b1, []byte(value))
-	b1 = append(b1, ')')
-
-	return appendArrayQuotedBytes(b, b1)
-}
-
-func (valuer mapStringStringValuer) Value() (driver.Value, error) {
-	if n := len(*valuer.Data); n > 0 {
-		b := make([]byte, 1, 64)
-		b[0] = '{'
-
-		first := true
-
-		for key, value := range *valuer.Data {
-			if !first {
-				b = append(b, ',')
-			}
-
-			b = mapStringStringValuerAppend(b, key, value)
-
-			first = false
-		}
-
-		return string(append(b, '}')), nil
-	}
-
-	return "{}", nil
-}
-
-type sessionUuidValuer struct {
-	Data *[]restapi.Session
-}
-
-func (valuer sessionUuidValuer) Value() (driver.Value, error) {
-	if n := len(*valuer.Data); n > 0 {
-		b := make([]byte, 1, 64)
-		b[0] = '{'
-
-		b = appendArrayQuotedBytes(b, []byte((*valuer.Data)[0].Id))
-		for i := 1; i < n; i++ {
-			b = append(b, ',')
-			b = appendArrayQuotedBytes(b, []byte((*valuer.Data)[i].Id))
-		}
-
-		return string(append(b, '}')), nil
-	}
-
-	return "{}", nil
-}
 
 type storageDriver struct {
 	ctx context.Context
 	db  *sql.DB
 }
 
-func OpenStorage(ctx context.Context) (storage.Storage, error) {
-	db, err := sql.Open("postgres", "user=postgres password='[&yx+c3i89}2<((KcZv4{8mGzNO<' dbname=juice host=controller-dev.cluster-coe6qeujst8t.us-east-2.rds.amazonaws.com sslmode=disable")
+type sqlRow interface {
+	Scan(dest ...any) error
+}
+
+type unmarshalFn[T any] func(row sqlRow) (T, error)
+
+type tableIterator[T any] struct {
+	ctx context.Context
+
+	statement *sql.Stmt
+	offset    int
+
+	unmarshal unmarshalFn[T]
+
+	iterator storage.Iterator[T]
+}
+
+func newIterator[T any](ctx context.Context, statement *sql.Stmt, unmarshal unmarshalFn[T]) (storage.Iterator[T], error) {
+	iterator := &tableIterator[T]{
+		ctx: ctx,
+
+		statement: statement,
+		offset:    0,
+
+		unmarshal: unmarshal,
+	}
+
+	objects, err := iterator.retrieveRows()
+	if err != nil {
+		logger.Debugf("unable to retrieve rows, %s", err.Error())
+		return nil, err
+	}
+
+	iterator.iterator = storage.NewDefaultIterator[T](objects)
+	return iterator, err
+}
+
+func (iterator *tableIterator[T]) retrieveRows() ([]T, error) {
+	rows, err := iterator.statement.QueryContext(iterator.ctx, iterator.offset)
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = db.ExecContext(ctx, CreateUuidExtension)
-	if err != nil {
-		return nil, err
+	objects := make([]T, 0)
+	for rows.Next() {
+		obj, err := iterator.unmarshal(rows)
+		if err != nil {
+			return nil, err
+		}
+
+		objects = append(objects, obj)
+
+		iterator.offset++
 	}
 
-	_, err = db.ExecContext(ctx, CreateGpuType)
-	if err != nil {
-		return nil, err
+	return objects, nil
+}
+
+func (iterator *tableIterator[T]) Next() bool {
+	if !iterator.Next() {
+		objects, err := iterator.retrieveRows()
+		if err != nil {
+			logger.Debugf("unable to retrieve rows, %s", err.Error())
+			return false
+		}
+
+		if len(objects) == 0 {
+			return false
+		}
+
+		iterator.iterator = storage.NewDefaultIterator[T](objects)
 	}
 
-	_, err = db.ExecContext(ctx, CreateKeyValueType)
-	if err != nil {
-		return nil, err
+	return true
+}
+
+func (iterator *tableIterator[T]) Value() T {
+	return iterator.Value()
+}
+
+const (
+	selectAgents = `SELECT id, state, hostname, address, version, max_sessions, gpus, 
+			( SELECT ARRAY (
+				SELECT ( SELECT keyvalue FROM key_values WHERE id = agent_labels.key_value_id ) FROM agent_labels WHERE agent_id = agents.id
+			) ) labels, 
+			( SELECT ARRAY (
+				SELECT ( SELECT keyvalue FROM key_values WHERE id = agent_taints.key_value_id ) FROM agent_taints WHERE agent_id = agents.id
+			) ) taints, 
+			( SELECT ARRAY (
+				SELECT row(id, state, address, version, persistent, gpus) FROM sessions tab WHERE tab.agent_id = agents.id 
+			) ) sessions
+		FROM agents`
+	selectSessions       = "SELECT id, state, address, version, persistent, gpus FROM sessions"
+	selectQueuedSessions = "SELECT id, requirements FROM sessions WHERE state = 'queued'"
+
+	orderBy     = " ORDER BY created_at ASC"
+	offsetLimit = " OFFSET $1 LIMIT "
+)
+
+func selectAgentsWhere(where string) string {
+	return fmt.Sprint(selectAgents, " WHERE ", where, orderBy)
+}
+
+func selectAgentsIterator(limit int) string {
+	return fmt.Sprint(selectAgents, orderBy, offsetLimit, limit)
+}
+
+func selectAgentsIteratorWhere(where string, limit int) string {
+	return fmt.Sprint(selectAgents, " WHERE ", where, orderBy, offsetLimit, limit)
+}
+
+func unmarshalAgent(row sqlRow) (restapi.Agent, error) {
+	var state string
+	var gpus []byte
+	var labels pq.StringArray
+	var taints pq.StringArray
+	var sessions pq.StringArray
+
+	agent := restapi.Agent{
+		Labels:   map[string]string{},
+		Taints:   map[string]string{},
+		Sessions: make([]restapi.Session, 0),
 	}
 
-	_, err = db.ExecContext(ctx, CreateAgentsTable)
+	err := row.Scan(&agent.Id, &state, &agent.Hostname, &agent.Address, &agent.Version, &agent.MaxSessions, &gpus, &labels, &taints, &sessions)
 	if err != nil {
-		return nil, err
+		return restapi.Agent{}, err
 	}
 
-	_, err = db.ExecContext(ctx, CreateSessionsTable)
+	agent.State = stringToAgentState(state)
+
+	err = json.Unmarshal(gpus, &agent.Gpus)
+	if err != nil {
+		return restapi.Agent{}, err
+	}
+
+	for _, label := range labels {
+		err = json.Unmarshal([]byte(label), &agent.Labels)
+		if err != nil {
+			return restapi.Agent{}, err
+		}
+	}
+
+	for _, taint := range taints {
+		err = json.Unmarshal([]byte(taint), &agent.Taints)
+		if err != nil {
+			return restapi.Agent{}, err
+		}
+	}
+
+	// TODO: sessions
+
+	return agent, nil
+}
+
+func selectSessionsWhere(where string) string {
+	return fmt.Sprint(selectSessions, " WHERE ", where, orderBy)
+}
+
+func unmarshalSession(row sqlRow) (restapi.Session, error) {
+	var session restapi.Session
+	var state string
+	var gpus string
+
+	err := row.Scan(&session.Id, &state, &session.Address, &session.Version, &session.Persistent, &gpus)
+	if err != nil {
+		return restapi.Session{}, err
+	}
+
+	err = json.Unmarshal([]byte(gpus), &session.Gpus)
+	if err != nil {
+		return restapi.Session{}, err
+	}
+
+	session.State = stringToSessionState(state)
+
+	return session, nil
+}
+
+func selectQueuedSessionsWhere(where string) string {
+	return fmt.Sprint(selectQueuedSessions, " AND ", where, orderBy)
+}
+
+func selectQueuedSessionsIteratorWhere(where string, limit int) string {
+	return fmt.Sprint(selectQueuedSessions, " AND ", where, orderBy, offsetLimit, limit)
+}
+
+func unmarshalQueuedSession(row sqlRow) (storage.QueuedSession, error) {
+	session := storage.QueuedSession{}
+
+	var requirements string
+	err := row.Scan(&session.Id, &requirements)
+	if err != nil {
+		return storage.QueuedSession{}, err
+	}
+
+	err = json.Unmarshal([]byte(requirements), &session.Requirements)
+	if err != nil {
+		return storage.QueuedSession{}, err
+	}
+
+	return session, nil
+}
+
+func stringToAgentState(str string) int {
+	switch str {
+	case "active":
+		return restapi.AgentActive
+	case "disabled":
+		return restapi.AgentDisabled
+	case "missing":
+		return restapi.AgentMissing
+	case "closed":
+		return restapi.AgentClosed
+	}
+
+	logger.Panicf("unable to convert string to AgentState, %s", str)
+	return -1
+}
+
+func agentStateToString(state int) string {
+	switch state {
+	case restapi.AgentActive:
+		return "active"
+	case restapi.AgentDisabled:
+		return "disabled"
+	case restapi.AgentMissing:
+		return "missing"
+	case restapi.AgentClosed:
+		return "closed"
+	}
+
+	logger.Panicf("unable to convert AgentState to string, %d", state)
+	return ""
+}
+
+func stringToSessionState(str string) int {
+	switch str {
+	case "queued":
+		return restapi.SessionQueued
+	case "assigned":
+		return restapi.SessionAssigned
+	case "active":
+		return restapi.SessionActive
+	case "closed":
+		return restapi.SessionClosed
+	case "failed":
+		return restapi.SessionFailed
+	case "canceling":
+		return restapi.SessionCanceling
+	case "canceled":
+		return restapi.SessionCanceled
+	}
+
+	logger.Panicf("unable to convert string to SessionState, %s", str)
+	return -1
+}
+
+func sessionStateToString(state int) string {
+	switch state {
+	case restapi.SessionQueued:
+		return "queued"
+	case restapi.SessionAssigned:
+		return "assigned"
+	case restapi.SessionActive:
+		return "active"
+	case restapi.SessionClosed:
+		return "closed"
+	case restapi.SessionFailed:
+		return "failed"
+	case restapi.SessionCanceling:
+		return "canceling"
+	case restapi.SessionCanceled:
+		return "canceled"
+	}
+
+	logger.Panicf("unable to convert SessionState to string, %d", state)
+	return ""
+}
+
+func OpenStorage(ctx context.Context, connection string) (storage.Storage, error) {
+	db, err := sql.Open("postgres", connection)
 	if err != nil {
 		return nil, err
 	}
@@ -282,183 +316,339 @@ func OpenStorage(ctx context.Context) (storage.Storage, error) {
 	}, nil
 }
 
+func (driver *storageDriver) addLog(tx *sql.Tx, operation string, obj any) error {
+	data, err := json.Marshal(obj)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.ExecContext(driver.ctx, "INSERT INTO log ("+
+		"operation, data"+
+		") VALUES ("+
+		"$1, $2"+
+		")",
+		operation, data)
+	return err
+}
+
+func (driver *storageDriver) addLogData(tx *sql.Tx, operation string, data []byte) error {
+	_, err := tx.ExecContext(driver.ctx, "INSERT INTO log ("+
+		"operation, data"+
+		") VALUES ("+
+		"$1, $2"+
+		")",
+		operation, data)
+	return err
+}
+
 func (driver *storageDriver) Close() error {
 	return driver.db.Close()
 }
 
-func (driver *storageDriver) AddAgent(agent storage.Agent) (string, error) {
-	var id string
-
-	jsonb, err := json.Marshal(agent)
-	if err == nil {
-		err = driver.db.QueryRowContext(driver.ctx, InsertIntoAgentsTable,
-			agent.State, agent.Version, agent.Hostname, agent.Address,
-			agent.MaxSessions, gpuValuer{Data: &agent.Gpus},
-			mapStringStringValuer{Data: &agent.Labels},
-			mapStringStringValuer{Data: &agent.Taints},
-			sessionUuidValuer{Data: &agent.Sessions},
-			agent.LastUpdated, jsonb).Scan(&id)
-	}
-
-	return id, err
+func (driver *storageDriver) AggregateData() (storage.AggregatedData, error) {
+	return storage.AggregatedData{}, nil
 }
 
-func (driver *storageDriver) AddSession(session storage.Session) (string, error) {
-	var id string
+func (driver *storageDriver) RegisterAgent(agent restapi.Agent) (string, error) {
+	gpus, err := json.Marshal(agent.Gpus)
+	if err != nil {
+		return "", err
+	}
 
-	jsonb, err := json.Marshal(session)
-	if err == nil {
-		var agentId any
-		agentId = session.AgentId
-		if agentId == "" {
-			agentId = nil
+	tx, err := driver.db.BeginTx(driver.ctx, nil)
+	if err != nil {
+		return "", err
+	}
+
+	err = driver.addLog(tx, "RegisterAgent", agent)
+	if err != nil {
+		return "", errors.Join(err, tx.Rollback())
+	}
+
+	var id string
+	err = driver.db.QueryRowContext(driver.ctx, "INSERT INTO agents ("+
+		"state, hostname, address, version, max_sessions, gpus, vram_available, sessions_available, updated_at"+
+		") VALUES ("+
+		"$1, $2, $3, $4, $5, $6, $7, $8, now()"+
+		") RETURNING id",
+		agentStateToString(agent.State), agent.Hostname, agent.Address, agent.Version,
+		agent.MaxSessions, gpus, storage.TotalVram(agent.Gpus), agent.MaxSessions).Scan(&id)
+	if err != nil {
+		return "", errors.Join(err, tx.Rollback())
+	}
+
+	for key, value := range agent.Labels {
+		var keyValueId uint64
+		err = driver.db.QueryRowContext(driver.ctx, "INSERT INTO key_values ("+
+			"keyvalue"+
+			") VALUES ("+
+			"$1"+
+			") RETURNING id", fmt.Sprintf(`{"%s":"%s"}`, key, value)).Scan(&keyValueId)
+		if err != nil {
+			return "", errors.Join(err, tx.Rollback())
 		}
 
-		err = driver.db.QueryRowContext(driver.ctx, InsertIntoSessionsTable,
-			agentId, session.State, session.Address, session.Version,
-			sessionGpuValuer{Data: &session.Gpus}, session.LastUpdated, jsonb).Scan(&id)
+		_, err = driver.db.ExecContext(driver.ctx, "INSERT INTO agent_labels ("+
+			"agent_id, key_value_id"+
+			") VALUES ("+
+			"$1, $2"+
+			")", id, keyValueId)
+		if err != nil {
+			return "", errors.Join(err, tx.Rollback())
+		}
 	}
 
-	return id, err
+	for key, value := range agent.Taints {
+		var keyValueId uint64
+		err = driver.db.QueryRowContext(driver.ctx, "INSERT INTO key_values ("+
+			"keyvalue"+
+			") VALUES ("+
+			"$1, $2"+
+			") RETURNING id", fmt.Sprintf(`{"%s":"%s"}`, key, value)).Scan(&keyValueId)
+		if err != nil {
+			return "", errors.Join(err, tx.Rollback())
+		}
+
+		_, err = driver.db.ExecContext(driver.ctx, "INSERT INTO agent_taints ("+
+			"agent_id, key_value_id"+
+			") VALUES ("+
+			"$1, $2"+
+			")", id, keyValueId)
+		if err != nil {
+			return "", errors.Join(err, tx.Rollback())
+		}
+	}
+
+	return id, tx.Commit()
 }
 
-func (driver *storageDriver) GetActiveAgents() ([]storage.Agent, error) {
-	rows, err := driver.db.QueryContext(driver.ctx, SelectActiveAgents)
+func (driver *storageDriver) GetAgentById(id string) (restapi.Agent, error) {
+	return unmarshalAgent(driver.db.QueryRowContext(driver.ctx, selectAgentsWhere("id = $1"), id))
+}
+
+func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
+	var gpusData []byte
+	err := driver.db.QueryRowContext(driver.ctx, "SELECT gpus FROM agents WHERE id = $1", update.Id).Scan(&gpusData)
+	if err != nil {
+		return err
+	}
+
+	var gpus []restapi.Gpu
+	err = json.Unmarshal(gpusData, &gpus)
+	if err != nil {
+		return err
+	}
+
+	for index, metrics := range update.Gpus {
+		gpus[index].Metrics = metrics
+	}
+
+	gpusData, err = json.Marshal(gpus)
+	if err != nil {
+		return err
+	}
+
+	tx, err := driver.db.BeginTx(driver.ctx, nil)
+	if err != nil {
+		return errors.Join(err, tx.Rollback())
+	}
+
+	err = driver.addLog(tx, "UpdateAgent", update)
+	if err != nil {
+		return errors.Join(err, tx.Rollback())
+	}
+
+	// Check if any of the sessions are being closed
+	closedSessions := ""
+	closedSessionsCount := 0
+	for key, value := range update.Sessions {
+		if value.State >= restapi.SessionClosed {
+			closedSessions = fmt.Sprint(closedSessions, ", ", key)
+			closedSessionsCount++
+		}
+	}
+
+	if closedSessionsCount > 0 {
+		_, err = driver.db.ExecContext(driver.ctx, `UPDATE agents SET vram_available = (
+				SELECT SUM(vram_required) FROM sessions WHERE id = ANY(ARRAY[$1])
+			), sessions_available = sessions_available + $2, state = $3, gpus = $4, updated_at = now() WHERE id = $5`,
+			closedSessions[2:], closedSessionsCount, update.State, update.Gpus, update.Id)
+	} else {
+		_, err = driver.db.ExecContext(driver.ctx, "UPDATE agents SET state = $1, gpus = $2, updated_at = now() WHERE id = $3", agentStateToString(update.State), gpusData, update.Id)
+	}
+
+	if err != nil {
+		return errors.Join(err, tx.Rollback())
+	}
+
+	for id, sessionUpdate := range update.Sessions {
+		_, err = driver.db.ExecContext(driver.ctx, "UPDATE sessions SET state = $1 WHERE id = $2", sessionStateToString(sessionUpdate.State), id)
+		if err != nil {
+			return errors.Join(err, tx.Rollback())
+		}
+	}
+
+	return tx.Commit()
+}
+
+func (driver *storageDriver) RequestSession(sessionRequirements restapi.SessionRequirements) (string, error) {
+	requirements, err := json.Marshal(sessionRequirements)
+	if err != nil {
+		return "", err
+	}
+
+	tx, err := driver.db.BeginTx(driver.ctx, nil)
+	if err != nil {
+		return "", errors.Join(err, tx.Rollback())
+	}
+
+	err = driver.addLogData(tx, "RequestSession", requirements)
+	if err != nil {
+		return "", errors.Join(err, tx.Rollback())
+	}
+
+	var id string
+	err = driver.db.QueryRowContext(driver.ctx, "INSERT INTO sessions ("+
+		"state, version, persistent, requirements, vram_required, updated_at"+
+		") VALUES ("+
+		"$1, $2, $3, $4, $5, now()"+
+		") RETURNING id",
+		sessionStateToString(restapi.SessionQueued), sessionRequirements.Version,
+		sessionRequirements.Persistent, storage.TotalVramRequired(sessionRequirements), requirements).Scan(&id)
+	if err != nil {
+		return "", errors.Join(err, tx.Rollback())
+	}
+
+	for key, value := range sessionRequirements.MatchLabels {
+		var keyValueId uint64
+		err = driver.db.QueryRowContext(driver.ctx, "INSERT INTO key_values ("+
+			"keyvalue"+
+			") VALUES ("+
+			"$1, $2"+
+			") RETURNING id", fmt.Sprintf(`{"%s":"%s"}`, key, value)).Scan(&keyValueId)
+		if err != nil {
+			return "", errors.Join(err, tx.Rollback())
+		}
+
+		_, err = driver.db.ExecContext(driver.ctx, "INSERT INTO session_match_labels ("+
+			"agent_id, key_value_id"+
+			") VALUES ("+
+			"$1, $2"+
+			") RETURNING id", id, keyValueId)
+		if err != nil {
+			return "", errors.Join(err, tx.Rollback())
+		}
+	}
+
+	for key, value := range sessionRequirements.Tolerates {
+		var keyValueId uint64
+		err = driver.db.QueryRowContext(driver.ctx, "INSERT INTO key_values ("+
+			"keyvalue"+
+			") VALUES ("+
+			"$1, $2"+
+			") RETURNING id", fmt.Sprintf(`{"%s":"%s"}`, key, value)).Scan(&keyValueId)
+		if err != nil {
+			return "", errors.Join(err, tx.Rollback())
+		}
+
+		_, err = driver.db.ExecContext(driver.ctx, "INSERT INTO session_tolerates ("+
+			"agent_id, key_value_id"+
+			") VALUES ("+
+			"$1, $2"+
+			") RETURNING id", id, keyValueId)
+		if err != nil {
+			return "", errors.Join(err, tx.Rollback())
+		}
+	}
+
+	return id, tx.Commit()
+}
+
+func (driver *storageDriver) AssignSession(sessionId string, agentId string, gpus []restapi.SessionGpu) error {
+	gpusData, err := json.Marshal(gpus)
+	if err != nil {
+		return err
+	}
+
+	dataMap := map[string]string{
+		"SessionId": sessionId,
+		"AgentId":   agentId,
+		"Gpus":      string(gpusData),
+	}
+	data, err := json.Marshal(dataMap)
+	if err != nil {
+		return err
+	}
+
+	tx, err := driver.db.BeginTx(driver.ctx, nil)
+	if err != nil {
+		return errors.Join(err, tx.Rollback())
+	}
+
+	err = driver.addLogData(tx, "AssignSession", data)
+	if err != nil {
+		return errors.Join(err, tx.Rollback())
+	}
+
+	_, err = driver.db.ExecContext(driver.ctx, `UPDATE agents SET vram_available = vram_available - (
+			SELECT vram_required FROM sessions WHERE id = $1
+		), sessions_available = sessions_available - 1, updated_at = now() WHERE id = $2`, sessionId, agentId)
+	if err != nil {
+		return errors.Join(err, tx.Rollback())
+	}
+
+	_, err = driver.db.ExecContext(driver.ctx, `UPDATE sessions SET agent_id = $1, state = 'assigned', address = (
+			SELECT address FROM agents WHERE id = $1
+		), gpus = $2, updated_at = now() WHERE id = $3`, agentId, gpusData, agentId)
+	if err != nil {
+		return errors.Join(err, tx.Rollback())
+	}
+
+	return tx.Commit()
+}
+
+func (driver *storageDriver) GetSessionById(id string) (restapi.Session, error) {
+	return unmarshalSession(driver.db.QueryRowContext(driver.ctx, selectSessionsWhere("id = $1"), id))
+}
+
+func (driver *storageDriver) GetQueuedSessionById(id string) (storage.QueuedSession, error) {
+	return unmarshalQueuedSession(driver.db.QueryRowContext(driver.ctx, selectQueuedSessionsWhere("id = $1"), id))
+}
+
+func (driver *storageDriver) GetAgents() (storage.Iterator[restapi.Agent], error) {
+	statement, err := driver.db.PrepareContext(driver.ctx, selectAgentsIterator(20))
 	if err != nil {
 		return nil, err
 	}
 
-	defer rows.Close()
-
-	agents := make([]storage.Agent, 0)
-	for rows.Next() {
-		var data []byte
-		err = rows.Scan(&data)
-		if err != nil {
-			return nil, err
-		}
-
-		var agent storage.Agent
-		err = json.Unmarshal(data, &agent)
-		if err != nil {
-			return nil, err
-		}
-
-		agents = append(agents, agent)
-	}
-
-	return agents, nil
+	return newIterator(driver.ctx, statement, unmarshalAgent)
 }
 
-func (driver *storageDriver) UpdateAgentsAndSessions(agents []storage.Agent, sessions []storage.Session) error {
-	if len(agents) > 0 || len(sessions) > 0 {
-		tx, err := driver.db.BeginTx(driver.ctx, nil)
-		if err != nil {
-			return err
-		}
-
-		for _, agent := range agents {
-			jsonb, err := json.Marshal(agent)
-			if err != nil {
-				return err
-			}
-
-			_, err = driver.db.ExecContext(driver.ctx, UpdateAgent,
-				agent.State, sessionUuidValuer{Data: &agent.Sessions},
-				agent.LastUpdated, jsonb, agent.Id)
-			if err != nil {
-				return err
-			}
-		}
-
-		for _, session := range sessions {
-			jsonb, err := json.Marshal(session)
-			if err != nil {
-				return err
-			}
-
-			var agentId any
-			agentId = session.AgentId
-			if agentId == "" {
-				agentId = nil
-			}
-
-			_, err = driver.db.ExecContext(driver.ctx, UpdateSession,
-				agentId, session.State, session.Address,
-				sessionGpuValuer{Data: &session.Gpus}, session.LastUpdated,
-				jsonb, session.Id)
-			if err != nil {
-				return err
-			}
-		}
-
-		return tx.Commit()
+func (driver *storageDriver) GetAvailableAgentsMatching(totalAvailableVramAtLeast uint64) (storage.Iterator[restapi.Agent], error) {
+	statement, err := driver.db.PrepareContext(driver.ctx, selectAgentsIteratorWhere(
+		fmt.Sprint("state = 'active' AND vram_available >= ", totalAvailableVramAtLeast, " AND sessions_available > 0"), 20))
+	if err != nil {
+		return nil, err
 	}
 
-	return nil
+	return newIterator(driver.ctx, statement, unmarshalAgent)
 }
 
-func (driver *storageDriver) GetSessionById(id string) (storage.Session, error) {
-	var session storage.Session
-
-	var jsonb []byte
-	err := driver.db.QueryRowContext(driver.ctx, SelectSessionById, id).Scan(&jsonb)
+func (driver *storageDriver) GetQueuedSessionsIterator() (storage.Iterator[storage.QueuedSession], error) {
+	statement, err := driver.db.PrepareContext(driver.ctx, selectQueuedSessionsIteratorWhere("state = 'queued'", 20))
 	if err != nil {
-		return storage.Session{}, err
+		return nil, err
 	}
 
-	err = json.Unmarshal(jsonb, &session)
-	return session, err
+	return newIterator(driver.ctx, statement, unmarshalQueuedSession)
 }
 
-func (driver *storageDriver) GetAgentsAndSessionsUpdatedSince(time time.Time) ([]storage.Agent, []storage.Session, error) {
-	rows, err := driver.db.QueryContext(driver.ctx, SelectAgentsUpdatedSince, time)
-	if err != nil {
-		return nil, nil, err
-	}
+func (driver *storageDriver) SetAgentsMissingIfNotUpdatedFor(duration time.Duration) error {
+	_, err := driver.db.ExecContext(driver.ctx, "UPDATE agents SET state = 'missing', updated_at = now() WHERE state = 'active' AND updated_at <= now()-make_interval(secs=>$1)", duration.Seconds())
+	return err
+}
 
-	defer rows.Close()
-
-	agents := make([]storage.Agent, 0)
-	for rows.Next() {
-		var data []byte
-		err = rows.Scan(&data)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		var agent storage.Agent
-		err = json.Unmarshal(data, &agent)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		agents = append(agents, agent)
-	}
-
-	rows, err = driver.db.QueryContext(driver.ctx, SelectSessionsNotClosedUpdatedSince, time)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	defer rows.Close()
-
-	sessions := make([]storage.Session, 0)
-	for rows.Next() {
-		var data []byte
-		err = rows.Scan(&data)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		var session storage.Session
-		err = json.Unmarshal(data, &session)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		sessions = append(sessions, session)
-	}
-
-	return agents, sessions, nil
+func (driver *storageDriver) RemoveMissingAgentsIfNotUpdatedFor(duration time.Duration) error {
+	_, err := driver.db.ExecContext(driver.ctx, "DELETE FROM agents WHERE state = 'missing' AND updated_at <= now()-make_interval(secs=>$1)", duration.Seconds())
+	return err
 }

@@ -1,7 +1,7 @@
 /*
  *  Copyright (c) 2023 Juice Technologies, Inc. All Rights Reserved.
  */
-package backend
+package tests
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage/memdb"
@@ -51,8 +52,12 @@ func defaultAgent(maxSessions int, gpuVram uint64) restapi.Agent {
 				Vram:        gpuVram,
 			},
 		},
-		Labels: map[string]string{},
-		Taints: map[string]string{},
+		Labels: map[string]string{
+			"Key1": "Value1",
+			"Key2": "Value2",
+		},
+		Taints:   map[string]string{},
+		Sessions: make([]restapi.Session, 0),
 	}
 }
 
@@ -181,59 +186,181 @@ func queueSession(t *testing.T, db storage.Storage, requirements restapi.Session
 	return sessionId
 }
 
-func TestGetAvailableAgentsMatching(t *testing.T) {
+func TestAgents(t *testing.T) {
 	run := func(t *testing.T, db storage.Storage) {
-		backend := NewBackend(db)
+		agent := registerAgent(t, db, defaultAgent(4, 24*1024*1024*1024))
 
-		agentIds := []string{
-			registerAgent(t, db, defaultAgent(2, 24*1024*1024*1024)).Id,
-			registerAgent(t, db, defaultAgent(1, 4*1024*1024*1024)).Id,
-			registerAgent(t, db, defaultAgent(1, 4*1024*1024*1024)).Id,
+		time.Sleep(time.Second)
+
+		agent.State = restapi.AgentMissing
+		db.SetAgentsMissingIfNotUpdatedFor(0)
+		checkAgent(t, db, agent)
+
+		agent.State = restapi.AgentActive
+		db.UpdateAgent(restapi.AgentUpdate{
+			Id: agent.Id,
+		})
+		checkAgent(t, db, agent)
+
+		time.Sleep(time.Second)
+
+		agent.State = restapi.AgentMissing
+		db.SetAgentsMissingIfNotUpdatedFor(0)
+		checkAgent(t, db, agent)
+
+		time.Sleep(time.Second)
+
+		db.RemoveMissingAgentsIfNotUpdatedFor(0)
+		_, err := db.GetAgentById(agent.Id)
+		if err == nil {
+			t.Error("expected storage.ErrNotFound, instead did not receive an error")
+		} else if err != storage.ErrNotFound {
+			t.Errorf("expected storage.ErrNotFound, instead received %s", err)
+		}
+	}
+
+	t.Run("memdb", func(t *testing.T) {
+		db := openMemdb(t)
+		defer db.Close()
+		run(t, db)
+	})
+
+	t.Run("postgresql", func(t *testing.T) {
+		db := openPostgres(t)
+		defer db.Close()
+		run(t, db)
+	})
+}
+
+func TestSessions(t *testing.T) {
+	run := func(t *testing.T, db storage.Storage) {
+		requirements := createSessionRequirements()
+		id := queueSession(t, db, requirements)
+
+		queuedSession := storage.QueuedSession{
+			Id:           id,
+			Requirements: requirements,
 		}
 
-		sessionIds := []string{
-			queueSession(t, db, defaultSessionRequirements(8*1024*1024*1024)),
-			queueSession(t, db, defaultSessionRequirements(4*1024*1024*1024)),
-			queueSession(t, db, defaultSessionRequirements(2*1024*1024*1024)),
-			queueSession(t, db, defaultSessionRequirements(4*1024*1024*1024)),
+		checkQueuedSession(t, db, queuedSession)
+	}
+
+	t.Run("memdb", func(t *testing.T) {
+		db := openMemdb(t)
+		defer db.Close()
+		run(t, db)
+	})
+
+	t.Run("postgresql", func(t *testing.T) {
+		db := openPostgres(t)
+		defer db.Close()
+		run(t, db)
+	})
+}
+
+func TestAssigningSessions(t *testing.T) {
+	run := func(t *testing.T, db storage.Storage) {
+		agent := registerAgent(t, db, defaultAgent(4, 24*1024*1024*1024))
+
+		requirements := defaultSessionRequirements(4 * 1024 * 1024 * 1024)
+		sessionId := queueSession(t, db, requirements)
+
+		selectedGpus := []restapi.SessionGpu{
+			{
+				Index:        agent.Gpus[0].Index,
+				VramRequired: requirements.Gpus[0].VramRequired,
+			},
 		}
 
-		err := backend.update(context.Background())
+		err := db.AssignSession(sessionId, agent.Id, selectedGpus)
 		if err != nil {
-			t.Error(err)
+			t.Log(err)
+			t.FailNow()
 		}
 
-		for _, id := range sessionIds {
-			session, err := db.GetSessionById(id)
-			if err != nil {
-				t.Error(err)
-			} else if session.State != restapi.SessionAssigned {
-				t.Errorf("expected session to be assigned, state = %d", session.State)
+		session := restapi.Session{
+			Id:      sessionId,
+			State:   restapi.SessionAssigned,
+			Address: agent.Address,
+			Version: requirements.Version,
+			Gpus:    selectedGpus,
+		}
+		checkSession(t, db, session)
+
+		agent.Sessions = append(agent.Sessions, session)
+		checkAgent(t, db, agent)
+
+		agent.Sessions[0].State = restapi.SessionActive
+		session.State = restapi.SessionActive
+		db.UpdateAgent(restapi.AgentUpdate{
+			Id: agent.Id,
+			Sessions: map[string]restapi.SessionUpdate{
+				session.Id: {
+					State: restapi.SessionActive,
+				},
+			},
+		})
+		checkAgent(t, db, agent)
+		compare(t, session, agent.Sessions[0], nil)
+		checkSession(t, db, session)
+
+		agent.Sessions = make([]restapi.Session, 0)
+		db.UpdateAgent(restapi.AgentUpdate{
+			Id: agent.Id,
+			Sessions: map[string]restapi.SessionUpdate{
+				session.Id: {
+					State: restapi.SessionClosed,
+				},
+			},
+		})
+		checkAgent(t, db, agent)
+		_, err = db.GetSessionById(session.Id)
+		if err == nil {
+			t.Error("expected storage.ErrNotFound, instead did not receive an error")
+		} else if err != storage.ErrNotFound {
+			t.Errorf("expected storage.ErrNotFound, instead received %s", err)
+		}
+	}
+
+	t.Run("memdb", func(t *testing.T) {
+		db := openMemdb(t)
+		defer db.Close()
+		run(t, db)
+	})
+
+	t.Run("postgresql", func(t *testing.T) {
+		db := openPostgres(t)
+		defer db.Close()
+		run(t, db)
+	})
+}
+
+func TestGetQueuedSessionsIterator(t *testing.T) {
+	run := func(t *testing.T, db storage.Storage) {
+		sessionIds := map[string]restapi.SessionRequirements{}
+		for i := 0; i < 4; i++ {
+			requirements := defaultSessionRequirements(4 * 1024 * 1024 * 1024)
+			sessionIds[queueSession(t, db, requirements)] = requirements
+		}
+
+		iterator, err := db.GetQueuedSessionsIterator()
+		if err != nil {
+			t.Log(err)
+			t.FailNow()
+		}
+		for iterator.Next() {
+			against := iterator.Value()
+			check, present := sessionIds[against.Id]
+			if !present {
+				t.Error("unexpected session found")
+			} else {
+				compare(t, check, against.Requirements, nil)
+				delete(sessionIds, against.Id)
 			}
 		}
 
-		for _, id := range agentIds {
-			agent, err := db.GetAgentById(id)
-			if err != nil {
-				t.Error(err)
-			}
-
-			if agent.MaxSessions > 0 && len(agent.Sessions) > agent.MaxSessions {
-				t.Errorf("maximum sessions is not adhered to, %d > %d", len(agent.Sessions), agent.MaxSessions)
-			}
-
-			var sessionVram uint64
-			for _, session := range agent.Sessions {
-				sessionVram += session.Gpus[0].VramRequired
-
-				if session.Address > agent.Address {
-					t.Error("session Address is not the agent Address")
-				}
-			}
-
-			if sessionVram > agent.Gpus[0].Vram {
-				t.Error("maximum vram is not adhered to")
-			}
+		if len(sessionIds) != 0 {
+			t.Error("sessions not queued")
 		}
 	}
 

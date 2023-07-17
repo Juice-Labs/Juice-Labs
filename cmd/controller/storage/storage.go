@@ -48,6 +48,32 @@ type Iterator[T any] interface {
 	Value() T
 }
 
+type DefaultIterator[T any] struct {
+	index   int
+	objects []T
+}
+
+func NewDefaultIterator[T any](objects []T) *DefaultIterator[T] {
+	return &DefaultIterator[T]{
+		index:   -1,
+		objects: objects,
+	}
+}
+
+func (iterator *DefaultIterator[T]) Next() bool {
+	index := iterator.index + 1
+	if index >= len(iterator.objects) {
+		return false
+	}
+
+	iterator.index = index
+	return true
+}
+
+func (iterator *DefaultIterator[T]) Value() T {
+	return iterator.objects[iterator.index]
+}
+
 type Storage interface {
 	Close() error
 
@@ -63,7 +89,7 @@ type Storage interface {
 	GetQueuedSessionById(id string) (QueuedSession, error) // For Testing
 
 	GetAgents() (Iterator[restapi.Agent], error)
-	GetAvailableAgentsMatching(totalAvailableVramAtLeast uint64, matchLabels map[string]string, tolerates map[string]string) (Iterator[restapi.Agent], error)
+	GetAvailableAgentsMatching(totalAvailableVramAtLeast uint64) (Iterator[restapi.Agent], error)
 	GetQueuedSessionsIterator() (Iterator[QueuedSession], error)
 
 	SetAgentsMissingIfNotUpdatedFor(duration time.Duration) error

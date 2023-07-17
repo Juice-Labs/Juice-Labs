@@ -45,18 +45,40 @@ func (backend *Backend) Run(group task.Group) error {
 	return err
 }
 
-func AgentMatches(agent restapi.Agent, requirements restapi.SessionRequirements) *gpu.SelectedGpuSet {
-	// Need to ensure the agent has the GPU capacity to support this session
-	gpuSet := gpu.NewGpuSet(agent.Gpus)
-
-	// Add the currently assigned sessions to the gpuSet
-	for _, session := range agent.Sessions {
-		gpuSet.Select(session.Gpus)
+func isSubset(set, subset map[string]string) bool {
+	for key, value := range subset {
+		checkValue, present := set[key]
+		if !present || value != checkValue {
+			return false
+		}
 	}
 
-	// Determine if the gpuSet has the capacity
-	selectedGpus, _ := gpuSet.Find(requirements.Gpus)
-	return selectedGpus
+	return true
+}
+
+func matchesLabels(set, subset map[string]string) bool {
+	return isSubset(set, subset)
+}
+
+func canTolerate(taints, tolerates map[string]string) bool {
+	// tolerates must be a superset of taints to be acceptable
+	return isSubset(tolerates, taints)
+}
+
+func agentMatches(agent restapi.Agent, requirements restapi.SessionRequirements) (*gpu.SelectedGpuSet, error) {
+	if matchesLabels(agent.Labels, requirements.MatchLabels) && canTolerate(agent.Taints, requirements.Tolerates) {
+		// Need to ensure the agent has the GPU capacity to support this session
+		gpuSet := gpu.NewGpuSet(agent.Gpus)
+
+		// Add the currently assigned sessions to the gpuSet
+		for _, session := range agent.Sessions {
+			gpuSet.Select(session.Gpus)
+		}
+
+		return gpuSet.Find(requirements.Gpus)
+	}
+
+	return nil, nil
 }
 
 func (backend *Backend) update(ctx context.Context) error {
@@ -84,13 +106,19 @@ func (backend *Backend) update(ctx context.Context) error {
 			session := sessionIterator.Value()
 
 			// Get an iterator of the agents matching a subset of the requirements
-			agentIterator, err_ := backend.storage.GetAvailableAgentsMatching(storage.TotalVramRequired(session.Requirements), session.Requirements.MatchLabels, session.Requirements.Tolerates)
+			agentIterator, err_ := backend.storage.GetAvailableAgentsMatching(storage.TotalVramRequired(session.Requirements))
 			err = errors.Join(err, err_)
 			if err_ == nil {
 				for agentIterator.Next() {
 					agent := agentIterator.Value()
 
-					selectedGpus := AgentMatches(agent, session.Requirements)
+					selectedGpus, err_ := agentMatches(agent, session.Requirements)
+					err = err_
+					if err != nil {
+						logger.Debugf("unable to match agent, %s", err.Error())
+						continue
+					}
+
 					if selectedGpus != nil {
 						logger.Tracef("assigning %s to %s", session.Id, agent.Id)
 						err = errors.Join(err, backend.storage.AssignSession(session.Id, agent.Id, selectedGpus.GetGpus()))
