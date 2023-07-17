@@ -12,6 +12,7 @@ import (
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
+	"github.com/Juice-Labs/Juice-Labs/pkg/middleware"
 	pkgnet "github.com/Juice-Labs/Juice-Labs/pkg/net"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
@@ -54,7 +55,9 @@ func (frontend *Frontend) getStatusEp(group task.Group, router *mux.Router) erro
 }
 
 func (frontend *Frontend) registerAgentEp(group task.Group, router *mux.Router) error {
-	router.Methods("POST").Path("/v1/register/agent").HandlerFunc(
+	// TODO: Validate claim: register:agents
+	// https://auth0.com/docs/quickstart/backend/golang/01-authorization
+	router.Handle("/v1/register/agent", middleware.EnsureValidToken()(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			agent, err := pkgnet.ReadRequestBody[restapi.Agent](r)
 			if err != nil {
@@ -74,12 +77,13 @@ func (frontend *Frontend) registerAgentEp(group task.Group, router *mux.Router) 
 			if err != nil {
 				logger.Error(err)
 			}
-		})
+		}))).Methods("POST")
 	return nil
 }
 
 func (frontend *Frontend) getAgentEp(group task.Group, router *mux.Router) error {
-	router.Methods("GET").Path("/v1/agent/{id}").HandlerFunc(
+	// TODO: Validate claim: read:agents
+	router.Handle("/v1/agent/{id}", middleware.EnsureValidToken()(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			id := mux.Vars(r)["id"]
 
@@ -91,12 +95,13 @@ func (frontend *Frontend) getAgentEp(group task.Group, router *mux.Router) error
 			}
 
 			pkgnet.Respond(w, http.StatusOK, agent)
-		})
+		}))).Methods("GET")
 	return nil
 }
 
 func (frontend *Frontend) getAgentsEp(group task.Group, router *mux.Router) error {
-	router.Methods("GET").Path("/v1/agents").HandlerFunc(
+	// TODO: Validate claim: read:agents
+	router.Handle("/v1/agents", middleware.EnsureValidToken()(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			agents, err := frontend.getAgents()
 			if err != nil {
@@ -106,12 +111,13 @@ func (frontend *Frontend) getAgentsEp(group task.Group, router *mux.Router) erro
 			}
 
 			pkgnet.Respond(w, http.StatusOK, agents)
-		})
+		}))).Methods("GET")
 	return nil
 }
 
 func (frontend *Frontend) updateAgentEp(group task.Group, router *mux.Router) error {
-	router.Methods("PUT").Path("/v1/agent/{id}").HandlerFunc(
+	// TODO: Validate claim: register:agents
+	router.Handle("/v1/agent/{id}", middleware.EnsureValidToken()(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			id := mux.Vars(r)["id"]
 
@@ -137,12 +143,13 @@ func (frontend *Frontend) updateAgentEp(group task.Group, router *mux.Router) er
 			}
 
 			pkgnet.RespondEmpty(w, http.StatusOK)
-		})
+		}))).Methods("PUT")
 	return nil
 }
 
 func (frontend *Frontend) requestSessionEp(group task.Group, router *mux.Router) error {
-	router.Methods("POST").Path("/v1/request/session").HandlerFunc(
+	// TODO: Validate claim: create:sessions
+	router.Handle("/v1/request/session", middleware.EnsureValidToken()(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			sessionRequirements, err := pkgnet.ReadRequestBody[restapi.SessionRequirements](r)
 			if err != nil {
@@ -162,12 +169,13 @@ func (frontend *Frontend) requestSessionEp(group task.Group, router *mux.Router)
 			if err != nil {
 				logger.Error(err)
 			}
-		})
+		}))).Methods("POST")
 	return nil
 }
 
 func (frontend *Frontend) getSessionEp(group task.Group, router *mux.Router) error {
-	router.Methods("GET").Path("/v1/session/{id}").HandlerFunc(
+	// TODO: Validate claim: read:sessions
+	router.Handle("/v1/session/{id}", middleware.EnsureValidToken()(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			id := mux.Vars(r)["id"]
 
@@ -182,6 +190,6 @@ func (frontend *Frontend) getSessionEp(group task.Group, router *mux.Router) err
 			if err != nil {
 				logger.Error(err)
 			}
-		})
+		}))).Methods("GET")
 	return nil
 }

@@ -35,6 +35,8 @@ func NewFrontend(address string, tlsConfig *tls.Config, storage storage.Storage)
 	}
 
 	server, err := server.NewServer(address, tlsConfig)
+	logger.Infof("Starting frontend on %s", address)
+
 	if err != nil {
 		return nil, err
 	}

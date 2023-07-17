@@ -32,4 +32,6 @@ require (
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	github.com/auth0/go-jwt-middleware/v2 v2.0.0
+	github.com/joho/godotenv v1.4.0
 )

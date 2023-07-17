@@ -31,8 +31,8 @@ var (
 	generateCert = flag.Bool("generate-cert", false, "Generates a certificate for https")
 	disableTls   = flag.Bool("disable-tls", true, "")
 
-	enableFrontend   = flag.Bool("frontend", false, "")
-	enableBackend    = flag.Bool("backend", false, "")
+	enableFrontend   = flag.Bool("frontend", true, "")
+	enableBackend    = flag.Bool("backend", true, "")
 	enablePrometheus = flag.Bool("prometheus", false, "")
 
 	address = flag.String("address", "0.0.0.0:8080", "The IP address and port to use for listening for client connections")
@@ -79,7 +79,7 @@ func openStorage(ctx context.Context) (storage.Storage, error) {
 }
 
 func main() {
-	appmain.Run("Juice Controller", build.Version, func(group task.Group) error {
+	appmain.Run("Juice Controller 2", build.Version, func(group task.Group) error {
 		var err error
 
 		storage, err := openStorage(group.Ctx())
