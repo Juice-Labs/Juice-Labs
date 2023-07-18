@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/go-memdb"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
-	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/utilities"
 )
@@ -324,17 +323,12 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 				if session.State >= restapi.SessionClosed {
 					agent.VramAvailable += session.VramRequired
 					agent.SessionsAvailable++
-
-					logger.Tracef("removing session %s from %s", session.Id, agent.Id)
-
-					_, err = txn.DeleteAll("sessions", "id", session.Id)
 				} else {
 					sessionIds = append(sessionIds, sessionId)
 					sessions = append(sessions, session.Session)
-
-					err = txn.Insert("sessions", session)
 				}
 
+				err = txn.Insert("sessions", session)
 				if err != nil {
 					txn.Abort()
 					return err

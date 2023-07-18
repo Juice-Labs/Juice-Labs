@@ -64,8 +64,11 @@ create index on sessions (state, created_at);
 
 create table key_values (
     id BIGSERIAL PRIMARY KEY,
-    keyvalue jsonb NOT NULL
+    key text NOT NULL,
+    value text NOT NULL
 );
+
+create unique index on key_values (key, value);
 
 create table agent_labels (
     agent_id uuid NOT NULL,

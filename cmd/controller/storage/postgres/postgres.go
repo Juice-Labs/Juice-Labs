@@ -83,7 +83,7 @@ func (iterator *tableIterator[T]) retrieveRows() ([]T, error) {
 }
 
 func (iterator *tableIterator[T]) Next() bool {
-	if !iterator.Next() {
+	if !iterator.iterator.Next() {
 		objects, err := iterator.retrieveRows()
 		if err != nil {
 			logger.Debugf("unable to retrieve rows, %s", err.Error())
@@ -101,19 +101,19 @@ func (iterator *tableIterator[T]) Next() bool {
 }
 
 func (iterator *tableIterator[T]) Value() T {
-	return iterator.Value()
+	return iterator.iterator.Value()
 }
 
 const (
 	selectAgents = `SELECT id, state, hostname, address, version, max_sessions, gpus, 
 			( SELECT ARRAY (
-				SELECT ( SELECT keyvalue FROM key_values WHERE id = agent_labels.key_value_id ) FROM agent_labels WHERE agent_id = agents.id
+				SELECT ( SELECT row(key, value) FROM key_values WHERE id = agent_labels.key_value_id ) FROM agent_labels WHERE agent_id = agents.id
 			) ) labels, 
 			( SELECT ARRAY (
-				SELECT ( SELECT keyvalue FROM key_values WHERE id = agent_taints.key_value_id ) FROM agent_taints WHERE agent_id = agents.id
+				SELECT ( SELECT row(key, value) FROM key_values WHERE id = agent_taints.key_value_id ) FROM agent_taints WHERE agent_id = agents.id
 			) ) taints, 
 			( SELECT ARRAY (
-				SELECT row(id, state, address, version, persistent, gpus) FROM sessions tab WHERE tab.agent_id = agents.id 
+				SELECT row(id, state, address, version, persistent, gpus) FROM sessions tab WHERE tab.agent_id = agents.id AND tab.state != ALL('{closed,failed,canceled}'::session_state[])
 			) ) sessions
 		FROM agents`
 	selectSessions       = "SELECT id, state, address, version, persistent, gpus FROM sessions"
@@ -138,9 +138,7 @@ func selectAgentsIteratorWhere(where string, limit int) string {
 func unmarshalAgent(row sqlRow) (restapi.Agent, error) {
 	var state string
 	var gpus []byte
-	var labels pq.StringArray
-	var taints pq.StringArray
-	var sessions pq.StringArray
+	var labels, taints, sessions pq.ByteaArray
 
 	agent := restapi.Agent{
 		Labels:   map[string]string{},
@@ -150,6 +148,10 @@ func unmarshalAgent(row sqlRow) (restapi.Agent, error) {
 
 	err := row.Scan(&agent.Id, &state, &agent.Hostname, &agent.Address, &agent.Version, &agent.MaxSessions, &gpus, &labels, &taints, &sessions)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			err = storage.ErrNotFound
+		}
+
 		return restapi.Agent{}, err
 	}
 
@@ -161,20 +163,33 @@ func unmarshalAgent(row sqlRow) (restapi.Agent, error) {
 	}
 
 	for _, label := range labels {
-		err = json.Unmarshal([]byte(label), &agent.Labels)
+		var key, value string
+		err = Composite(label).Scan(&key, &value)
 		if err != nil {
 			return restapi.Agent{}, err
 		}
+
+		agent.Labels[key] = value
 	}
 
 	for _, taint := range taints {
-		err = json.Unmarshal([]byte(taint), &agent.Taints)
+		var key, value string
+		err = Composite(taint).Scan(&key, &value)
 		if err != nil {
 			return restapi.Agent{}, err
 		}
+
+		agent.Taints[key] = value
 	}
 
-	// TODO: sessions
+	for _, sessionData := range sessions {
+		session, err := unmarshalSession(Composite(sessionData))
+		if err != nil {
+			return restapi.Agent{}, err
+		}
+
+		agent.Sessions = append(agent.Sessions, session)
+	}
 
 	return agent, nil
 }
@@ -190,6 +205,10 @@ func unmarshalSession(row sqlRow) (restapi.Session, error) {
 
 	err := row.Scan(&session.Id, &state, &session.Address, &session.Version, &session.Persistent, &gpus)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			err = storage.ErrNotFound
+		}
+
 		return restapi.Session{}, err
 	}
 
@@ -378,12 +397,11 @@ func (driver *storageDriver) RegisterAgent(agent restapi.Agent) (string, error) 
 	}
 
 	for key, value := range agent.Labels {
-		var keyValueId uint64
-		err = driver.db.QueryRowContext(driver.ctx, "INSERT INTO key_values ("+
-			"keyvalue"+
+		_, err = driver.db.ExecContext(driver.ctx, "INSERT INTO key_values ("+
+			"key, value"+
 			") VALUES ("+
-			"$1"+
-			") RETURNING id", fmt.Sprintf(`{"%s":"%s"}`, key, value)).Scan(&keyValueId)
+			"$1, $2"+
+			") ON CONFLICT DO NOTHING", key, value)
 		if err != nil {
 			return "", errors.Join(err, tx.Rollback())
 		}
@@ -391,20 +409,19 @@ func (driver *storageDriver) RegisterAgent(agent restapi.Agent) (string, error) 
 		_, err = driver.db.ExecContext(driver.ctx, "INSERT INTO agent_labels ("+
 			"agent_id, key_value_id"+
 			") VALUES ("+
-			"$1, $2"+
-			")", id, keyValueId)
+			"$1, (SELECT id FROM key_values WHERE key = $2 AND value = $3)"+
+			")", id, key, value)
 		if err != nil {
 			return "", errors.Join(err, tx.Rollback())
 		}
 	}
 
 	for key, value := range agent.Taints {
-		var keyValueId uint64
-		err = driver.db.QueryRowContext(driver.ctx, "INSERT INTO key_values ("+
-			"keyvalue"+
+		_, err = driver.db.ExecContext(driver.ctx, "INSERT INTO key_values ("+
+			"key, value"+
 			") VALUES ("+
 			"$1, $2"+
-			") RETURNING id", fmt.Sprintf(`{"%s":"%s"}`, key, value)).Scan(&keyValueId)
+			") ON CONFLICT DO NOTHING", key, value)
 		if err != nil {
 			return "", errors.Join(err, tx.Rollback())
 		}
@@ -412,8 +429,8 @@ func (driver *storageDriver) RegisterAgent(agent restapi.Agent) (string, error) 
 		_, err = driver.db.ExecContext(driver.ctx, "INSERT INTO agent_taints ("+
 			"agent_id, key_value_id"+
 			") VALUES ("+
-			"$1, $2"+
-			")", id, keyValueId)
+			"$1, (SELECT id FROM key_values WHERE key = $2 AND value = $3)"+
+			")", id, key, value)
 		if err != nil {
 			return "", errors.Join(err, tx.Rollback())
 		}
@@ -459,20 +476,20 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 	}
 
 	// Check if any of the sessions are being closed
-	closedSessions := ""
+	closedSessions := make([]string, 0, len(update.Sessions))
 	closedSessionsCount := 0
 	for key, value := range update.Sessions {
 		if value.State >= restapi.SessionClosed {
-			closedSessions = fmt.Sprint(closedSessions, ", ", key)
+			closedSessions = append(closedSessions, key)
 			closedSessionsCount++
 		}
 	}
 
 	if closedSessionsCount > 0 {
 		_, err = driver.db.ExecContext(driver.ctx, `UPDATE agents SET vram_available = (
-				SELECT SUM(vram_required) FROM sessions WHERE id = ANY(ARRAY[$1])
+				SELECT SUM(vram_required) FROM sessions WHERE id = ANY($1)
 			), sessions_available = sessions_available + $2, state = $3, gpus = $4, updated_at = now() WHERE id = $5`,
-			closedSessions[2:], closedSessionsCount, update.State, update.Gpus, update.Id)
+			pq.StringArray(closedSessions), closedSessionsCount, agentStateToString(update.State), gpusData, update.Id)
 	} else {
 		_, err = driver.db.ExecContext(driver.ctx, "UPDATE agents SET state = $1, gpus = $2, updated_at = now() WHERE id = $3", agentStateToString(update.State), gpusData, update.Id)
 	}
@@ -514,18 +531,17 @@ func (driver *storageDriver) RequestSession(sessionRequirements restapi.SessionR
 		"$1, $2, $3, $4, $5, now()"+
 		") RETURNING id",
 		sessionStateToString(restapi.SessionQueued), sessionRequirements.Version,
-		sessionRequirements.Persistent, storage.TotalVramRequired(sessionRequirements), requirements).Scan(&id)
+		sessionRequirements.Persistent, requirements, storage.TotalVramRequired(sessionRequirements)).Scan(&id)
 	if err != nil {
 		return "", errors.Join(err, tx.Rollback())
 	}
 
 	for key, value := range sessionRequirements.MatchLabels {
-		var keyValueId uint64
-		err = driver.db.QueryRowContext(driver.ctx, "INSERT INTO key_values ("+
-			"keyvalue"+
+		_, err = driver.db.ExecContext(driver.ctx, "INSERT INTO key_values ("+
+			"key, value"+
 			") VALUES ("+
 			"$1, $2"+
-			") RETURNING id", fmt.Sprintf(`{"%s":"%s"}`, key, value)).Scan(&keyValueId)
+			") ON CONFLICT DO NOTHING", key, value)
 		if err != nil {
 			return "", errors.Join(err, tx.Rollback())
 		}
@@ -533,20 +549,19 @@ func (driver *storageDriver) RequestSession(sessionRequirements restapi.SessionR
 		_, err = driver.db.ExecContext(driver.ctx, "INSERT INTO session_match_labels ("+
 			"agent_id, key_value_id"+
 			") VALUES ("+
-			"$1, $2"+
-			") RETURNING id", id, keyValueId)
+			"$1, (SELECT id FROM key_values WHERE key = $2 AND value = $3)"+
+			")", id, key, value)
 		if err != nil {
 			return "", errors.Join(err, tx.Rollback())
 		}
 	}
 
 	for key, value := range sessionRequirements.Tolerates {
-		var keyValueId uint64
-		err = driver.db.QueryRowContext(driver.ctx, "INSERT INTO key_values ("+
-			"keyvalue"+
+		_, err = driver.db.ExecContext(driver.ctx, "INSERT INTO key_values ("+
+			"key, value"+
 			") VALUES ("+
 			"$1, $2"+
-			") RETURNING id", fmt.Sprintf(`{"%s":"%s"}`, key, value)).Scan(&keyValueId)
+			") ON CONFLICT DO NOTHING", key, value)
 		if err != nil {
 			return "", errors.Join(err, tx.Rollback())
 		}
@@ -554,8 +569,8 @@ func (driver *storageDriver) RequestSession(sessionRequirements restapi.SessionR
 		_, err = driver.db.ExecContext(driver.ctx, "INSERT INTO session_tolerates ("+
 			"agent_id, key_value_id"+
 			") VALUES ("+
-			"$1, $2"+
-			") RETURNING id", id, keyValueId)
+			"$1, (SELECT id FROM key_values WHERE key = $2 AND value = $3)"+
+			")", id, key, value)
 		if err != nil {
 			return "", errors.Join(err, tx.Rollback())
 		}
@@ -599,7 +614,7 @@ func (driver *storageDriver) AssignSession(sessionId string, agentId string, gpu
 
 	_, err = driver.db.ExecContext(driver.ctx, `UPDATE sessions SET agent_id = $1, state = 'assigned', address = (
 			SELECT address FROM agents WHERE id = $1
-		), gpus = $2, updated_at = now() WHERE id = $3`, agentId, gpusData, agentId)
+		), gpus = $2, updated_at = now() WHERE id = $3`, agentId, gpusData, sessionId)
 	if err != nil {
 		return errors.Join(err, tx.Rollback())
 	}

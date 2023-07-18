@@ -314,12 +314,9 @@ func TestAssigningSessions(t *testing.T) {
 			},
 		})
 		checkAgent(t, db, agent)
-		_, err = db.GetSessionById(session.Id)
-		if err == nil {
-			t.Error("expected storage.ErrNotFound, instead did not receive an error")
-		} else if err != storage.ErrNotFound {
-			t.Errorf("expected storage.ErrNotFound, instead received %s", err)
-		}
+
+		session.State = restapi.SessionClosed
+		checkSession(t, db, session)
 	}
 
 	t.Run("memdb", func(t *testing.T) {
