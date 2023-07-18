@@ -15,6 +15,7 @@ func Respond[T any](w http.ResponseWriter, code int, obj T) error {
 	data, err := json.Marshal(obj)
 	if err == nil {
 		w.Header().Add("Content-Type", "application/json")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Add("Content-Length", fmt.Sprint(len(data)))
 		w.WriteHeader(code)
 		_, err = w.Write(data)
@@ -25,6 +26,7 @@ func Respond[T any](w http.ResponseWriter, code int, obj T) error {
 
 func RespondWithString(w http.ResponseWriter, code int, msg string) error {
 	w.Header().Add("Content-Type", "text/plain")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Add("Content-Length", fmt.Sprint(len(msg)))
 	w.WriteHeader(code)
 	_, err := io.WriteString(w, msg)
@@ -32,6 +34,7 @@ func RespondWithString(w http.ResponseWriter, code int, msg string) error {
 }
 
 func RespondEmpty(w http.ResponseWriter, code int) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.WriteHeader(code)
 }
 
