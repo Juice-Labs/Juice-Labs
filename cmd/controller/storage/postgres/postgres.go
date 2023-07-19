@@ -716,16 +716,6 @@ func (driver *storageDriver) AssignSession(sessionId string, agentId string, gpu
 		return err
 	}
 
-	dataMap := map[string]string{
-		"SessionId": sessionId,
-		"AgentId":   agentId,
-		"Gpus":      string(gpusData),
-	}
-	data, err := json.Marshal(dataMap)
-	if err != nil {
-		return err
-	}
-
 	tx, err := driver.db.BeginTx(driver.ctx, nil)
 	if err != nil {
 		return errors.Join(err, tx.Rollback())
