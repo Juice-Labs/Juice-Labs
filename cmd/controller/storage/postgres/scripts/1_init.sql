@@ -16,14 +16,6 @@ create type session_state as enum (
 
 create extension "uuid-ossp";
 
-create table log (
-    created_at TIMESTAMP DEFAULT now(),
-    operation text NOT NULL,
-    data jsonb NOT NULL
-);
-
-create index on log (created_at);
-
 create table agents (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     state agent_state NOT NULL,

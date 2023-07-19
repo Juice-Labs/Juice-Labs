@@ -336,31 +336,6 @@ func OpenStorage(ctx context.Context, connection string) (storage.Storage, error
 	}, nil
 }
 
-func (driver *storageDriver) addLog(tx *sql.Tx, operation string, obj any) error {
-	data, err := json.Marshal(obj)
-	if err != nil {
-		return err
-	}
-
-	_, err = tx.ExecContext(driver.ctx, "INSERT INTO log ("+
-		"operation, data"+
-		") VALUES ("+
-		"$1, $2"+
-		")",
-		operation, data)
-	return err
-}
-
-func (driver *storageDriver) addLogData(tx *sql.Tx, operation string, data []byte) error {
-	_, err := tx.ExecContext(driver.ctx, "INSERT INTO log ("+
-		"operation, data"+
-		") VALUES ("+
-		"$1, $2"+
-		")",
-		operation, data)
-	return err
-}
-
 func (driver *storageDriver) Close() error {
 	return driver.db.Close()
 }
@@ -550,11 +525,6 @@ func (driver *storageDriver) RegisterAgent(agent restapi.Agent) (string, error) 
 		return "", err
 	}
 
-	err = driver.addLog(tx, "RegisterAgent", agent)
-	if err != nil {
-		return "", errors.Join(err, tx.Rollback())
-	}
-
 	var id string
 	err = driver.db.QueryRowContext(driver.ctx, "INSERT INTO agents ("+
 		"state, hostname, address, version, max_sessions, gpus, vram_available, sessions_available, updated_at"+
@@ -641,11 +611,6 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 		return errors.Join(err, tx.Rollback())
 	}
 
-	err = driver.addLog(tx, "UpdateAgent", update)
-	if err != nil {
-		return errors.Join(err, tx.Rollback())
-	}
-
 	// Check if any of the sessions are being closed
 	closedSessions := make([]string, 0, len(update.Sessions))
 	closedSessionsCount := 0
@@ -686,11 +651,6 @@ func (driver *storageDriver) RequestSession(sessionRequirements restapi.SessionR
 	}
 
 	tx, err := driver.db.BeginTx(driver.ctx, nil)
-	if err != nil {
-		return "", errors.Join(err, tx.Rollback())
-	}
-
-	err = driver.addLogData(tx, "RequestSession", requirements)
 	if err != nil {
 		return "", errors.Join(err, tx.Rollback())
 	}
@@ -767,11 +727,6 @@ func (driver *storageDriver) AssignSession(sessionId string, agentId string, gpu
 	}
 
 	tx, err := driver.db.BeginTx(driver.ctx, nil)
-	if err != nil {
-		return errors.Join(err, tx.Rollback())
-	}
-
-	err = driver.addLogData(tx, "AssignSession", data)
 	if err != nil {
 		return errors.Join(err, tx.Rollback())
 	}
