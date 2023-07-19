@@ -201,9 +201,9 @@ func selectSessionsWhere(where string) string {
 
 func unmarshalSession(row sqlRow) (restapi.Session, error) {
 	var session restapi.Session
-	var address []byte
 	var state string
-	var gpus string
+	var address []byte
+	var gpus []byte
 
 	err := row.Scan(&session.Id, &state, &address, &session.Version, &session.Persistent, &gpus)
 	if err != nil {
@@ -220,9 +220,13 @@ func unmarshalSession(row sqlRow) (restapi.Session, error) {
 		session.Address = string(address)
 	}
 
-	err = json.Unmarshal([]byte(gpus), &session.Gpus)
-	if err != nil {
-		return restapi.Session{}, err
+	if gpus == nil {
+		session.Gpus = nil
+	} else {
+		err = json.Unmarshal(gpus, &session.Gpus)
+		if err != nil {
+			return restapi.Session{}, err
+		}
 	}
 
 	session.State = stringToSessionState(state)
