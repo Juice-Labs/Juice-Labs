@@ -252,10 +252,6 @@ func (driver *storageDriver) RegisterAgent(apiAgent restapi.Agent) (string, erro
 		LastUpdated:       time.Now().Unix(),
 	}
 
-	if agent.SessionsAvailable == 0 {
-		agent.SessionsAvailable = -1
-	}
-
 	agent.Id = uuid.NewString()
 
 	txn := driver.db.Txn(true)
@@ -508,7 +504,7 @@ func (driver *storageDriver) GetAvailableAgentsMatching(totalAvailableVramAtLeas
 	for obj := iterator.Next(); obj != nil; obj = iterator.Next() {
 		agent := utilities.Require[Agent](obj)
 
-		if agent.SessionsAvailable != 0 && agent.VramAvailable >= totalAvailableVramAtLeast {
+		if agent.SessionsAvailable > 0 && agent.VramAvailable >= totalAvailableVramAtLeast {
 			agents = append(agents, agent.Agent)
 		}
 	}

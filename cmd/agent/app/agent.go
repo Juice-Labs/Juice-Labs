@@ -30,7 +30,7 @@ var (
 	juicePath = flag.String("juice-path", "", "")
 
 	address     = flag.String("address", "0.0.0.0:43210", "The IP address and port to use for listening for client connections")
-	maxSessions = flag.Int("max-sessions", 0, "Maximum number of simultaneous sessions allowed on this Agent")
+	maxSessions = flag.Int("max-sessions", 4, "Maximum number of simultaneous sessions allowed on this Agent, must be > 0")
 	labels      = flag.String("labels", "", "Comma separated list of key=value pairs")
 	taints      = flag.String("taints", "", "Comma separated list of key=value pairs")
 )
@@ -237,7 +237,7 @@ func (agent *Agent) runSession(group task.Group, id string, juicePath string, ve
 }
 
 func (agent *Agent) requestSession(group task.Group, sessionRequirements restapi.SessionRequirements) (string, error) {
-	if agent.maxSessions > 0 && agent.getSessionsCount()+1 > agent.maxSessions {
+	if (agent.maxSessions - agent.getSessionsCount()) >= 1 {
 		return "", fmt.Errorf("Agent.startSession: unable to add another session")
 	}
 

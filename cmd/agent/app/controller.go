@@ -53,8 +53,7 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 			Address: *controllerAddress,
 		}
 
-		// maxSessions may be 0
-		agent.sessionUpdates = make(chan sessionUpdate, (agent.maxSessions+1)*4)
+		agent.sessionUpdates = make(chan sessionUpdate, agent.maxSessions*4)
 
 		if *disableControllerTls {
 			agent.api.Scheme = "http"
