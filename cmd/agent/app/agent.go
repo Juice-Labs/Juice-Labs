@@ -237,7 +237,7 @@ func (agent *Agent) runSession(group task.Group, id string, juicePath string, ve
 }
 
 func (agent *Agent) requestSession(group task.Group, sessionRequirements restapi.SessionRequirements) (string, error) {
-	if (agent.maxSessions - agent.getSessionsCount()) >= 1 {
+	if agent.getSessionsCount() >= agent.maxSessions {
 		return "", fmt.Errorf("Agent.startSession: unable to add another session")
 	}
 
