@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
@@ -109,18 +110,28 @@ func Run(group task.Group) error {
 	}
 
 	if *address != "" {
+		// SplitHostPort() rejects addresses that don't have a port or a
+		// trailing ":".  Add a trailing ":" to have SplitHostPort() parse
+		// the port as 0 and fill in the default port later on to accept
+		// hostnames or IP addresses without ports.
+		if !strings.Contains(*address, ":") {
+			*address = *address + ":"
+		}
+
 		host, portStr, err := net.SplitHostPort(*address)
 		if err != nil {
 			return err
 		}
 
-		port, err := strconv.Atoi(portStr)
-		if err != nil {
-			return err
+		if portStr != "" {
+			port, err := strconv.Atoi(portStr)
+			if err != nil {
+				return err
+			}
+			config.Port = port
 		}
 
 		config.Host = host
-		config.Port = port
 	}
 
 	if config.Host == "" {
