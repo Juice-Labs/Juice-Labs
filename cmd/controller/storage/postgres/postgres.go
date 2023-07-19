@@ -201,16 +201,23 @@ func selectSessionsWhere(where string) string {
 
 func unmarshalSession(row sqlRow) (restapi.Session, error) {
 	var session restapi.Session
+	var address []byte
 	var state string
 	var gpus string
 
-	err := row.Scan(&session.Id, &state, &session.Address, &session.Version, &session.Persistent, &gpus)
+	err := row.Scan(&session.Id, &state, &address, &session.Version, &session.Persistent, &gpus)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			err = storage.ErrNotFound
 		}
 
 		return restapi.Session{}, err
+	}
+
+	if address == nil {
+		session.Address = ""
+	} else {
+		session.Address = string(address)
 	}
 
 	err = json.Unmarshal([]byte(gpus), &session.Gpus)
