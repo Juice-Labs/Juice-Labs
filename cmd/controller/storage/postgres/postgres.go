@@ -689,7 +689,7 @@ func (driver *storageDriver) RequestSession(sessionRequirements restapi.SessionR
 		}
 
 		_, err = driver.db.ExecContext(driver.ctx, "INSERT INTO session_match_labels ("+
-			"agent_id, key_value_id"+
+			"session_id, key_value_id"+
 			") VALUES ("+
 			"$1, (SELECT id FROM key_values WHERE key = $2 AND value = $3)"+
 			")", id, key, value)
@@ -709,7 +709,7 @@ func (driver *storageDriver) RequestSession(sessionRequirements restapi.SessionR
 		}
 
 		_, err = driver.db.ExecContext(driver.ctx, "INSERT INTO session_tolerates ("+
-			"agent_id, key_value_id"+
+			"session_id, key_value_id"+
 			") VALUES ("+
 			"$1, (SELECT id FROM key_values WHERE key = $2 AND value = $3)"+
 			")", id, key, value)
