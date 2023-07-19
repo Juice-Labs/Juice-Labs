@@ -348,7 +348,7 @@ func (driver *storageDriver) AggregateData() (storage.AggregatedData, error) {
 
 	row := driver.db.QueryRowContext(driver.ctx, `SELECT 
 		(SELECT COUNT(*) FROM agents),
-		ARRAY(SELECT row(state, COUNT(*), SUM(vram_total), SUM(vram_available)) FROM agents GROUP BY state),
+		ARRAY(SELECT row(state, COUNT(*)) FROM agents GROUP BY state),
 		(SELECT COUNT(*) FROM sessions),
 		ARRAY(SELECT row(state, COUNT(*)) FROM sessions GROUP BY state)`)
 	err := row.Scan(&agents, &agentsByStatusArray, &sessions, &sessionsByStatusArray)
