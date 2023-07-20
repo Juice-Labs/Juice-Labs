@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 var (
 	controllerAddress    = flag.String("controller", "", "The IP address and port of the controller")
 	disableControllerTls = flag.Bool("controller-disable-tls", true, "")
+	accessToken          = flag.String("access-token", "", "The access token to use when connecting to the controller")
 
 	expose = flag.String("expose", "", "The IP address and port to expose through the controller for clients to see. The value is not checked for correctness.")
 )
@@ -41,6 +43,10 @@ type controllerData struct {
 
 func (agent *Agent) ConnectToController(group task.Group) error {
 	if *controllerAddress != "" {
+		accessToken := *accessToken
+		if accessToken == "" {
+			accessToken = os.Getenv("AUTH0_AGENT_TOKEN")
+		}
 		agent.api = restapi.Client{
 			Client: &http.Client{
 				Transport: &http.Transport{
@@ -49,8 +55,9 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 					},
 				},
 			},
-			Scheme:  "https",
-			Address: *controllerAddress,
+			Scheme:      "https",
+			Address:     *controllerAddress,
+			AccessToken: accessToken,
 		}
 
 		// Default queue depth of 32 to limit the amount of potential blocking between updates

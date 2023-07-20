@@ -16,6 +16,7 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/pkg/crypto"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
+	"github.com/joho/godotenv"
 )
 
 var (
@@ -45,6 +46,9 @@ func main() {
 					Certificates: []tls.Certificate{certificate},
 				}
 			}
+		}
+		if err := godotenv.Load(); err != nil {
+			logger.Infof("Error loading the .env file: %v", err)
 		}
 
 		if err == nil {

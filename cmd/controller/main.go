@@ -19,9 +19,13 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage/memdb"
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage/postgres"
+
+	"github.com/joho/godotenv"
+
 	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
 	"github.com/Juice-Labs/Juice-Labs/pkg/appmain"
 	"github.com/Juice-Labs/Juice-Labs/pkg/crypto"
+	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
 
@@ -107,6 +111,10 @@ func main() {
 					Certificates: []tls.Certificate{certificate},
 				}
 			}
+		}
+
+		if err := godotenv.Load(); err != nil {
+			logger.Infof("Error loading the .env file: %v", err)
 		}
 
 		if *enableFrontend {

@@ -28,9 +28,6 @@ func (c CustomClaims) Validate(ctx context.Context) error {
 func EnsureValidToken() func(next http.Handler) http.Handler {
 
 	domain := os.Getenv("AUTH0_DOMAIN")
-	if domain == "" {
-		domain = "dev-i4mvq7is6cozbf5d.us.auth0.com"
-	}
 	issuerURL, err := url.Parse("https://" + domain + "/")
 	if err != nil {
 		log.Fatalf("Failed to parse the issuer url: %v", err)
@@ -39,9 +36,6 @@ func EnsureValidToken() func(next http.Handler) http.Handler {
 	provider := jwks.NewCachingProvider(issuerURL, 5*time.Minute)
 
 	audience := os.Getenv("AUTH0_AUDIENCE")
-	if audience == "" {
-		audience = "http://controllers.juicelabs.com"
-	}
 
 	jwtValidator, err := validator.New(
 		provider.KeyFunc,
