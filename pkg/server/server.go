@@ -14,6 +14,7 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
+	"github.com/rs/cors"
 
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
@@ -87,10 +88,30 @@ func (server *Server) Run(group task.Group) error {
 		return fmt.Errorf("Server.Run: endpoint creation failed with %s", err)
 	}
 
+	// Enable CORS
+	cors := cors.New(cors.Options{
+		AllowedOrigins: []string{"http://localhost:3000", "https://juiceweb.vercel.app"},
+		AllowedMethods: []string{
+			http.MethodGet,
+			http.MethodPost,
+			http.MethodPut,
+			http.MethodPatch,
+			http.MethodDelete,
+			http.MethodOptions,
+			http.MethodHead,
+		},
+
+		AllowedHeaders: []string{
+			"*",
+		},
+	})
+
 	loggerRouter := mux.NewRouter().StrictSlash(true)
 	loggerRouter.Use(logger.Middleware)
 	loggerRouter.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		router.ServeHTTP(w, r)
+		cors.ServeHTTP(w, r, func(w http.ResponseWriter, r *http.Request) {
+			router.ServeHTTP(w, r)
+		})
 	})
 
 	httpServer := http.Server{

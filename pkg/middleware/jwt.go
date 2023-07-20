@@ -29,7 +29,7 @@ func EnsureValidToken() func(next http.Handler) http.Handler {
 
 	domain := os.Getenv("AUTH0_DOMAIN")
 	if domain == "" {
-		domain = "https://dev-i4mvq7is6cozbf5d.us.auth0.com/"
+		domain = "dev-i4mvq7is6cozbf5d.us.auth0.com"
 	}
 	issuerURL, err := url.Parse("https://" + domain + "/")
 	if err != nil {
@@ -63,7 +63,6 @@ func EnsureValidToken() func(next http.Handler) http.Handler {
 		log.Printf("Encountered error while validating JWT: %v", err)
 
 		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.WriteHeader(http.StatusUnauthorized)
 		w.Write([]byte(`{"message":"Failed to validate JWT."}`))
 	}
