@@ -165,16 +165,19 @@ func (c *Frontend) update() error {
 	}
 
 	c.gpus.Set(float64(data.Gpus))
+	c.gpusByGpuName.Reset()
 	for key, value := range data.GpusByGpuName {
 		c.gpusByGpuName.WithLabelValues(key).Set(float64(value))
 	}
 
 	c.vram.Set(float64(data.Vram))
+	c.vramByGpuName.Reset()
 	for key, value := range data.VramByGpuName {
 		c.vramByGpuName.WithLabelValues(key).Set(float64(value))
 	}
 
 	c.vramUsed.Set(float64(data.VramUsed))
+	c.vramUsedByGpuName.Reset()
 	for key, value := range data.VramUsedByGpuName {
 		c.vramUsedByGpuName.WithLabelValues(key).Set(float64(value))
 	}
@@ -195,11 +198,13 @@ func (c *Frontend) update() error {
 	}
 
 	c.utilization.Set(float64(data.Utilization))
+	c.utilizationByGpuName.Reset()
 	for key, value := range data.UtilizationByGpuName {
 		c.utilizationByGpuName.WithLabelValues(key).Set(float64(value))
 	}
 
 	c.powerDraw.Set(float64(data.PowerDraw))
+	c.powerDrawByGpuName.Reset()
 	for key, value := range data.PowerDrawByGpuName {
 		c.powerDrawByGpuName.WithLabelValues(key).Set(float64(value))
 	}
