@@ -54,12 +54,15 @@ type Configuration struct {
 	WaitForDebugger bool `json:"waitForDebugger,omitempty"`
 
 	PCIBus []string `json:"pcibus,omitempty"`
+
+	AccessToken string `json:"accessToken,omitempty"`
 }
 
 var (
 	address        = flag.String("host", "", "The IP address or hostname and port of the server to connect to")
 	test           = flag.Bool("test", false, "Deprecated: Use --test-connection instead")
 	testConnection = flag.Bool("test-connection", false, "Verifies juicify is able to reach the server at --address")
+	accessToken    = flag.String("access-token", "", "The access token to use when connecting to the server")
 
 	disableTls = flag.Bool("disable-tls", true, "Always enabled currently. Disables https when connecting to --address")
 
@@ -158,9 +161,10 @@ func Run(group task.Group) error {
 	}
 
 	api := restapi.Client{
-		Client:  client,
-		Scheme:  "https",
-		Address: fmt.Sprintf("%s:%d", config.Host, config.Port),
+		Client:      client,
+		Scheme:      "https",
+		Address:     fmt.Sprintf("%s:%d", config.Host, config.Port),
+		AccessToken: *accessToken,
 	}
 
 	if *disableTls {
@@ -227,6 +231,11 @@ func Run(group task.Group) error {
 	if *testConnection {
 		return nil
 	}
+
+	// TODO: Instead of sharing the access token across the controller + client
+	// We may want to use seperate audiences (and thus different tokens) for each
+	// The controller would generate a token for the client to user using M2M flow with client secret
+	config.AccessToken = *accessToken
 
 	configOverride, err := json.Marshal(config)
 	if err != nil {
