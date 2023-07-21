@@ -449,61 +449,65 @@ func (driver *storageDriver) AggregateData() (storage.AggregatedData, error) {
 
 	if data.Gpus > 0 {
 		calculatePercentiles := func(counts map[int]int, total int) storage.Percentile[int] {
-			sortedKeys := []int{}
-			for key := range counts {
-				sortedKeys = append(sortedKeys, key)
+			if len(counts) > 0 {
+				sortedKeys := []int{}
+				for key := range counts {
+					sortedKeys = append(sortedKeys, key)
+				}
+				sort.Ints(sortedKeys)
+
+				indexP90 := int(float64(total) * 0.90)
+				indexP75 := int(float64(total) * 0.75)
+				indexP50 := int(float64(total) * 0.50)
+				indexP25 := int(float64(total) * 0.25)
+				indexP10 := int(float64(total) * 0.10)
+
+				percentile := storage.Percentile[int]{
+					P100: sortedKeys[len(sortedKeys)-1],
+				}
+
+				index := 0
+				keysIndex := 0
+				key := sortedKeys[keysIndex]
+				for keysIndex < len(sortedKeys) && index < indexP10 {
+					key = sortedKeys[keysIndex]
+					index += counts[key]
+					keysIndex++
+				}
+				percentile.P10 = key
+
+				for keysIndex < len(sortedKeys) && index < indexP25 {
+					key = sortedKeys[keysIndex]
+					index += counts[key]
+					keysIndex++
+				}
+				percentile.P25 = key
+
+				for keysIndex < len(sortedKeys) && index < indexP50 {
+					key = sortedKeys[keysIndex]
+					index += counts[key]
+					keysIndex++
+				}
+				percentile.P50 = key
+
+				for keysIndex < len(sortedKeys) && index < indexP75 {
+					key = sortedKeys[keysIndex]
+					index += counts[key]
+					keysIndex++
+				}
+				percentile.P75 = key
+
+				for keysIndex < len(sortedKeys) && index < indexP90 {
+					key = sortedKeys[keysIndex]
+					index += counts[key]
+					keysIndex++
+				}
+				percentile.P90 = key
+
+				return percentile
 			}
-			sort.Ints(sortedKeys)
 
-			indexP90 := int(float64(total) * 0.90)
-			indexP75 := int(float64(total) * 0.75)
-			indexP50 := int(float64(total) * 0.50)
-			indexP25 := int(float64(total) * 0.25)
-			indexP10 := int(float64(total) * 0.10)
-
-			percentile := storage.Percentile[int]{
-				P100: sortedKeys[len(sortedKeys)-1],
-			}
-
-			index := 0
-			keysIndex := 0
-			key := sortedKeys[keysIndex]
-			for keysIndex < len(sortedKeys) && index < indexP10 {
-				index += counts[key]
-				keysIndex++
-				key = sortedKeys[keysIndex]
-			}
-			percentile.P10 = key
-
-			for keysIndex < len(sortedKeys) && index < indexP25 {
-				index += counts[key]
-				keysIndex++
-				key = sortedKeys[keysIndex]
-			}
-			percentile.P25 = key
-
-			for keysIndex < len(sortedKeys) && index < indexP50 {
-				index += counts[key]
-				keysIndex++
-				key = sortedKeys[keysIndex]
-			}
-			percentile.P50 = key
-
-			for keysIndex < len(sortedKeys) && index < indexP75 {
-				index += counts[key]
-				keysIndex++
-				key = sortedKeys[keysIndex]
-			}
-			percentile.P75 = key
-
-			for keysIndex < len(sortedKeys) && index < indexP90 {
-				index += counts[key]
-				keysIndex++
-				key = sortedKeys[keysIndex]
-			}
-			percentile.P90 = key
-
-			return percentile
+			return storage.Percentile[int]{}
 		}
 
 		data.VramGBAvailable = calculatePercentiles(vramGBAvailable, data.Gpus)
