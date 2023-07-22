@@ -3,19 +3,19 @@ kind: Deployment
 metadata:
   name: {{ .Values.frontend.name }}
   labels:
-    app: juicelabs.co/controller/frontend
+    app: controller-frontend
 spec:
   replicas: {{ .Values.frontend.replicas }}
   selector:
     matchLabels:
-      app: juicelabs.co/controller/frontend
+      app: controller-frontend
 {{- if and .Values.frontend.spec .Values.frontend.spec.additionalSpec }}
 {{ toYaml .Values.frontend.spec.additionalSpec | indent 2 }}
 {{- end }}
   template:
     metadata:
       labels:
-        app: juicelabs.co/controller/frontend
+        app: controller-frontend
     spec:
 {{- if and .Values.frontend.spec .Values.frontend.spec.template .Values.frontend.spec.template.additionalSpec }}
 {{ toYaml .Values.frontend.spec.template.additionalSpec | indent 6 }}
