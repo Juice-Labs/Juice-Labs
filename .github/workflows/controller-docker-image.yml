@@ -31,6 +31,9 @@ jobs:
       - name: Controller Image
         uses: docker/build-push-action@v3
         with:
+          build-args: |
+            BASE_CONTAINER=ubuntu:22.04
+            JUICE_VERSION=${{ steps.version.outputs.version }}
           context: docker/controller
           push: true
           tags: juicelabs/controller:${{ steps.version.outputs.version }}
