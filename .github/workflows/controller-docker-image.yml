@@ -34,5 +34,6 @@ jobs:
           build-args: |
             BASE_CONTAINER=ubuntu:22.04
             JUICE_VERSION=${{ steps.version.outputs.version }}
+          file: docker/controller/Dockerfile
           push: true
           tags: juicelabs/controller:${{ steps.version.outputs.version }}
