@@ -447,7 +447,17 @@ func (driver *storageDriver) AggregateData() (storage.AggregatedData, error) {
 		}
 	}
 
+	data.PowerDraw = float64(powerDraw) / 1000.0
+	for key, value := range powerDrawByGpuName {
+		data.PowerDrawByGpuName[key] = float64(value) / 1000.0
+	}
+
 	if data.Gpus > 0 {
+		data.Utilization = float64(utilization) / float64(data.Gpus)
+		for key, value := range utilizationByGpuName {
+			data.UtilizationByGpuName[key] = float64(value) / float64(data.Gpus)
+		}
+
 		calculatePercentiles := func(counts map[int]int, total int) storage.Percentile[int] {
 			if len(counts) > 0 {
 				sortedKeys := []int{}
@@ -513,16 +523,6 @@ func (driver *storageDriver) AggregateData() (storage.AggregatedData, error) {
 		data.VramGBAvailable = calculatePercentiles(vramGBAvailable, data.Gpus)
 		for key, gbAvailable := range vramGBAvailableByGpuName {
 			data.VramGBAvailableByGpuName[key] = calculatePercentiles(gbAvailable, data.GpusByGpuName[key])
-		}
-
-		data.Utilization = float64(utilization) / float64(data.Gpus)
-		for key, value := range utilizationByGpuName {
-			data.UtilizationByGpuName[key] = float64(value) / float64(data.Gpus)
-		}
-
-		data.PowerDraw = float64(powerDraw) / float64(data.Gpus) / 1000.0
-		for key, value := range powerDrawByGpuName {
-			data.PowerDrawByGpuName[key] = float64(value) / float64(data.Gpus) / 1000.0
 		}
 	}
 
