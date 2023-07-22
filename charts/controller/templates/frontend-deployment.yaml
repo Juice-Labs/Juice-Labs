@@ -9,7 +9,7 @@ spec:
   selector:
     matchLabels:
       app: juicelabs.co/controller/frontend
-{{- if .Values.frontend.spec and .Values.frontend.spec.additionalSpec }}
+{{- if and .Values.frontend.spec .Values.frontend.spec.additionalSpec }}
 {{ toYaml .Values.frontend.spec.additionalSpec | indent 2 }}
 {{- end }}
   template:
@@ -17,12 +17,12 @@ spec:
       labels:
         app: juicelabs.co/controller/frontend
     spec:
-{{- if .Values.frontend.spec and .Values.frontend.spec.template and .Values.frontend.spec.template.additionalSpec }}
+{{- if and .Values.frontend.spec .Values.frontend.spec.template .Values.frontend.spec.template.additionalSpec }}
 {{ toYaml .Values.frontend.spec.template.additionalSpec | indent 6 }}
 {{- end }}
       containers:
       - name: controller
         image: {{ .Values.image }}
-{{- if .Values.frontend.spec and .Values.frontend.spec.template and .Values.frontend.spec.template.controller and .Values.frontend.spec.template.controller.additionalSpec }}
+{{- if and .Values.frontend.spec .Values.frontend.spec.template .Values.frontend.spec.template.controller .Values.frontend.spec.template.controller.additionalSpec }}
 {{ toYaml .Values.frontend.spec.template.controller.additionalSpec | indent 8 }}
 {{- end }}
