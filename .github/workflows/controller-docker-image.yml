@@ -27,7 +27,7 @@ jobs:
         shell: bash
         run: |
           tag=`git show -s --date=format:'%Y.%m.%d-%H%M' --format=%cd.%h ${SHA}`
-          echo "::set-output name=version::${tag}"
+          echo "version=${tag}" >> $GITHUB_OUTPUT
       - name: Controller Image
         uses: docker/build-push-action@v3
         with:
