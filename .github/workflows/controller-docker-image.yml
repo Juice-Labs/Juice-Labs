@@ -2,8 +2,8 @@ name: Controller Docker Image
 
 on:
   push:
-    tags:
-    - controller-[0-9]+.[0-9]+.[0-9]+
+    branches:
+    - master
 
 jobs:
   docker:
@@ -22,13 +22,15 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Determine Controller Version
         env:
-          TAG: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
         id: version
+        shell: bash
         run: |
-          echo "::set-output name=version::${TAG##controller-}"
+          tag=`git show -s --date=format:'%Y.%m.%d-%H%M' --format=%cd.%h ${SHA}`
+          echo "::set-output name=version::${tag}"
       - name: Controller Image
         uses: docker/build-push-action@v3
         with:
-          context: controller
+          context: docker/controller
           push: true
           tags: juicelabs/controller:${{ steps.version.outputs.version }}
