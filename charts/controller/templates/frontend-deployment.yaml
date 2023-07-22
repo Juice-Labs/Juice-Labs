@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.frontend.name }}
+  labels:
+    app: juicelabs.co/controller/frontend
+spec:
+  replicas: {{ .Values.frontend.replicas }}
+  selector:
+    matchLabels:
+      app: juicelabs.co/controller/frontend
+{{- if .Values.frontend.spec.additionalSpec }}
+{{ toYaml .Values.frontend.spec.additionalSpec | indent 2 }}
+{{- end }}
+  template:
+    metadata:
+      labels:
+        app: juicelabs.co/controller/frontend
+    spec:
+{{- if .Values.frontend.spec.template.additionalSpec }}
+{{ toYaml .Values.frontend.spec.template.additionalSpec | indent 6 }}
+{{- end }}
+      containers:
+      - name: controller
+        image: {{ .Values.image }}
+{{- if .Values.frontend.spec.template.controller.additionalSpec }}
+{{ toYaml .Values.frontend.spec.template.controller.additionalSpec | indent 8 }}
+{{- end }}

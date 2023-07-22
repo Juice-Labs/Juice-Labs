@@ -1,0 +1,143 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema#",
+    "title": "Values",
+    "type": "object",
+    "required": [
+        "frontend",
+        "backend",
+        "image"
+    ],
+    "additionalProperties": false,
+    "properties": {
+        "image": {
+            "description": "The container image to use",
+            "type": "string"
+        },
+        "frontend": {
+            "description": "",
+            "type": "object",
+            "required": [
+                "name",
+                "replicas"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "name": {
+                    "description": "The metadata name for the frontend deployment",
+                    "type": "string"
+                },
+                "replicas": {
+                    "description": "",
+                    "type": "number"
+                },
+                "spec": {
+                    "description": "",
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "additionalSpec": {
+                            "description": "",
+                            "type": "object",
+                            "additionalProperties": true,
+                            "properties": {
+                                "selector": false
+                            }
+                        },
+                        "template": {
+                            "description": "",
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                                "additionalSpec": {
+                                    "description": "",
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "properties": {
+                                        "containers": false
+                                    }
+                                },
+                                "controller": {
+                                    "description": "",
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "additionalSpec": {
+                                            "description": "",
+                                            "type": "object",
+                                            "additionalProperties": true,
+                                            "properties": {
+                                                "name": false,
+                                                "image": false
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "backend": {
+            "description": "",
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "name": {
+                    "description": "The metadata name for the backend deployment",
+                    "type": "string"
+                },
+                "spec": {
+                    "description": "",
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "additionalSpec": {
+                            "description": "",
+                            "type": "object",
+                            "additionalProperties": true,
+                            "properties": {
+                                "replicas": false,
+                                "selector": false
+                            }
+                        },
+                        "template": {
+                            "description": "",
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                                "additionalSpec": {
+                                    "description": "",
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "properties": {
+                                        "containers": false
+                                    }
+                                },
+                                "controller": {
+                                    "description": "",
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "additionalSpec": {
+                                            "description": "",
+                                            "type": "object",
+                                            "additionalProperties": true,
+                                            "properties": {
+                                                "name": false,
+                                                "image": false
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
