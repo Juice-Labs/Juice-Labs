@@ -4,4 +4,5 @@ frontend:
   replicas: 1
 backend:
   name: controller-backend
-  additionalSpec: {}
+  spec:
+    additionalSpec: {}
