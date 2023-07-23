@@ -1,0 +1,6 @@
+image: docker.io/juicelabs/controller:latest
+frontend:
+  name: controller-frontend
+  replicas: 1
+backend:
+  name: controller-backend

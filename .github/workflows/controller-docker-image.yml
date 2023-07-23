@@ -27,7 +27,7 @@ jobs:
         shell: bash
         run: |
           tag=`git show -s --date=format:'%Y.%m.%d-%H%M' --format=%cd.%h ${SHA}`
-          echo "::set-output name=version::${tag}"
+          echo "version=${tag}" >> $GITHUB_OUTPUT
       - name: Controller Image
         uses: docker/build-push-action@v3
         with:
@@ -36,4 +36,4 @@ jobs:
             JUICE_VERSION=${{ steps.version.outputs.version }}
           file: docker/controller/Dockerfile
           push: true
-          tags: juicelabs/controller:${{ steps.version.outputs.version }}
+          tags: juicelabs/controller:latest,juicelabs/controller:${{ steps.version.outputs.version }}
