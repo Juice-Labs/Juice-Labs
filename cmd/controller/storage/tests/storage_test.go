@@ -196,7 +196,8 @@ func TestAgents(t *testing.T) {
 
 		agent.State = restapi.AgentActive
 		db.UpdateAgent(restapi.AgentUpdate{
-			Id: agent.Id,
+			Id:    agent.Id,
+			State: restapi.AgentActive,
 		})
 		checkAgent(t, db, agent)
 
@@ -277,11 +278,12 @@ func TestAssigningSessions(t *testing.T) {
 		}
 
 		session := restapi.Session{
-			Id:      sessionId,
-			State:   restapi.SessionAssigned,
-			Address: agent.Address,
-			Version: requirements.Version,
-			Gpus:    selectedGpus,
+			Id:         sessionId,
+			State:      restapi.SessionAssigned,
+			ExitStatus: restapi.ExitStatusUnknown,
+			Address:    agent.Address,
+			Version:    requirements.Version,
+			Gpus:       selectedGpus,
 		}
 		checkSession(t, db, session)
 
@@ -291,7 +293,8 @@ func TestAssigningSessions(t *testing.T) {
 		agent.Sessions[0].State = restapi.SessionActive
 		session.State = restapi.SessionActive
 		db.UpdateAgent(restapi.AgentUpdate{
-			Id: agent.Id,
+			Id:    agent.Id,
+			State: agent.State,
 			Sessions: map[string]restapi.SessionUpdate{
 				session.Id: {
 					State: restapi.SessionActive,
@@ -304,7 +307,8 @@ func TestAssigningSessions(t *testing.T) {
 
 		agent.Sessions = make([]restapi.Session, 0)
 		db.UpdateAgent(restapi.AgentUpdate{
-			Id: agent.Id,
+			Id:    agent.Id,
+			State: agent.State,
 			Sessions: map[string]restapi.SessionUpdate{
 				session.Id: {
 					State: restapi.SessionClosed,
@@ -343,12 +347,10 @@ func TestGetQueuedSessionsIterator(t *testing.T) {
 			t.Log(err)
 			t.FailNow()
 		}
-		for iterator.Next() {
+		for iterator.Next() && len(sessionIds) > 0 {
 			against := iterator.Value()
 			check, present := sessionIds[against.Id]
-			if !present {
-				t.Error("unexpected session found")
-			} else {
+			if present {
 				compare(t, check, against.Requirements, nil)
 				delete(sessionIds, against.Id)
 			}

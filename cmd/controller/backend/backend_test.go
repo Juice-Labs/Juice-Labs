@@ -50,8 +50,9 @@ func defaultAgent(gpuVram uint64) restapi.Agent {
 				Vram:        gpuVram,
 			},
 		},
-		Labels: map[string]string{},
-		Taints: map[string]string{},
+		Labels:   map[string]string{},
+		Taints:   map[string]string{},
+		Sessions: make([]restapi.Session, 0),
 	}
 }
 

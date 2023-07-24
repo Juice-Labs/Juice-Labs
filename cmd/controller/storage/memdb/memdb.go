@@ -314,7 +314,7 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 				session.State = sessionUpdate.State
 				session.LastUpdated = now
 
-				if session.State >= restapi.SessionClosed {
+				if session.State == restapi.SessionClosed {
 					agent.VramAvailable += session.VramRequired
 				} else {
 					sessionIds = append(sessionIds, sessionId)
@@ -372,6 +372,7 @@ func (driver *storageDriver) RequestSession(requirements restapi.SessionRequirem
 		Session: restapi.Session{
 			Id:      uuid.NewString(),
 			Version: requirements.Version,
+			State:   restapi.SessionQueued,
 		},
 		Requirements: requirements,
 		VramRequired: storage.TotalVramRequired(requirements),
@@ -407,6 +408,7 @@ func (driver *storageDriver) AssignSession(sessionId string, agentId string, gpu
 	}
 	session := utilities.Require[Session](obj)
 	session.State = restapi.SessionAssigned
+	session.ExitStatus = restapi.ExitStatusUnknown
 	session.AgentId = agentId
 	session.Address = agent.Address
 	session.Gpus = gpus

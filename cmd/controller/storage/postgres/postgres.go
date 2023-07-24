@@ -114,7 +114,7 @@ const (
 				SELECT ( SELECT row(key, value) FROM key_values WHERE id = agent_taints.key_value_id ) FROM agent_taints WHERE agent_id = agents.id
 			) ) taints, 
 			( SELECT ARRAY (
-				SELECT row(id, state, address, version, persistent, gpus) FROM sessions tab WHERE tab.agent_id = agents.id AND tab.state != ALL('{closed,failed,canceled}'::session_state[])
+				SELECT row(id, state, exit_status, address, version, persistent, gpus) FROM sessions tab WHERE tab.agent_id = agents.id AND tab.state != 'closed'
 			) ) sessions
 		FROM agents`
 	selectSessions       = "SELECT id, state, exit_status, address, version, persistent, gpus FROM sessions"
@@ -661,9 +661,9 @@ func (driver *storageDriver) AssignSession(sessionId string, agentId string, gpu
 		return errors.Join(err, tx.Rollback())
 	}
 
-	_, err = driver.db.ExecContext(driver.ctx, `UPDATE sessions SET agent_id = $1, state = $2, address = (
+	_, err = driver.db.ExecContext(driver.ctx, `UPDATE sessions SET agent_id = $1, state = $2, exit_status = $3, address = (
 			SELECT address FROM agents WHERE id = $1
-		), gpus = $3, updated_at = now() WHERE id = $4`, agentId, restapi.SessionAssigned, gpusData, sessionId)
+		), gpus = $4, updated_at = now() WHERE id = $5`, agentId, restapi.SessionAssigned, restapi.ExitStatusUnknown, gpusData, sessionId)
 	if err != nil {
 		return errors.Join(err, tx.Rollback())
 	}
