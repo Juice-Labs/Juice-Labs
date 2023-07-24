@@ -41,7 +41,7 @@ var (
 
 	address = flag.String("address", "0.0.0.0:8080", "The IP address and port to use for listening for client connections")
 
-	psqlConnection         = flag.String("psql-connection", "", "See https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters")
+	psqlConnection         = flag.String("psql-connection", "host=localhost port=5432 user=postgres password=password dbname=postgres sslmode=disable", "See https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters")
 	psqlConnectionFromFile = flag.String("psql-connection-from-file", "", "See https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters")
 )
 
@@ -83,7 +83,7 @@ func openStorage(ctx context.Context) (storage.Storage, error) {
 }
 
 func main() {
-	appmain.Run("Juice Controller 2", build.Version, func(group task.Group) error {
+	appmain.Run("Juice Controller", build.Version, func(group task.Group) error {
 		var err error
 
 		storage, err := openStorage(group.Ctx())
