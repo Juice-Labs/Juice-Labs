@@ -92,8 +92,7 @@ type Agent struct {
 	Address  string `json:"address"`
 	Version  string `json:"version"`
 
-	MaxSessions int   `json:"maxSessions"`
-	Gpus        []Gpu `json:"gpus"`
+	Gpus []Gpu `json:"gpus"`
 
 	Labels map[string]string `json:"labels"`
 	Taints map[string]string `json:"taints"`

@@ -26,15 +26,13 @@ create table agents (
     hostname text NOT NULL,
     address text NOT NULL,
     version text NOT NULL,
-    max_sessions int NOT NULL,
     gpus jsonb NOT NULL,
     vram_available bigint NOT NULL,
-    sessions_available int NOT NULL,
     created_at TIMESTAMP DEFAULT now(),
     updated_at TIMESTAMP
 );
 
-create index on agents (state, vram_available, sessions_available);
+create index on agents (state, vram_available);
 create index on agents (created_at);
 create index on agents (state, created_at);
 create index on agents (state, updated_at);

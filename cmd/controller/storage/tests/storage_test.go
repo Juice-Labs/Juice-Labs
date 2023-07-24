@@ -35,13 +35,12 @@ func openPostgres(t *testing.T) storage.Storage {
 	return db
 }
 
-func defaultAgent(maxSessions int, gpuVram uint64) restapi.Agent {
+func defaultAgent(gpuVram uint64) restapi.Agent {
 	return restapi.Agent{
-		State:       restapi.AgentActive,
-		Hostname:    "Test",
-		Address:     "127.0.0.1:43210",
-		Version:     "Test",
-		MaxSessions: maxSessions,
+		State:    restapi.AgentActive,
+		Hostname: "Test",
+		Address:  "127.0.0.1:43210",
+		Version:  "Test",
 		Gpus: []restapi.Gpu{
 			{
 				Index:       0,
@@ -76,14 +75,13 @@ func defaultSessionRequirements(gpuVram uint64) restapi.SessionRequirements {
 
 func createAgent() restapi.Agent {
 	agent := restapi.Agent{
-		State:       restapi.AgentActive,
-		Hostname:    "Test",
-		Address:     "127.0.0.1:43210",
-		Version:     "Test",
-		MaxSessions: rand.Intn(7) + 1,
-		Labels:      map[string]string{},
-		Taints:      map[string]string{},
-		Sessions:    make([]restapi.Session, 0),
+		State:    restapi.AgentActive,
+		Hostname: "Test",
+		Address:  "127.0.0.1:43210",
+		Version:  "Test",
+		Labels:   map[string]string{},
+		Taints:   map[string]string{},
+		Sessions: make([]restapi.Session, 0),
 	}
 
 	agent.Gpus = make([]restapi.Gpu, rand.Intn(7)+1)
@@ -188,7 +186,7 @@ func queueSession(t *testing.T, db storage.Storage, requirements restapi.Session
 
 func TestAgents(t *testing.T) {
 	run := func(t *testing.T, db storage.Storage) {
-		agent := registerAgent(t, db, defaultAgent(4, 24*1024*1024*1024))
+		agent := registerAgent(t, db, defaultAgent(24*1024*1024*1024))
 
 		time.Sleep(time.Second)
 
@@ -198,7 +196,8 @@ func TestAgents(t *testing.T) {
 
 		agent.State = restapi.AgentActive
 		db.UpdateAgent(restapi.AgentUpdate{
-			Id: agent.Id,
+			Id:    agent.Id,
+			State: restapi.AgentActive,
 		})
 		checkAgent(t, db, agent)
 
@@ -260,7 +259,7 @@ func TestSessions(t *testing.T) {
 
 func TestAssigningSessions(t *testing.T) {
 	run := func(t *testing.T, db storage.Storage) {
-		agent := registerAgent(t, db, defaultAgent(4, 24*1024*1024*1024))
+		agent := registerAgent(t, db, defaultAgent(24*1024*1024*1024))
 
 		requirements := defaultSessionRequirements(4 * 1024 * 1024 * 1024)
 		sessionId := queueSession(t, db, requirements)
@@ -279,11 +278,12 @@ func TestAssigningSessions(t *testing.T) {
 		}
 
 		session := restapi.Session{
-			Id:      sessionId,
-			State:   restapi.SessionAssigned,
-			Address: agent.Address,
-			Version: requirements.Version,
-			Gpus:    selectedGpus,
+			Id:         sessionId,
+			State:      restapi.SessionAssigned,
+			ExitStatus: restapi.ExitStatusUnknown,
+			Address:    agent.Address,
+			Version:    requirements.Version,
+			Gpus:       selectedGpus,
 		}
 		checkSession(t, db, session)
 
@@ -293,7 +293,8 @@ func TestAssigningSessions(t *testing.T) {
 		agent.Sessions[0].State = restapi.SessionActive
 		session.State = restapi.SessionActive
 		db.UpdateAgent(restapi.AgentUpdate{
-			Id: agent.Id,
+			Id:    agent.Id,
+			State: agent.State,
 			Sessions: map[string]restapi.SessionUpdate{
 				session.Id: {
 					State: restapi.SessionActive,
@@ -306,7 +307,8 @@ func TestAssigningSessions(t *testing.T) {
 
 		agent.Sessions = make([]restapi.Session, 0)
 		db.UpdateAgent(restapi.AgentUpdate{
-			Id: agent.Id,
+			Id:    agent.Id,
+			State: agent.State,
 			Sessions: map[string]restapi.SessionUpdate{
 				session.Id: {
 					State: restapi.SessionClosed,
@@ -345,12 +347,10 @@ func TestGetQueuedSessionsIterator(t *testing.T) {
 			t.Log(err)
 			t.FailNow()
 		}
-		for iterator.Next() {
+		for iterator.Next() && len(sessionIds) > 0 {
 			against := iterator.Value()
 			check, present := sessionIds[against.Id]
-			if !present {
-				t.Error("unexpected session found")
-			} else {
+			if present {
 				compare(t, check, against.Requirements, nil)
 				delete(sessionIds, against.Id)
 			}

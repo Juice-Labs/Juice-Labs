@@ -19,9 +19,8 @@ import (
 type Agent struct {
 	restapi.Agent
 
-	SessionIds        []string
-	VramAvailable     uint64
-	SessionsAvailable int
+	SessionIds    []string
+	VramAvailable uint64
 
 	LastUpdated int64
 }
@@ -55,7 +54,7 @@ func OpenStorage(ctx context.Context) (storage.Storage, error) {
 					"state": {
 						Name:    "state",
 						Unique:  false,
-						Indexer: &memdb.IntFieldIndex{Field: "State"},
+						Indexer: &memdb.StringFieldIndex{Field: "State"},
 					},
 					"last_updated": {
 						Name:    "last_updated",
@@ -75,7 +74,7 @@ func OpenStorage(ctx context.Context) (storage.Storage, error) {
 					"state": {
 						Name:    "state",
 						Unique:  false,
-						Indexer: &memdb.IntFieldIndex{Field: "State"},
+						Indexer: &memdb.StringFieldIndex{Field: "State"},
 					},
 					"last_updated": {
 						Name:    "last_updated",
@@ -246,10 +245,9 @@ func (driver *storageDriver) AggregateData() (storage.AggregatedData, error) {
 
 func (driver *storageDriver) RegisterAgent(apiAgent restapi.Agent) (string, error) {
 	agent := Agent{
-		Agent:             apiAgent,
-		VramAvailable:     storage.TotalVram(apiAgent.Gpus),
-		SessionsAvailable: apiAgent.MaxSessions,
-		LastUpdated:       time.Now().Unix(),
+		Agent:         apiAgent,
+		VramAvailable: storage.TotalVram(apiAgent.Gpus),
+		LastUpdated:   time.Now().Unix(),
 	}
 
 	agent.Id = uuid.NewString()
@@ -316,9 +314,8 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 				session.State = sessionUpdate.State
 				session.LastUpdated = now
 
-				if session.State >= restapi.SessionClosed {
+				if session.State == restapi.SessionClosed {
 					agent.VramAvailable += session.VramRequired
-					agent.SessionsAvailable++
 				} else {
 					sessionIds = append(sessionIds, sessionId)
 					sessions = append(sessions, session.Session)
@@ -375,6 +372,7 @@ func (driver *storageDriver) RequestSession(requirements restapi.SessionRequirem
 		Session: restapi.Session{
 			Id:      uuid.NewString(),
 			Version: requirements.Version,
+			State:   restapi.SessionQueued,
 		},
 		Requirements: requirements,
 		VramRequired: storage.TotalVramRequired(requirements),
@@ -410,6 +408,7 @@ func (driver *storageDriver) AssignSession(sessionId string, agentId string, gpu
 	}
 	session := utilities.Require[Session](obj)
 	session.State = restapi.SessionAssigned
+	session.ExitStatus = restapi.ExitStatusUnknown
 	session.AgentId = agentId
 	session.Address = agent.Address
 	session.Gpus = gpus
@@ -424,7 +423,6 @@ func (driver *storageDriver) AssignSession(sessionId string, agentId string, gpu
 	agent.Sessions = append(agent.Sessions, session.Session)
 	agent.SessionIds = append(agent.SessionIds, sessionId)
 	agent.VramAvailable -= session.VramRequired
-	agent.SessionsAvailable--
 	agent.LastUpdated = now
 
 	err = txn.Insert("agents", agent)
@@ -504,7 +502,7 @@ func (driver *storageDriver) GetAvailableAgentsMatching(totalAvailableVramAtLeas
 	for obj := iterator.Next(); obj != nil; obj = iterator.Next() {
 		agent := utilities.Require[Agent](obj)
 
-		if agent.SessionsAvailable > 0 && agent.VramAvailable >= totalAvailableVramAtLeast {
+		if agent.VramAvailable >= totalAvailableVramAtLeast {
 			agents = append(agents, agent.Agent)
 		}
 	}

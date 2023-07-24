@@ -29,10 +29,9 @@ import (
 var (
 	juicePath = flag.String("juice-path", "", "")
 
-	address     = flag.String("address", "0.0.0.0:43210", "The IP address and port to use for listening for client connections")
-	maxSessions = flag.Int("max-sessions", 4, "Maximum number of simultaneous sessions allowed on this Agent, must be > 0")
-	labels      = flag.String("labels", "", "Comma separated list of key=value pairs")
-	taints      = flag.String("taints", "", "Comma separated list of key=value pairs")
+	address = flag.String("address", "0.0.0.0:43210", "The IP address and port to use for listening for client connections")
+	labels  = flag.String("labels", "", "Comma separated list of key=value pairs")
+	taints  = flag.String("taints", "", "Comma separated list of key=value pairs")
 )
 
 type Reference[T any] struct {
@@ -74,8 +73,6 @@ type Agent struct {
 
 	Server *server.Server
 
-	maxSessions int
-
 	labels map[string]string
 	taints map[string]string
 
@@ -96,13 +93,12 @@ func NewAgent(tlsConfig *tls.Config) (*Agent, error) {
 	}
 
 	agent := &Agent{
-		Id:          uuid.NewString(),
-		JuicePath:   *juicePath,
-		Server:      server,
-		maxSessions: *maxSessions,
-		labels:      map[string]string{},
-		taints:      map[string]string{},
-		sessions:    orderedmap.New[string, *Reference[session.Session]](),
+		Id:        uuid.NewString(),
+		JuicePath: *juicePath,
+		Server:    server,
+		labels:    map[string]string{},
+		taints:    map[string]string{},
+		sessions:  orderedmap.New[string, *Reference[session.Session]](),
 	}
 
 	if *labels != "" {
@@ -241,10 +237,6 @@ func (agent *Agent) runSession(group task.Group, id string, juicePath string, ve
 }
 
 func (agent *Agent) requestSession(group task.Group, sessionRequirements restapi.SessionRequirements) (string, error) {
-	if agent.getSessionsCount() >= agent.maxSessions {
-		return "", fmt.Errorf("Agent.startSession: unable to add another session")
-	}
-
 	selectedGpus, err := agent.Gpus.Find(sessionRequirements.Gpus)
 	if err != nil {
 		return "", fmt.Errorf("Agent.startSession: unable to find a matching set of GPUs")

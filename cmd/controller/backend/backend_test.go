@@ -34,13 +34,12 @@ func openPostgres(t *testing.T) storage.Storage {
 	return db
 }
 
-func defaultAgent(maxSessions int, gpuVram uint64) restapi.Agent {
+func defaultAgent(gpuVram uint64) restapi.Agent {
 	return restapi.Agent{
-		State:       restapi.AgentActive,
-		Hostname:    "Test",
-		Address:     "127.0.0.1:43210",
-		Version:     "Test",
-		MaxSessions: maxSessions,
+		State:    restapi.AgentActive,
+		Hostname: "Test",
+		Address:  "127.0.0.1:43210",
+		Version:  "Test",
 		Gpus: []restapi.Gpu{
 			{
 				Index:       0,
@@ -51,8 +50,9 @@ func defaultAgent(maxSessions int, gpuVram uint64) restapi.Agent {
 				Vram:        gpuVram,
 			},
 		},
-		Labels: map[string]string{},
-		Taints: map[string]string{},
+		Labels:   map[string]string{},
+		Taints:   map[string]string{},
+		Sessions: make([]restapi.Session, 0),
 	}
 }
 
@@ -71,14 +71,13 @@ func defaultSessionRequirements(gpuVram uint64) restapi.SessionRequirements {
 
 func createAgent() restapi.Agent {
 	agent := restapi.Agent{
-		State:       restapi.AgentActive,
-		Hostname:    "Test",
-		Address:     "127.0.0.1:43210",
-		Version:     "Test",
-		MaxSessions: rand.Intn(7) + 1,
-		Labels:      map[string]string{},
-		Taints:      map[string]string{},
-		Sessions:    make([]restapi.Session, 0),
+		State:    restapi.AgentActive,
+		Hostname: "Test",
+		Address:  "127.0.0.1:43210",
+		Version:  "Test",
+		Labels:   map[string]string{},
+		Taints:   map[string]string{},
+		Sessions: make([]restapi.Session, 0),
 	}
 
 	agent.Gpus = make([]restapi.Gpu, rand.Intn(7)+1)
@@ -186,9 +185,9 @@ func TestGetAvailableAgentsMatching(t *testing.T) {
 		backend := NewBackend(db)
 
 		agentIds := []string{
-			registerAgent(t, db, defaultAgent(2, 24*1024*1024*1024)).Id,
-			registerAgent(t, db, defaultAgent(1, 4*1024*1024*1024)).Id,
-			registerAgent(t, db, defaultAgent(1, 4*1024*1024*1024)).Id,
+			registerAgent(t, db, defaultAgent(24*1024*1024*1024)).Id,
+			registerAgent(t, db, defaultAgent(4*1024*1024*1024)).Id,
+			registerAgent(t, db, defaultAgent(4*1024*1024*1024)).Id,
 		}
 
 		sessionIds := []string{
@@ -208,7 +207,7 @@ func TestGetAvailableAgentsMatching(t *testing.T) {
 			if err != nil {
 				t.Error(err)
 			} else if session.State != restapi.SessionAssigned {
-				t.Errorf("expected session to be assigned, state = %d", session.State)
+				t.Errorf("expected session to be assigned, state = %s", session.State)
 			}
 		}
 
@@ -216,10 +215,6 @@ func TestGetAvailableAgentsMatching(t *testing.T) {
 			agent, err := db.GetAgentById(id)
 			if err != nil {
 				t.Error(err)
-			}
-
-			if agent.MaxSessions > 0 && len(agent.Sessions) > agent.MaxSessions {
-				t.Errorf("maximum sessions is not adhered to, %d > %d", len(agent.Sessions), agent.MaxSessions)
 			}
 
 			var sessionVram uint64
