@@ -117,7 +117,7 @@ const (
 				SELECT row(id, state, address, version, persistent, gpus) FROM sessions tab WHERE tab.agent_id = agents.id AND tab.state != ALL('{closed,failed,canceled}'::session_state[])
 			) ) sessions
 		FROM agents`
-	selectSessions       = "SELECT id, state, address, version, persistent, gpus FROM sessions"
+	selectSessions       = "SELECT id, state, exit_status, address, version, persistent, gpus FROM sessions"
 	selectQueuedSessions = "SELECT id, requirements FROM sessions WHERE state = 'queued'"
 
 	orderBy     = " ORDER BY created_at ASC"
@@ -137,7 +137,6 @@ func selectAgentsIteratorWhere(where string, limit int) string {
 }
 
 func unmarshalAgent(row sqlRow) (restapi.Agent, error) {
-	var state string
 	var gpus []byte
 	var labels, taints, sessions pq.ByteaArray
 
@@ -147,7 +146,7 @@ func unmarshalAgent(row sqlRow) (restapi.Agent, error) {
 		Sessions: make([]restapi.Session, 0),
 	}
 
-	err := row.Scan(&agent.Id, &state, &agent.Hostname, &agent.Address, &agent.Version, &agent.MaxSessions, &gpus, &labels, &taints, &sessions)
+	err := row.Scan(&agent.Id, &agent.State, &agent.Hostname, &agent.Address, &agent.Version, &agent.MaxSessions, &gpus, &labels, &taints, &sessions)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			err = storage.ErrNotFound
@@ -155,8 +154,6 @@ func unmarshalAgent(row sqlRow) (restapi.Agent, error) {
 
 		return restapi.Agent{}, err
 	}
-
-	agent.State = stringToAgentState(state)
 
 	err = json.Unmarshal(gpus, &agent.Gpus)
 	if err != nil {
@@ -201,11 +198,10 @@ func selectSessionsWhere(where string) string {
 
 func unmarshalSession(row sqlRow) (restapi.Session, error) {
 	var session restapi.Session
-	var state string
 	var address []byte
 	var gpus []byte
 
-	err := row.Scan(&session.Id, &state, &address, &session.Version, &session.Persistent, &gpus)
+	err := row.Scan(&session.Id, &session.State, &session.ExitStatus, &address, &session.Version, &session.Persistent, &gpus)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			err = storage.ErrNotFound
@@ -228,8 +224,6 @@ func unmarshalSession(row sqlRow) (restapi.Session, error) {
 			return restapi.Session{}, err
 		}
 	}
-
-	session.State = stringToSessionState(state)
 
 	return session, nil
 }
@@ -257,82 +251,6 @@ func unmarshalQueuedSession(row sqlRow) (storage.QueuedSession, error) {
 	}
 
 	return session, nil
-}
-
-func stringToAgentState(str string) int {
-	switch str {
-	case "active":
-		return restapi.AgentActive
-	case "disabled":
-		return restapi.AgentDisabled
-	case "missing":
-		return restapi.AgentMissing
-	case "closed":
-		return restapi.AgentClosed
-	}
-
-	logger.Panicf("unable to convert string to AgentState, %s", str)
-	return -1
-}
-
-func agentStateToString(state int) string {
-	switch state {
-	case restapi.AgentActive:
-		return "active"
-	case restapi.AgentDisabled:
-		return "disabled"
-	case restapi.AgentMissing:
-		return "missing"
-	case restapi.AgentClosed:
-		return "closed"
-	}
-
-	logger.Panicf("unable to convert AgentState to string, %d", state)
-	return ""
-}
-
-func stringToSessionState(str string) int {
-	switch str {
-	case "queued":
-		return restapi.SessionQueued
-	case "assigned":
-		return restapi.SessionAssigned
-	case "active":
-		return restapi.SessionActive
-	case "closed":
-		return restapi.SessionClosed
-	case "failed":
-		return restapi.SessionFailed
-	case "canceling":
-		return restapi.SessionCanceling
-	case "canceled":
-		return restapi.SessionCanceled
-	}
-
-	logger.Panicf("unable to convert string to SessionState, %s", str)
-	return -1
-}
-
-func sessionStateToString(state int) string {
-	switch state {
-	case restapi.SessionQueued:
-		return "queued"
-	case restapi.SessionAssigned:
-		return "assigned"
-	case restapi.SessionActive:
-		return "active"
-	case restapi.SessionClosed:
-		return "closed"
-	case restapi.SessionFailed:
-		return "failed"
-	case restapi.SessionCanceling:
-		return "canceling"
-	case restapi.SessionCanceled:
-		return "canceled"
-	}
-
-	logger.Panicf("unable to convert SessionState to string, %d", state)
-	return ""
 }
 
 func OpenStorage(ctx context.Context, connection string) (storage.Storage, error) {
@@ -369,9 +287,9 @@ func (driver *storageDriver) AggregateData() (storage.AggregatedData, error) {
 
 	data := storage.AggregatedData{
 		Agents:                   agents,
-		AgentsByStatus:           make([]int, restapi.AgentStateCount),
+		AgentsByStatus:           map[string]int{},
 		Sessions:                 sessions,
-		SessionsByStatus:         make([]int, restapi.SessionStateCount),
+		SessionsByStatus:         map[string]int{},
 		GpusByGpuName:            map[string]int{},
 		VramByGpuName:            map[string]uint64{},
 		VramUsedByGpuName:        map[string]uint64{},
@@ -385,7 +303,7 @@ func (driver *storageDriver) AggregateData() (storage.AggregatedData, error) {
 		var count int
 		Composite(composite).Scan(&state, &count)
 
-		data.AgentsByStatus[stringToAgentState(state)] = count
+		data.AgentsByStatus[state] = count
 	}
 
 	for _, composite := range sessionsByStatusArray {
@@ -393,7 +311,7 @@ func (driver *storageDriver) AggregateData() (storage.AggregatedData, error) {
 		var count int
 		Composite(composite).Scan(&state, &count)
 
-		data.SessionsByStatus[stringToSessionState(state)] = count
+		data.SessionsByStatus[state] = count
 	}
 
 	vramGBAvailable := map[int]int{}
@@ -546,7 +464,7 @@ func (driver *storageDriver) RegisterAgent(agent restapi.Agent) (string, error) 
 		") VALUES ("+
 		"$1, $2, $3, $4, $5, $6, $7, $8, now()"+
 		") RETURNING id",
-		agentStateToString(agent.State), agent.Hostname, agent.Address, agent.Version,
+		agent.State, agent.Hostname, agent.Address, agent.Version,
 		agent.MaxSessions, gpus, storage.TotalVram(agent.Gpus), agent.MaxSessions).Scan(&id)
 	if err != nil {
 		return "", errors.Join(err, tx.Rollback())
@@ -630,7 +548,7 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 	closedSessions := make([]string, 0, len(update.Sessions))
 	closedSessionsCount := 0
 	for key, value := range update.Sessions {
-		if value.State >= restapi.SessionClosed {
+		if value.State == restapi.SessionClosed {
 			closedSessions = append(closedSessions, key)
 			closedSessionsCount++
 		}
@@ -640,9 +558,9 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 		_, err = driver.db.ExecContext(driver.ctx, `UPDATE agents SET vram_available = (
 				SELECT SUM(vram_required) FROM sessions WHERE id = ANY($1)
 			), sessions_available = sessions_available + $2, state = $3, gpus = $4, updated_at = now() WHERE id = $5`,
-			pq.StringArray(closedSessions), closedSessionsCount, agentStateToString(update.State), gpusData, update.Id)
+			pq.StringArray(closedSessions), closedSessionsCount, update.State, gpusData, update.Id)
 	} else {
-		_, err = driver.db.ExecContext(driver.ctx, "UPDATE agents SET state = $1, gpus = $2, updated_at = now() WHERE id = $3", agentStateToString(update.State), gpusData, update.Id)
+		_, err = driver.db.ExecContext(driver.ctx, "UPDATE agents SET state = $1, gpus = $2, updated_at = now() WHERE id = $3", update.State, gpusData, update.Id)
 	}
 
 	if err != nil {
@@ -650,7 +568,7 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 	}
 
 	for id, sessionUpdate := range update.Sessions {
-		_, err = driver.db.ExecContext(driver.ctx, "UPDATE sessions SET state = $1 WHERE id = $2", sessionStateToString(sessionUpdate.State), id)
+		_, err = driver.db.ExecContext(driver.ctx, "UPDATE sessions SET state = $1 WHERE id = $2", sessionUpdate.State, id)
 		if err != nil {
 			return errors.Join(err, tx.Rollback())
 		}
@@ -672,11 +590,11 @@ func (driver *storageDriver) RequestSession(sessionRequirements restapi.SessionR
 
 	var id string
 	err = driver.db.QueryRowContext(driver.ctx, "INSERT INTO sessions ("+
-		"state, version, persistent, requirements, vram_required, updated_at"+
+		"state, exit_status, version, persistent, requirements, vram_required, updated_at"+
 		") VALUES ("+
-		"$1, $2, $3, $4, $5, now()"+
+		"$1, $2, $3, $4, $5, $6, now()"+
 		") RETURNING id",
-		sessionStateToString(restapi.SessionQueued), sessionRequirements.Version,
+		restapi.SessionQueued, restapi.ExitStatusUnknown, sessionRequirements.Version,
 		sessionRequirements.Persistent, requirements, storage.TotalVramRequired(sessionRequirements)).Scan(&id)
 	if err != nil {
 		return "", errors.Join(err, tx.Rollback())

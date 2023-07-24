@@ -15,7 +15,6 @@ import (
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
-	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/server"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
@@ -131,37 +130,15 @@ func (c *Frontend) update() error {
 	defer c.Unlock()
 
 	c.agents.Set(float64(data.Agents))
+	c.agentsByStatus.Reset()
 	for key, value := range data.AgentsByStatus {
-		switch key {
-		case restapi.AgentActive:
-			c.agentsByStatus.WithLabelValues("Active").Set(float64(value))
-		case restapi.AgentDisabled:
-			c.agentsByStatus.WithLabelValues("Disabled").Set(float64(value))
-		case restapi.AgentMissing:
-			c.agentsByStatus.WithLabelValues("Missing").Set(float64(value))
-		case restapi.AgentClosed:
-			c.agentsByStatus.WithLabelValues("Closed").Set(float64(value))
-		}
+		c.agentsByStatus.WithLabelValues(key).Set(float64(value))
 	}
 
 	c.sessions.Set(float64(data.Sessions))
+	c.sessionsByStatus.Reset()
 	for key, value := range data.SessionsByStatus {
-		switch key {
-		case restapi.SessionQueued:
-			c.sessionsByStatus.WithLabelValues("Queued").Set(float64(value))
-		case restapi.SessionAssigned:
-			c.sessionsByStatus.WithLabelValues("Assigned").Set(float64(value))
-		case restapi.SessionActive:
-			c.sessionsByStatus.WithLabelValues("Active").Set(float64(value))
-		case restapi.SessionClosed:
-			c.sessionsByStatus.WithLabelValues("Closed").Set(float64(value))
-		case restapi.SessionFailed:
-			c.sessionsByStatus.WithLabelValues("Failed").Set(float64(value))
-		case restapi.SessionCanceling:
-			c.sessionsByStatus.WithLabelValues("Cancelling").Set(float64(value))
-		case restapi.SessionCanceled:
-			c.sessionsByStatus.WithLabelValues("Canceled").Set(float64(value))
-		}
+		c.sessionsByStatus.WithLabelValues(key).Set(float64(value))
 	}
 
 	c.gpus.Set(float64(data.Gpus))

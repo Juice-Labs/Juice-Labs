@@ -21,9 +21,9 @@ type Percentile[T any] struct {
 
 type AggregatedData struct {
 	Agents                   int
-	AgentsByStatus           []int
+	AgentsByStatus           map[string]int
 	Sessions                 int
-	SessionsByStatus         []int
+	SessionsByStatus         map[string]int
 	Gpus                     int
 	GpusByGpuName            map[string]int
 	Vram                     uint64

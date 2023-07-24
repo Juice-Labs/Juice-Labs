@@ -9,8 +9,12 @@ create type session_state as enum (
     'assigned',
     'active',
     'canceling',
-    'closed',
-    'failed',
+    'closed'
+);
+create type session_exit_status as enum (
+    'unknown',
+    'success',
+    'failure',
     'canceled'
 );
 
@@ -39,6 +43,7 @@ create table sessions (
     id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
     agent_id uuid,
     state session_state NOT NULL,
+    exit_status session_exit_status NOT NULL,
     address text,
     version text NOT NULL,
     persistent boolean NOT NULL,
