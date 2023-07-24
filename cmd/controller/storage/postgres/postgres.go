@@ -106,7 +106,7 @@ func (iterator *tableIterator[T]) Value() T {
 }
 
 const (
-	selectAgents = `SELECT id, state, hostname, address, version, max_sessions, gpus, 
+	selectAgents = `SELECT id, state, hostname, address, version, gpus, 
 			( SELECT ARRAY (
 				SELECT ( SELECT row(key, value) FROM key_values WHERE id = agent_labels.key_value_id ) FROM agent_labels WHERE agent_id = agents.id
 			) ) labels, 
@@ -146,7 +146,7 @@ func unmarshalAgent(row sqlRow) (restapi.Agent, error) {
 		Sessions: make([]restapi.Session, 0),
 	}
 
-	err := row.Scan(&agent.Id, &agent.State, &agent.Hostname, &agent.Address, &agent.Version, &agent.MaxSessions, &gpus, &labels, &taints, &sessions)
+	err := row.Scan(&agent.Id, &agent.State, &agent.Hostname, &agent.Address, &agent.Version, &gpus, &labels, &taints, &sessions)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			err = storage.ErrNotFound
@@ -460,12 +460,12 @@ func (driver *storageDriver) RegisterAgent(agent restapi.Agent) (string, error) 
 
 	var id string
 	err = driver.db.QueryRowContext(driver.ctx, "INSERT INTO agents ("+
-		"state, hostname, address, version, max_sessions, gpus, vram_available, sessions_available, updated_at"+
+		"state, hostname, address, version, gpus, vram_available, updated_at"+
 		") VALUES ("+
-		"$1, $2, $3, $4, $5, $6, $7, $8, now()"+
+		"$1, $2, $3, $4, $5, $6, now()"+
 		") RETURNING id",
 		agent.State, agent.Hostname, agent.Address, agent.Version,
-		agent.MaxSessions, gpus, storage.TotalVram(agent.Gpus), agent.MaxSessions).Scan(&id)
+		gpus, storage.TotalVram(agent.Gpus)).Scan(&id)
 	if err != nil {
 		return "", errors.Join(err, tx.Rollback())
 	}
@@ -557,8 +557,8 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 	if closedSessionsCount > 0 {
 		_, err = driver.db.ExecContext(driver.ctx, `UPDATE agents SET vram_available = (
 				SELECT SUM(vram_required) FROM sessions WHERE id = ANY($1)
-			), sessions_available = sessions_available + $2, state = $3, gpus = $4, updated_at = now() WHERE id = $5`,
-			pq.StringArray(closedSessions), closedSessionsCount, update.State, gpusData, update.Id)
+			), state = $2, gpus = $3, updated_at = now() WHERE id = $4`,
+			pq.StringArray(closedSessions), update.State, gpusData, update.Id)
 	} else {
 		_, err = driver.db.ExecContext(driver.ctx, "UPDATE agents SET state = $1, gpus = $2, updated_at = now() WHERE id = $3", update.State, gpusData, update.Id)
 	}
@@ -656,14 +656,14 @@ func (driver *storageDriver) AssignSession(sessionId string, agentId string, gpu
 
 	_, err = driver.db.ExecContext(driver.ctx, `UPDATE agents SET vram_available = vram_available - (
 			SELECT vram_required FROM sessions WHERE id = $1
-		), sessions_available = sessions_available - 1, updated_at = now() WHERE id = $2`, sessionId, agentId)
+		), updated_at = now() WHERE id = $2`, sessionId, agentId)
 	if err != nil {
 		return errors.Join(err, tx.Rollback())
 	}
 
-	_, err = driver.db.ExecContext(driver.ctx, `UPDATE sessions SET agent_id = $1, state = 'assigned', address = (
+	_, err = driver.db.ExecContext(driver.ctx, `UPDATE sessions SET agent_id = $1, state = $2, address = (
 			SELECT address FROM agents WHERE id = $1
-		), gpus = $2, updated_at = now() WHERE id = $3`, agentId, gpusData, sessionId)
+		), gpus = $3, updated_at = now() WHERE id = $4`, agentId, restapi.SessionAssigned, gpusData, sessionId)
 	if err != nil {
 		return errors.Join(err, tx.Rollback())
 	}
@@ -690,7 +690,7 @@ func (driver *storageDriver) GetAgents() (storage.Iterator[restapi.Agent], error
 
 func (driver *storageDriver) GetAvailableAgentsMatching(totalAvailableVramAtLeast uint64) (storage.Iterator[restapi.Agent], error) {
 	statement, err := driver.db.PrepareContext(driver.ctx, selectAgentsIteratorWhere(
-		fmt.Sprint("state = 'active' AND vram_available >= ", totalAvailableVramAtLeast, " AND sessions_available > 0"), 20))
+		fmt.Sprint("state = 'active' AND vram_available >= ", totalAvailableVramAtLeast), 20))
 	if err != nil {
 		return nil, err
 	}

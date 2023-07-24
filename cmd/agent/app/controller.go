@@ -53,7 +53,8 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 			Address: *controllerAddress,
 		}
 
-		agent.sessionUpdates = make(chan sessionUpdate, agent.maxSessions*4)
+		// Default queue depth of 32 to limit the amount of potential blocking between updates
+		agent.sessionUpdates = make(chan sessionUpdate, 32)
 
 		if *disableControllerTls {
 			agent.api.Scheme = "http"
@@ -64,15 +65,14 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 		}
 
 		id, err := agent.api.RegisterAgentWithContext(group.Ctx(), restapi.Agent{
-			Id:          agent.Id,
-			State:       restapi.AgentActive,
-			Hostname:    agent.Hostname,
-			Address:     *expose,
-			Version:     build.Version,
-			MaxSessions: agent.maxSessions,
-			Gpus:        agent.Gpus.GetGpus(),
-			Labels:      agent.labels,
-			Taints:      agent.taints,
+			Id:       agent.Id,
+			State:    restapi.AgentActive,
+			Hostname: agent.Hostname,
+			Address:  *expose,
+			Version:  build.Version,
+			Gpus:     agent.Gpus.GetGpus(),
+			Labels:   agent.labels,
+			Taints:   agent.taints,
 		})
 		if err != nil {
 			return fmt.Errorf("Agent.ConnectToController: failed to register with Controller at %s with %s", *controllerAddress, err)
