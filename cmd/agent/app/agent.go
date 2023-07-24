@@ -198,6 +198,11 @@ func (agent *Agent) addSession(session *session.Session) *Reference[session.Sess
 	logger.Tracef("Starting Session %s", session.Id())
 
 	reference := NewReference(session, func() {
+		err := session.Close()
+		if err != nil {
+			logger.Errorf("session %s experienced a failure during closing, %v", session.Id(), err)
+		}
+
 		agent.sessionsMutex.Lock()
 		defer agent.sessionsMutex.Unlock()
 
@@ -225,7 +230,6 @@ func (agent *Agent) runSession(group task.Group, id string, juicePath string, ve
 	if err == nil {
 		group.GoFn("Agent runSession", func(group task.Group) error {
 			err := reference.Object.Wait()
-			err = errors.Join(err, reference.Object.Close())
 			reference.Release()
 			return err
 		})

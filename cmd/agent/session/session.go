@@ -24,7 +24,7 @@ import (
 )
 
 type EventListener interface {
-	SessionStateChanged(id string, state int)
+	SessionStateChanged(id string, state string)
 }
 
 type Session struct {
@@ -34,7 +34,8 @@ type Session struct {
 	juicePath string
 	version   string
 
-	state int
+	state      string
+	exitStatus string
 
 	gpus *gpu.SelectedGpuSet
 
@@ -51,6 +52,7 @@ func New(id string, juicePath string, version string, gpus *gpu.SelectedGpuSet, 
 		juicePath:     juicePath,
 		version:       version,
 		state:         restapi.SessionActive,
+		exitStatus:    restapi.ExitStatusUnknown,
 		gpus:          gpus,
 		eventListener: eventListener,
 	}
@@ -68,14 +70,21 @@ func (session *Session) Session() restapi.Session {
 	defer session.mutex.Unlock()
 
 	return restapi.Session{
-		Id:      session.id,
-		State:   session.state,
-		Version: session.version,
-		Gpus:    session.gpus.GetGpus(),
+		Id:         session.id,
+		State:      session.state,
+		ExitStatus: session.exitStatus,
+		Version:    session.version,
+		Gpus:       session.gpus.GetGpus(),
 	}
 }
 
-func (session *Session) changeState(newState int) {
+func (session *Session) setExitStatus(exitStatus string) {
+	if session.exitStatus == restapi.ExitStatusUnknown {
+		session.exitStatus = exitStatus
+	}
+}
+
+func (session *Session) changeState(newState string) {
 	session.eventListener.SessionStateChanged(session.id, newState)
 	session.state = newState
 }
@@ -94,9 +103,7 @@ func (session *Session) Close() error {
 	session.gpus.Release()
 	session.gpus = nil
 
-	if session.state < restapi.SessionClosed {
-		session.changeState(restapi.SessionClosed)
-	}
+	session.changeState(restapi.SessionClosed)
 
 	return err
 }
@@ -156,8 +163,7 @@ func (session *Session) Start(group task.Group) error {
 
 	if err != nil {
 		err = fmt.Errorf("Session: failed to start Renderer_Win with %s", err)
-
-		session.changeState(restapi.SessionFailed)
+		session.setExitStatus(restapi.ExitStatusFailure)
 	}
 
 	return err
@@ -165,14 +171,16 @@ func (session *Session) Start(group task.Group) error {
 
 func (session *Session) Wait() error {
 	err := session.cmd.Wait()
-	if err != nil {
-		logger.Error(fmt.Sprintf("Session: session %s crashed with %s", session.id, err))
-
-		session.changeState(restapi.SessionFailed)
-	}
 
 	session.mutex.Lock()
 	defer session.mutex.Unlock()
+
+	if err != nil {
+		logger.Error(fmt.Sprintf("Session: session %s failed with %s", session.id, err))
+		session.setExitStatus(restapi.ExitStatusFailure)
+	} else {
+		session.setExitStatus(restapi.ExitStatusSuccess)
+	}
 
 	session.cmd = nil
 	return nil
@@ -182,8 +190,8 @@ func (session *Session) Cancel() error {
 	session.mutex.Lock()
 	defer session.mutex.Unlock()
 
-	if session.state < restapi.SessionClosed {
-		session.changeState(restapi.SessionCanceled)
+	if session.cmd != nil {
+		session.setExitStatus(restapi.ExitStatusCanceled)
 		return session.cmd.Cancel()
 	}
 

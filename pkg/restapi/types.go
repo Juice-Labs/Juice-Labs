@@ -4,27 +4,25 @@
 package restapi
 
 const (
-	SessionQueued int = iota
-	SessionAssigned
-	SessionActive
-	SessionCanceling
-
-	// Closed states
-	SessionClosed
-	SessionFailed
-	SessionCanceled
-
-	SessionStateCount
+	SessionClosed    = "closed"
+	SessionQueued    = "queued"
+	SessionAssigned  = "assigned"
+	SessionActive    = "active"
+	SessionCanceling = "canceling"
 )
 
-// Restarting iota in a new block
 const (
-	AgentActive int = iota
-	AgentDisabled
-	AgentMissing
-	AgentClosed
+	ExitStatusUnknown  = "unknown"
+	ExitStatusSuccess  = "success"
+	ExitStatusFailure  = "failure"
+	ExitStatusCanceled = "canceled"
+)
 
-	AgentStateCount
+const (
+	AgentClosed   = "closed"
+	AgentActive   = "active"
+	AgentDisabled = "disabled"
+	AgentMissing  = "missing"
 )
 
 type GpuRequirements struct {
@@ -50,7 +48,8 @@ type SessionGpu struct {
 
 type Session struct {
 	Id         string `json:"id"`
-	State      int    `json:"state"`
+	State      string `json:"state"`
+	ExitStatus string `json:"exitStatus"`
 	Address    string `json:"address"`
 	Version    string `json:"version"`
 	Persistent bool   `json:"persistent"`
@@ -88,7 +87,7 @@ type Gpu struct {
 
 type Agent struct {
 	Id       string `json:"id"`
-	State    int    `json:"state"`
+	State    string `json:"state"`
 	Hostname string `json:"hostname"`
 	Address  string `json:"address"`
 	Version  string `json:"version"`
@@ -103,18 +102,18 @@ type Agent struct {
 }
 
 type Status struct {
-	State    string `json:"status"`
+	State    string `json:"state"`
 	Version  string `json:"version"`
 	Hostname string `json:"hostname"`
 }
 
 type SessionUpdate struct {
-	State int `json:"state"`
+	State string `json:"state"`
 }
 
 type AgentUpdate struct {
 	Id       string                   `json:"id"`
-	State    int                      `json:"state"`
+	State    string                   `json:"state"`
 	Sessions map[string]SessionUpdate `json:"sessions"`
 	Gpus     []GpuMetrics             `json:"gpus"`
 }

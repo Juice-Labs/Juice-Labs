@@ -112,8 +112,8 @@ func (driver *storageDriver) AggregateData() (storage.AggregatedData, error) {
 	}
 
 	data := storage.AggregatedData{
-		AgentsByStatus:           make([]int, restapi.AgentStateCount),
-		SessionsByStatus:         make([]int, restapi.SessionStateCount),
+		AgentsByStatus:           map[string]int{},
+		SessionsByStatus:         map[string]int{},
 		GpusByGpuName:            map[string]int{},
 		VramByGpuName:            map[string]uint64{},
 		VramUsedByGpuName:        map[string]uint64{},

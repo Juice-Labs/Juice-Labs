@@ -27,7 +27,7 @@ var (
 
 type sessionUpdate struct {
 	Id    string
-	State int
+	State string
 }
 
 type controllerData struct {
@@ -165,9 +165,9 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 	return nil
 }
 
-func (agent *Agent) SessionStateChanged(id string, state int) {
+func (agent *Agent) SessionStateChanged(id string, state string) {
 	if agent.sessionUpdates != nil {
-		logger.Tracef("session %s changed state to %d", id, state)
+		logger.Tracef("session %s changed state to %s", id, state)
 		agent.sessionUpdates <- sessionUpdate{
 			Id:    id,
 			State: state,
