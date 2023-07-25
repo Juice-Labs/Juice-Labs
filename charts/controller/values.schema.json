@@ -13,6 +13,65 @@
             "description": "The container image to use",
             "type": "string"
         },
+        "postgresql": {
+            "description": "",
+            "type": "object",
+            "required": [
+                "user",
+                "password",
+                "dbname",
+                "host"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "user": {
+                    "description": "",
+                    "type": "string"
+                },
+                "password": {
+                    "description": "",
+                    "type": "string"
+                },
+                "dbname": {
+                    "description": "",
+                    "type": "string"
+                },
+                "host": {
+                    "description": "",
+                    "type": "string"
+                },
+                "port": {
+                    "description": "",
+                    "type": "number"
+                },
+                "sslmode": {
+                    "description": "",
+                    "type": "string",
+                    "enum": [
+                        "disable",
+                        "require",
+                        "verify-ca",
+                        "verify-full"
+                    ]
+                },
+                "connect_timeout": {
+                    "description": "",
+                    "type": "number"
+                },
+                "sslcert": {
+                    "description": "",
+                    "type": "string"
+                },
+                "sslkey": {
+                    "description": "",
+                    "type": "string"
+                },
+                "sslrootcert": {
+                    "description": "",
+                    "type": "string"
+                }
+            }
+        },
         "frontend": {
             "description": "",
             "type": "object",
@@ -30,52 +89,10 @@
                     "description": "",
                     "type": "number"
                 },
-                "spec": {
-                    "description": "",
-                    "type": "object",
-                    "additionalProperties": false,
-                    "properties": {
-                        "additionalSpec": {
-                            "description": "",
-                            "type": "object",
-                            "additionalProperties": true,
-                            "properties": {
-                                "selector": false
-                            }
-                        },
-                        "template": {
-                            "description": "",
-                            "type": "object",
-                            "additionalProperties": false,
-                            "properties": {
-                                "additionalSpec": {
-                                    "description": "",
-                                    "type": "object",
-                                    "additionalProperties": true,
-                                    "properties": {
-                                        "containers": false
-                                    }
-                                },
-                                "controller": {
-                                    "description": "",
-                                    "type": "object",
-                                    "additionalProperties": false,
-                                    "properties": {
-                                        "additionalSpec": {
-                                            "description": "",
-                                            "type": "object",
-                                            "additionalProperties": true,
-                                            "properties": {
-                                                "name": false,
-                                                "image": false
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                "additionalSpec": { "#ref": "#/$defs/additionalSpec" },
+                "additionalTemplateSpec": { "#ref": "#/$defs/additionalTemplateSpec" },
+                "additionalControllerSpec": { "#ref": "#/$defs/additionalControllerSpec" },
+                "additionalControllerArgs": { "#ref": "#/$defs/additionalControllerArgs" }
             }
         },
         "backend": {
@@ -90,53 +107,58 @@
                     "description": "The metadata name for the backend deployment",
                     "type": "string"
                 },
-                "spec": {
-                    "description": "",
-                    "type": "object",
-                    "additionalProperties": false,
-                    "properties": {
-                        "additionalSpec": {
-                            "description": "",
-                            "type": "object",
-                            "additionalProperties": true,
-                            "properties": {
-                                "replicas": false,
-                                "selector": false
-                            }
-                        },
-                        "template": {
-                            "description": "",
-                            "type": "object",
-                            "additionalProperties": false,
-                            "properties": {
-                                "additionalSpec": {
-                                    "description": "",
-                                    "type": "object",
-                                    "additionalProperties": true,
-                                    "properties": {
-                                        "containers": false
-                                    }
-                                },
-                                "controller": {
-                                    "description": "",
-                                    "type": "object",
-                                    "additionalProperties": false,
-                                    "properties": {
-                                        "additionalSpec": {
-                                            "description": "",
-                                            "type": "object",
-                                            "additionalProperties": true,
-                                            "properties": {
-                                                "name": false,
-                                                "image": false
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                "additionalSpec": { "#ref": "#/$defs/additionalSpec" },
+                "additionalTemplateSpec": { "#ref": "#/$defs/additionalTemplateSpec" },
+                "additionalControllerSpec": { "#ref": "#/$defs/additionalControllerSpec" },
+                "additionalControllerArgs": { "#ref": "#/$defs/additionalControllerArgs" }
+            }
+        },
+        "common": {
+            "description": "",
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "additionalSpec": { "#ref": "#/$defs/additionalSpec" },
+                "additionalTemplateSpec": { "#ref": "#/$defs/additionalTemplateSpec" },
+                "additionalControllerSpec": { "#ref": "#/$defs/additionalControllerSpec" },
+                "additionalControllerArgs": { "#ref": "#/$defs/additionalControllerArgs" }
+            }
+        }
+    },
+
+    "$defs": {
+        "additionalSpec": {
+            "description": "",
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+                "replicas": false,
+                "selector": false
+            }
+        },
+        "additionalTemplateSpec": {
+            "description": "",
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+                "containers": false
+            }
+        },
+        "additionalControllerSpec": {
+            "description": "",
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+                "name": false,
+                "image": false,
+                "args": false
+            }
+        },
+        "additionalControllerArgs": {
+            "description": "",
+            "type": "array",
+            "items": {
+                "type": "string"
             }
         }
     }

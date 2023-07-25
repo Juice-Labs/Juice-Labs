@@ -9,20 +9,64 @@ spec:
   selector:
     matchLabels:
       app: controller-frontend
-{{- if and .Values.frontend.spec .Values.frontend.spec.additionalSpec }}
-{{ toYaml .Values.frontend.spec.additionalSpec | indent 2 }}
+{{- if and .Values.common .Values.common.additionalSpec }}
+{{ toYaml .Values.common.additionalSpec | indent 2 }}
+{{- end }}
+{{- if .Values.frontend.additionalSpec }}
+{{ toYaml .Values.frontend.additionalSpec | indent 2 }}
 {{- end }}
   template:
     metadata:
       labels:
         app: controller-frontend
     spec:
-{{- if and .Values.frontend.spec .Values.frontend.spec.template .Values.frontend.spec.template.additionalSpec }}
-{{ toYaml .Values.frontend.spec.template.additionalSpec | indent 6 }}
+{{- if and .Values.common .Values.common.additionalTemplateSpec }}
+{{ toYaml .Values.common.additionalTemplateSpec | indent 6 }}
+{{- end }}
+{{- if .Values.frontend.additionalTemplateSpec }}
+{{ toYaml .Values.frontend.additionalTemplateSpec | indent 6 }}
 {{- end }}
       containers:
       - name: controller
         image: {{ .Values.image }}
-{{- if and .Values.frontend.spec .Values.frontend.spec.template .Values.frontend.spec.template.controller .Values.frontend.spec.template.controller.additionalSpec }}
-{{ toYaml .Values.frontend.spec.template.controller.additionalSpec | indent 8 }}
+{{- if and .Values.common .Values.common.additionalControllerSpec }}
+{{ toYaml .Values.common.additionalControllerSpec | indent 8 }}
+{{- end }}
+{{- if .Values.frontend.additionalControllerSpec }}
+{{ toYaml .Values.frontend.additionalControllerSpec | indent 8 }}
+{{- end }}
+        args:
+        - --frontend
+{{- if .Values.postgresql }}
+        - --psql-connection
+{{- with .Values.postgresql }}
+        - >
+          user='{{ .user }}'
+          password='{{ .password }}'
+          dbname='{{ .dbname }}'
+          host='{{ .host }}'
+{{- if .sslmode }}
+          sslmode='{{ .sslmode }}'
+{{- end }}
+{{- if .connect_timeout }}
+          connect_timeout={{ .connect_timeout }}
+{{- end }}
+{{- if .sslcert }}
+          sslcert='{{ .sslcert }}'
+{{- end }}
+{{- if .sslkey }}
+          sslkey='{{ .sslkey }}'
+{{- end }}
+{{- if .sslrootcert }}
+          sslrootcert='{{ .sslrootcert }}'
+{{- end }}
+{{- end }}
+{{- else }}
+        - --use-memdb
+{{- end }}
+{{- if and .Values.common .Values.common.additionalControllerArgs }}
+{{ toYaml .Values.common.additionalControllerArgs | indent 8 }}
+{{- end }}
+{{- if .Values.frontend.additionalControllerArgs }}
+{{ toYaml .Values.frontend.additionalControllerArgs | indent 8 }}
 {{- end }}
