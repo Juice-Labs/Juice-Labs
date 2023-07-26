@@ -35,8 +35,8 @@ var (
 	generateCert = flag.Bool("generate-cert", false, "Generates a certificate for https")
 	disableTls   = flag.Bool("disable-tls", true, "")
 
-	enableFrontend   = flag.Bool("frontend", true, "")
-	enableBackend    = flag.Bool("backend", true, "")
+	enableFrontend   = flag.Bool("frontend", false, "")
+	enableBackend    = flag.Bool("backend", false, "")
 	enablePrometheus = flag.Bool("prometheus", false, "")
 
 	address = flag.String("address", "0.0.0.0:8080", "The IP address and port to use for listening for client connections")
@@ -114,7 +114,7 @@ func main() {
 		}
 
 		if err := godotenv.Load(); err != nil {
-			logger.Infof("Error loading the .env file: %v", err)
+			logger.Warningf("Error loading the .env file: %v", err)
 		}
 
 		if *enableFrontend {
