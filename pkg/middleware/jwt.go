@@ -27,6 +27,13 @@ func (c CustomClaims) Validate(ctx context.Context) error {
 // EnsureValidToken is a middleware that will check the validity of our JWT.
 func EnsureValidToken() func(next http.Handler) http.Handler {
 
+	disableValidation := os.Getenv("DISABLE_VALIDATION")
+
+	if disableValidation == "true" {
+		return func(next http.Handler) http.Handler {
+			return next
+		}
+	}
 	domain := os.Getenv("AUTH0_DOMAIN")
 	issuerURL, err := url.Parse("https://" + domain + "/")
 	if err != nil {
