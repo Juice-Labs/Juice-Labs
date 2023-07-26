@@ -79,7 +79,7 @@
             "required": [
                 "name",
                 "replicas",
-                "containerPort"
+                "port"
             ],
             "additionalProperties": false,
             "properties": {
@@ -87,7 +87,7 @@
                     "description": "The metadata name for the frontend deployment",
                     "type": "string"
                 },
-                "containerPort": {
+                "port": {
                     "description": "",
                     "type": "number"
                 },

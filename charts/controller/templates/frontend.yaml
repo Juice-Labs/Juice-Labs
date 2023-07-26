@@ -49,7 +49,7 @@ spec:
         image: {{ .Values.image }}
         ports:
           - name: controller
-            containerPort: {{ .Values.frontend.containerPort }}
+            containerPort: {{ .Values.frontend.port }}
         livenessProbe:
           httpGet:
             path: /v1/status
@@ -58,7 +58,7 @@ spec:
           periodSeconds: 30
         env:
         - name: PORT
-          value: {{ .Values.frontend.containerPort }}
+          value: {{ .Values.frontend.port }}
 {{- if and .Values.common .Values.common.additionalControllerSpec }}
 {{ toYaml .Values.common.additionalControllerSpec | indent 8 }}
 {{- end }}
@@ -67,11 +67,11 @@ spec:
 {{- end }}
         args:
         - --frontend
+        - --address 0.0.0.0:{{ .Values.frontend.port }}
 {{- if .Values.postgresql }}
         - --psql-connection
 {{- with .Values.postgresql }}
-        - >
-          user='{{ .user }}'
+        - user='{{ .user }}'
           password='{{ .password }}'
           dbname='{{ .dbname }}'
           host='{{ .host }}'
