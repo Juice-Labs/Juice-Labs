@@ -67,7 +67,6 @@ spec:
 {{- end }}
         args:
         - --frontend
-        - --address 0.0.0.0:{{ .Values.frontend.port }}
 {{- if .Values.postgresql }}
         - --psql-connection
 {{- with .Values.postgresql }}
