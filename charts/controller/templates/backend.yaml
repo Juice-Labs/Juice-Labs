@@ -3,12 +3,24 @@ kind: Deployment
 metadata:
   name: {{ .Values.backend.name }}
   labels:
-    app: controller-backend
+    app.juicelabs.co/controller: backend
+{{- if and .Values.common .Values.common.additionalLabels }}
+{{ toYaml .Values.common.additionalLabels | indent 4 }}
+{{- end }}
+{{- if .Values.backend.additionalLabels }}
+{{ toYaml .Values.backend.additionalLabels | indent 4 }}
+{{- end }}
 spec:
-  replicas: 1
+  replicas: 0
   selector:
     matchLabels:
-      app: controller-backend
+      app.juicelabs.co/controller: backend
+{{- if and .Values.common .Values.common.additionalLabels }}
+{{ toYaml .Values.common.additionalLabels | indent 6 }}
+{{- end }}
+{{- if .Values.backend.additionalLabels }}
+{{ toYaml .Values.backend.additionalLabels | indent 6 }}
+{{- end }}
 {{- if and .Values.common .Values.common.additionalSpec }}
 {{ toYaml .Values.common.additionalSpec | indent 2 }}
 {{- end }}
@@ -18,7 +30,13 @@ spec:
   template:
     metadata:
       labels:
-        app: controller-backend
+        app.juicelabs.co/controller: backend
+{{- if and .Values.common .Values.common.additionalTemplateLabels }}
+{{ toYaml .Values.common.additionalTemplateLabels | indent 8 }}
+{{- end }}
+{{- if .Values.backend.additionalTemplateLabels }}
+{{ toYaml .Values.backend.additionalTemplateLabels | indent 8 }}
+{{- end }}
     spec:
 {{- if and .Values.common .Values.common.additionalTemplateSpec }}
 {{ toYaml .Values.common.additionalTemplateSpec | indent 6 }}

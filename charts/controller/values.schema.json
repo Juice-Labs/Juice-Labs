@@ -5,12 +5,13 @@
     "required": [
         "frontend",
         "backend",
-        "image"
+        "image",
+        "service"
     ],
     "additionalProperties": false,
     "properties": {
         "image": {
-            "description": "The container image to use",
+            "description": "",
             "type": "string"
         },
         "postgresql": {
@@ -77,7 +78,8 @@
             "type": "object",
             "required": [
                 "name",
-                "replicas"
+                "replicas",
+                "containerPort"
             ],
             "additionalProperties": false,
             "properties": {
@@ -85,11 +87,17 @@
                     "description": "The metadata name for the frontend deployment",
                     "type": "string"
                 },
+                "containerPort": {
+                    "description": "",
+                    "type": "number"
+                },
                 "replicas": {
                     "description": "",
                     "type": "number"
                 },
+                "additionalLabels": { "#ref": "#/$defs/additionalSpec" },
                 "additionalSpec": { "#ref": "#/$defs/additionalSpec" },
+                "additionalTemplateLabels": { "#ref": "#/$defs/additionalTemplateLabels" },
                 "additionalTemplateSpec": { "#ref": "#/$defs/additionalTemplateSpec" },
                 "additionalControllerSpec": { "#ref": "#/$defs/additionalControllerSpec" },
                 "additionalControllerArgs": { "#ref": "#/$defs/additionalControllerArgs" }
@@ -107,7 +115,9 @@
                     "description": "The metadata name for the backend deployment",
                     "type": "string"
                 },
+                "additionalLabels": { "#ref": "#/$defs/additionalSpec" },
                 "additionalSpec": { "#ref": "#/$defs/additionalSpec" },
+                "additionalTemplateLabels": { "#ref": "#/$defs/additionalTemplateLabels" },
                 "additionalTemplateSpec": { "#ref": "#/$defs/additionalTemplateSpec" },
                 "additionalControllerSpec": { "#ref": "#/$defs/additionalControllerSpec" },
                 "additionalControllerArgs": { "#ref": "#/$defs/additionalControllerArgs" }
@@ -118,15 +128,45 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
+                "additionalLabels": { "#ref": "#/$defs/additionalSpec" },
                 "additionalSpec": { "#ref": "#/$defs/additionalSpec" },
+                "additionalTemplateLabels": { "#ref": "#/$defs/additionalTemplateLabels" },
                 "additionalTemplateSpec": { "#ref": "#/$defs/additionalTemplateSpec" },
                 "additionalControllerSpec": { "#ref": "#/$defs/additionalControllerSpec" },
                 "additionalControllerArgs": { "#ref": "#/$defs/additionalControllerArgs" }
+            }
+        },
+        "service": {
+            "description": "",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "name",
+                "port"
+            ],
+            "properties": {
+                "name": {
+                    "description": "The metadata name for the backend deployment",
+                    "type": "string"
+                },
+                "port": {
+                    "description": "",
+                    "type": "number"
+                },
+                "additionalSpec": { "#ref": "#/$defs/additionalServiceSpec" }
             }
         }
     },
 
     "$defs": {
+        "additionalLabels": {
+            "description": "",
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+                "app.juicelabs.co/controller": false
+            }
+        },
         "additionalSpec": {
             "description": "",
             "type": "object",
@@ -134,6 +174,14 @@
             "properties": {
                 "replicas": false,
                 "selector": false
+            }
+        },
+        "additionalTemplateLabels": {
+            "description": "",
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+                "app.juicelabs.co/controller": false
             }
         },
         "additionalTemplateSpec": {
@@ -159,6 +207,15 @@
             "type": "array",
             "items": {
                 "type": "string"
+            }
+        },
+        "additionalServiceSpec": {
+            "description": "",
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+                "ports": false,
+                "selector": false
             }
         }
     }

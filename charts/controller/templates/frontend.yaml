@@ -3,12 +3,24 @@ kind: Deployment
 metadata:
   name: {{ .Values.frontend.name }}
   labels:
-    app: controller-frontend
+    app.juicelabs.co/controller: frontend
+{{- if and .Values.common .Values.common.additionalLabels }}
+{{ toYaml .Values.common.additionalLabels | indent 4 }}
+{{- end }}
+{{- if .Values.frontend.additionalLabels }}
+{{ toYaml .Values.frontend.additionalLabels | indent 4 }}
+{{- end }}
 spec:
   replicas: {{ .Values.frontend.replicas }}
   selector:
     matchLabels:
-      app: controller-frontend
+      app.juicelabs.co/controller: frontend
+{{- if and .Values.common .Values.common.additionalLabels }}
+{{ toYaml .Values.common.additionalLabels | indent 6 }}
+{{- end }}
+{{- if .Values.frontend.additionalLabels }}
+{{ toYaml .Values.frontend.additionalLabels | indent 6 }}
+{{- end }}
 {{- if and .Values.common .Values.common.additionalSpec }}
 {{ toYaml .Values.common.additionalSpec | indent 2 }}
 {{- end }}
@@ -18,7 +30,13 @@ spec:
   template:
     metadata:
       labels:
-        app: controller-frontend
+        app.juicelabs.co/controller: frontend
+{{- if and .Values.common .Values.common.additionalTemplateLabels }}
+{{ toYaml .Values.common.additionalTemplateLabels | indent 8 }}
+{{- end }}
+{{- if .Values.frontend.additionalTemplateLabels }}
+{{ toYaml .Values.frontend.additionalTemplateLabels | indent 8 }}
+{{- end }}
     spec:
 {{- if and .Values.common .Values.common.additionalTemplateSpec }}
 {{ toYaml .Values.common.additionalTemplateSpec | indent 6 }}
@@ -29,6 +47,18 @@ spec:
       containers:
       - name: controller
         image: {{ .Values.image }}
+        ports:
+          - name: controller
+            containerPort: {{ .Values.frontend.containerPort }}
+        livenessProbe:
+          httpGet:
+            path: /v1/status
+            port: controller
+          initialDelaySeconds: 5
+          periodSeconds: 30
+        env:
+        - name: PORT
+          value: {{ .Values.frontend.containerPort }}
 {{- if and .Values.common .Values.common.additionalControllerSpec }}
 {{ toYaml .Values.common.additionalControllerSpec | indent 8 }}
 {{- end }}
