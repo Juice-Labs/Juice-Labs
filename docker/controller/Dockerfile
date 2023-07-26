@@ -22,4 +22,4 @@ WORKDIR /root
 
 COPY --from=build /tmp/juice/controller .
 
-ENTRYPOINT ["/bin/bash", "-c", "./controller --address 0.0.0.0:${PORT}", "--"]
+ENTRYPOINT ["/bin/bash", "-c", "./controller --address 0.0.0.0:${PORT} ${@}", "--"]
