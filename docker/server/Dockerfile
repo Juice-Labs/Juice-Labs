@@ -73,11 +73,10 @@ ENV NVIDIA_DRIVER_CAPABILITIES=compute,graphics,utility,video
 
 WORKDIR /root
 
-RUN tar -xf JuiceServer.tar.gz && \
-    ./setup.sh
+RUN tar -xf JuiceServer.tar.gz 
 
 WORKDIR /root/agent
 
-ENTRYPOINT ["/bin/bash", "-c", "../node/bin/node dist/bin/main.js --launcher ../Renderer_Win --port $PORT ${@}", "--"]
+ENTRYPOINT ["/bin/bash", "-c", "./agent --address 0.0.0.0:$PORT ${@}", "--"]
 
 LABEL maintainer="JUICE TECHNOLOGIES <juicelabs.co>"
