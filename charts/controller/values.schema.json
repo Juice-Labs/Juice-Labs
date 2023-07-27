@@ -17,61 +17,75 @@
         "postgresql": {
             "description": "",
             "type": "object",
-            "required": [
-                "user",
-                "password",
-                "dbname",
-                "host"
-            ],
-            "additionalProperties": false,
-            "properties": {
-                "user": {
-                    "description": "",
-                    "type": "string"
+            "oneOf": [
+                {
+                    "required": [
+                        "user",
+                        "password",
+                        "dbname",
+                        "host"
+                    ],
+                    "properties": {
+                        "user": {
+                            "description": "",
+                            "type": "string"
+                        },
+                        "password": {
+                            "description": "",
+                            "type": "string"
+                        },
+                        "dbname": {
+                            "description": "",
+                            "type": "string"
+                        },
+                        "host": {
+                            "description": "",
+                            "type": "string"
+                        },
+                        "port": {
+                            "description": "",
+                            "type": "number"
+                        },
+                        "sslmode": {
+                            "description": "",
+                            "type": "string",
+                            "enum": [
+                                "disable",
+                                "require",
+                                "verify-ca",
+                                "verify-full"
+                            ]
+                        },
+                        "connect_timeout": {
+                            "description": "",
+                            "type": "number"
+                        },
+                        "sslcert": {
+                            "description": "",
+                            "type": "string"
+                        },
+                        "sslkey": {
+                            "description": "",
+                            "type": "string"
+                        },
+                        "sslrootcert": {
+                            "description": "",
+                            "type": "string"
+                        }
+                    }
                 },
-                "password": {
-                    "description": "",
-                    "type": "string"
-                },
-                "dbname": {
-                    "description": "",
-                    "type": "string"
-                },
-                "host": {
-                    "description": "",
-                    "type": "string"
-                },
-                "port": {
-                    "description": "",
-                    "type": "number"
-                },
-                "sslmode": {
-                    "description": "",
-                    "type": "string",
-                    "enum": [
-                        "disable",
-                        "require",
-                        "verify-ca",
-                        "verify-full"
-                    ]
-                },
-                "connect_timeout": {
-                    "description": "",
-                    "type": "number"
-                },
-                "sslcert": {
-                    "description": "",
-                    "type": "string"
-                },
-                "sslkey": {
-                    "description": "",
-                    "type": "string"
-                },
-                "sslrootcert": {
-                    "description": "",
-                    "type": "string"
+                {
+                    "required": [
+                        "from_file"
+                    ],
+                    "additionalProperties": {
+                        "from_file": {
+                            "description": "",
+                            "type": "string"
+                        }
+                    }
                 }
-            }
+            ]
         },
         "frontend": {
             "description": "",
@@ -95,12 +109,24 @@
                     "description": "",
                     "type": "number"
                 },
-                "additionalLabels": { "#ref": "#/$defs/additionalSpec" },
-                "additionalSpec": { "#ref": "#/$defs/additionalSpec" },
-                "additionalTemplateLabels": { "#ref": "#/$defs/additionalTemplateLabels" },
-                "additionalTemplateSpec": { "#ref": "#/$defs/additionalTemplateSpec" },
-                "additionalControllerSpec": { "#ref": "#/$defs/additionalControllerSpec" },
-                "additionalControllerArgs": { "#ref": "#/$defs/additionalControllerArgs" }
+                "additionalLabels": {
+                    "#ref": "#/$defs/additionalSpec"
+                },
+                "additionalSpec": {
+                    "#ref": "#/$defs/additionalSpec"
+                },
+                "additionalTemplateLabels": {
+                    "#ref": "#/$defs/additionalTemplateLabels"
+                },
+                "additionalTemplateSpec": {
+                    "#ref": "#/$defs/additionalTemplateSpec"
+                },
+                "additionalControllerSpec": {
+                    "#ref": "#/$defs/additionalControllerSpec"
+                },
+                "additionalControllerArgs": {
+                    "#ref": "#/$defs/additionalControllerArgs"
+                }
             }
         },
         "backend": {
@@ -115,12 +141,24 @@
                     "description": "The metadata name for the backend deployment",
                     "type": "string"
                 },
-                "additionalLabels": { "#ref": "#/$defs/additionalSpec" },
-                "additionalSpec": { "#ref": "#/$defs/additionalSpec" },
-                "additionalTemplateLabels": { "#ref": "#/$defs/additionalTemplateLabels" },
-                "additionalTemplateSpec": { "#ref": "#/$defs/additionalTemplateSpec" },
-                "additionalControllerSpec": { "#ref": "#/$defs/additionalControllerSpec" },
-                "additionalControllerArgs": { "#ref": "#/$defs/additionalControllerArgs" }
+                "additionalLabels": {
+                    "#ref": "#/$defs/additionalSpec"
+                },
+                "additionalSpec": {
+                    "#ref": "#/$defs/additionalSpec"
+                },
+                "additionalTemplateLabels": {
+                    "#ref": "#/$defs/additionalTemplateLabels"
+                },
+                "additionalTemplateSpec": {
+                    "#ref": "#/$defs/additionalTemplateSpec"
+                },
+                "additionalControllerSpec": {
+                    "#ref": "#/$defs/additionalControllerSpec"
+                },
+                "additionalControllerArgs": {
+                    "#ref": "#/$defs/additionalControllerArgs"
+                }
             }
         },
         "common": {
@@ -128,12 +166,24 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-                "additionalLabels": { "#ref": "#/$defs/additionalSpec" },
-                "additionalSpec": { "#ref": "#/$defs/additionalSpec" },
-                "additionalTemplateLabels": { "#ref": "#/$defs/additionalTemplateLabels" },
-                "additionalTemplateSpec": { "#ref": "#/$defs/additionalTemplateSpec" },
-                "additionalControllerSpec": { "#ref": "#/$defs/additionalControllerSpec" },
-                "additionalControllerArgs": { "#ref": "#/$defs/additionalControllerArgs" }
+                "additionalLabels": {
+                    "#ref": "#/$defs/additionalSpec"
+                },
+                "additionalSpec": {
+                    "#ref": "#/$defs/additionalSpec"
+                },
+                "additionalTemplateLabels": {
+                    "#ref": "#/$defs/additionalTemplateLabels"
+                },
+                "additionalTemplateSpec": {
+                    "#ref": "#/$defs/additionalTemplateSpec"
+                },
+                "additionalControllerSpec": {
+                    "#ref": "#/$defs/additionalControllerSpec"
+                },
+                "additionalControllerArgs": {
+                    "#ref": "#/$defs/additionalControllerArgs"
+                }
             }
         },
         "service": {
@@ -153,11 +203,12 @@
                     "description": "",
                     "type": "number"
                 },
-                "additionalSpec": { "#ref": "#/$defs/additionalServiceSpec" }
+                "additionalSpec": {
+                    "#ref": "#/$defs/additionalServiceSpec"
+                }
             }
         }
     },
-
     "$defs": {
         "additionalLabels": {
             "description": "",

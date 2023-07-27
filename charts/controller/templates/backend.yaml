@@ -56,13 +56,17 @@ spec:
         args:
         - --backend
 {{- if .Values.postgresql }}
-        - --psql-connection
 {{- with .Values.postgresql }}
-        - >
+{{- if .from_file }}
+        - --psql-connection-from-file
+        - {{ .from_file }}
+{{- else }}
+        - --psql-connection
+        - >-
+          "dbname='{{ .dbname }}'
+          host='{{ .host }}'
           user='{{ .user }}'
           password='{{ .password }}'
-          dbname='{{ .dbname }}'
-          host='{{ .host }}'
 {{- if .sslmode }}
           sslmode='{{ .sslmode }}'
 {{- end }}
@@ -77,6 +81,8 @@ spec:
 {{- end }}
 {{- if .sslrootcert }}
           sslrootcert='{{ .sslrootcert }}'
+{{- end }}
+          "
 {{- end }}
 {{- end }}
 {{- else }}
