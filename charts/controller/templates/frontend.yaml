@@ -10,6 +10,15 @@ metadata:
 {{- if .Values.frontend.additionalLabels }}
 {{ toYaml .Values.frontend.additionalLabels | indent 4 }}
 {{- end }}
+{{- if or .Values.frontend.additionalAnnotations (and .Values.common .Values.common.additionalAnnotations) }}
+  annotations:
+{{- if and .Values.common .Values.common.additionalAnnotations }}
+{{ toYaml .Values.common.additionalAnnotations | indent 4 }}
+{{- end }}
+{{- if .Values.frontend.additionalAnnotations }}
+{{ toYaml .Values.frontend.additionalAnnotations | indent 4 }}
+{{- end }}
+{{- end }}
 spec:
   replicas: {{ .Values.frontend.replicas }}
   selector:
