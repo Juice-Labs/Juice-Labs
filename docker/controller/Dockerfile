@@ -5,7 +5,7 @@ FROM golang:latest as build
 COPY . /tmp/juice/
 
 RUN cd /tmp/juice && \
-    go build ./cmd/controller
+    go build -ldflags "-X cmd.internal.build.version=${JUICE_VERSION}" ./cmd/controller
 
 FROM ${BASE_CONTAINER}
 

@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.backend.name }}
+  labels:
+    app.juicelabs.co/controller: backend
+{{- if and .Values.common .Values.common.additionalLabels }}
+{{ toYaml .Values.common.additionalLabels | indent 4 }}
+{{- end }}
+{{- if .Values.backend.additionalLabels }}
+{{ toYaml .Values.backend.additionalLabels | indent 4 }}
+{{- end }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.juicelabs.co/controller: backend
+{{- if and .Values.common .Values.common.additionalLabels }}
+{{ toYaml .Values.common.additionalLabels | indent 6 }}
+{{- end }}
+{{- if .Values.backend.additionalLabels }}
+{{ toYaml .Values.backend.additionalLabels | indent 6 }}
+{{- end }}
+{{- if and .Values.common .Values.common.additionalSpec }}
+{{ toYaml .Values.common.additionalSpec | indent 2 }}
+{{- end }}
+{{- if .Values.backend.additionalSpec }}
+{{ toYaml .Values.backend.additionalSpec | indent 2 }}
+{{- end }}
+  template:
+    metadata:
+      labels:
+        app.juicelabs.co/controller: backend
+{{- if and .Values.common .Values.common.additionalTemplateLabels }}
+{{ toYaml .Values.common.additionalTemplateLabels | indent 8 }}
+{{- end }}
+{{- if .Values.backend.additionalTemplateLabels }}
+{{ toYaml .Values.backend.additionalTemplateLabels | indent 8 }}
+{{- end }}
+    spec:
+{{- if and .Values.common .Values.common.additionalTemplateSpec }}
+{{ toYaml .Values.common.additionalTemplateSpec | indent 6 }}
+{{- end }}
+{{- if .Values.backend.additionalTemplateSpec }}
+{{ toYaml .Values.backend.additionalTemplateSpec | indent 6 }}
+{{- end }}
+      containers:
+      - name: controller
+        image: {{ .Values.image }}
+{{- if and .Values.common .Values.common.additionalControllerSpec }}
+{{ toYaml .Values.common.additionalControllerSpec | indent 8 }}
+{{- end }}
+{{- if .Values.backend.additionalControllerSpec }}
+{{ toYaml .Values.backend.additionalControllerSpec | indent 8 }}
+{{- end }}
+        args:
+        - --backend
+{{- if .Values.postgresql }}
+{{- with .Values.postgresql }}
+{{- if .from_file }}
+        - --psql-connection-from-file
+        - {{ .from_file }}
+{{- else }}
+        - --psql-connection
+        - >-
+          "dbname='{{ .dbname }}'
+          host='{{ .host }}'
+          user='{{ .user }}'
+          password='{{ .password }}'
+{{- if .sslmode }}
+          sslmode='{{ .sslmode }}'
+{{- end }}
+{{- if .connect_timeout }}
+          connect_timeout={{ .connect_timeout }}
+{{- end }}
+{{- if .sslcert }}
+          sslcert='{{ .sslcert }}'
+{{- end }}
+{{- if .sslkey }}
+          sslkey='{{ .sslkey }}'
+{{- end }}
+{{- if .sslrootcert }}
+          sslrootcert='{{ .sslrootcert }}'
+{{- end }}
+          "
+{{- end }}
+{{- end }}
+{{- else }}
+        - --use-memdb
+{{- end }}
+{{- if and .Values.common .Values.common.additionalControllerArgs }}
+{{ toYaml .Values.common.additionalControllerArgs | indent 8 }}
+{{- end }}
+{{- if .Values.backend.additionalControllerArgs }}
+{{ toYaml .Values.backend.additionalControllerArgs | indent 8 }}
+{{- end }}

@@ -1,0 +1,108 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.frontend.name }}
+  labels:
+    app.juicelabs.co/controller: frontend
+{{- if and .Values.common .Values.common.additionalLabels }}
+{{ toYaml .Values.common.additionalLabels | indent 4 }}
+{{- end }}
+{{- if .Values.frontend.additionalLabels }}
+{{ toYaml .Values.frontend.additionalLabels | indent 4 }}
+{{- end }}
+spec:
+  replicas: {{ .Values.frontend.replicas }}
+  selector:
+    matchLabels:
+      app.juicelabs.co/controller: frontend
+{{- if and .Values.common .Values.common.additionalLabels }}
+{{ toYaml .Values.common.additionalLabels | indent 6 }}
+{{- end }}
+{{- if .Values.frontend.additionalLabels }}
+{{ toYaml .Values.frontend.additionalLabels | indent 6 }}
+{{- end }}
+{{- if and .Values.common .Values.common.additionalSpec }}
+{{ toYaml .Values.common.additionalSpec | indent 2 }}
+{{- end }}
+{{- if .Values.frontend.additionalSpec }}
+{{ toYaml .Values.frontend.additionalSpec | indent 2 }}
+{{- end }}
+  template:
+    metadata:
+      labels:
+        app.juicelabs.co/controller: frontend
+{{- if and .Values.common .Values.common.additionalTemplateLabels }}
+{{ toYaml .Values.common.additionalTemplateLabels | indent 8 }}
+{{- end }}
+{{- if .Values.frontend.additionalTemplateLabels }}
+{{ toYaml .Values.frontend.additionalTemplateLabels | indent 8 }}
+{{- end }}
+    spec:
+{{- if and .Values.common .Values.common.additionalTemplateSpec }}
+{{ toYaml .Values.common.additionalTemplateSpec | indent 6 }}
+{{- end }}
+{{- if .Values.frontend.additionalTemplateSpec }}
+{{ toYaml .Values.frontend.additionalTemplateSpec | indent 6 }}
+{{- end }}
+      containers:
+      - name: controller
+        image: {{ .Values.image }}
+        ports:
+          - name: controller
+            containerPort: {{ .Values.frontend.port }}
+        livenessProbe:
+          httpGet:
+            path: /v1/status
+            port: controller
+          initialDelaySeconds: 5
+          periodSeconds: 30
+        env:
+        - name: PORT
+          value: "{{ .Values.frontend.port }}"
+{{- if and .Values.common .Values.common.additionalControllerSpec }}
+{{ toYaml .Values.common.additionalControllerSpec | indent 8 }}
+{{- end }}
+{{- if .Values.frontend.additionalControllerSpec }}
+{{ toYaml .Values.frontend.additionalControllerSpec | indent 8 }}
+{{- end }}
+        args:
+        - --frontend
+{{- if .Values.postgresql }}
+{{- with .Values.postgresql }}
+{{- if .from_file }}
+        - --psql-connection-from-file
+        - {{ .from_file }}
+{{- else }}
+        - --psql-connection
+        - >-
+          "dbname='{{ .dbname }}'
+          host='{{ .host }}'
+          user='{{ .user }}'
+          password='{{ .password }}'
+{{- if .sslmode }}
+          sslmode='{{ .sslmode }}'
+{{- end }}
+{{- if .connect_timeout }}
+          connect_timeout={{ .connect_timeout }}
+{{- end }}
+{{- if .sslcert }}
+          sslcert='{{ .sslcert }}'
+{{- end }}
+{{- if .sslkey }}
+          sslkey='{{ .sslkey }}'
+{{- end }}
+{{- if .sslrootcert }}
+          sslrootcert='{{ .sslrootcert }}'
+{{- end }}
+          "
+{{- end }}
+{{- end }}
+{{- else }}
+        - --use-memdb
+{{- end }}
+{{- if and .Values.common .Values.common.additionalControllerArgs }}
+{{ toYaml .Values.common.additionalControllerArgs | indent 8 }}
+{{- end }}
+{{- if .Values.frontend.additionalControllerArgs }}
+{{ toYaml .Values.frontend.additionalControllerArgs | indent 8 }}
+{{- end }}

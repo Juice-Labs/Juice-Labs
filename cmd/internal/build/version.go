@@ -3,12 +3,6 @@
  */
 package build
 
-import "fmt"
-
 var (
-	Major    = 0
-	Minor    = 0
-	Revision = 0
-
-	Version = fmt.Sprintf("%d.%d.%d", Major, Minor, Revision)
+	Version = "0.0.0"
 )

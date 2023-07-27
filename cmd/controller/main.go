@@ -8,6 +8,9 @@ import (
 	"crypto/tls"
 	"errors"
 	"flag"
+	"fmt"
+	"io/ioutil"
+	"strings"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/backend"
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/frontend"
@@ -31,17 +34,32 @@ var (
 	enableBackend    = flag.Bool("backend", false, "")
 	enablePrometheus = flag.Bool("prometheus", false, "")
 
-	useMemdb = flag.Bool("use-memdb", false, "")
-
-	psqlConnection = flag.String("psql-connection", "", "See https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters")
+	psqlConnection         = flag.String("psql-connection", "", "See https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters")
+	psqlConnectionFromFile = flag.String("psql-connection-from-file", "", "See https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters")
 )
 
 func openStorage(ctx context.Context) (storage.Storage, error) {
-	if *useMemdb {
-		return memdb.OpenStorage(ctx)
+	if len(*psqlConnection) > 0 || len(*psqlConnectionFromFile) > 0 {
+		if len(*psqlConnection) > 0 && len(*psqlConnectionFromFile) > 0 {
+			return nil, errors.New("--psql-connection and --psql-connection-from-file are mutually exclusive, one or the other but not both")
+		}
+
+		connection := ""
+		if len(*psqlConnection) > 0 {
+			connection = *psqlConnection
+		} else {
+			text, err := ioutil.ReadFile(*psqlConnectionFromFile)
+			if err != nil {
+				return nil, fmt.Errorf("unable to read file %s, %v", *psqlConnectionFromFile, err)
+			}
+
+			connection = strings.TrimSpace(string(text))
+		}
+
+		return postgres.OpenStorage(ctx, connection)
 	}
 
-	return postgres.OpenStorage(ctx, *psqlConnection)
+	return memdb.OpenStorage(ctx)
 }
 
 func main() {

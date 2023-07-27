@@ -1,6 +1,10 @@
 image: docker.io/juicelabs/controller:latest
+service:
+  name: juice-controller
+  port: 8080
 frontend:
-  name: controller-frontend
-  replicas: 1
+  name: juice-controller-frontend
+  port: 8080
+  replicas: 3
 backend:
-  name: controller-backend
+  name: juice-controller-backend
