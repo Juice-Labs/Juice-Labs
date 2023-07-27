@@ -75,8 +75,6 @@ WORKDIR /root
 
 RUN tar -xf JuiceServer.tar.gz 
 
-WORKDIR /root/agent
-
 ENTRYPOINT ["/bin/bash", "-c", "./agent --address 0.0.0.0:$PORT ${@}", "--"]
 
 LABEL maintainer="JUICE TECHNOLOGIES <juicelabs.co>"
