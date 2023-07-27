@@ -555,12 +555,23 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 	}
 
 	if closedSessionsCount > 0 {
-		_, err = driver.db.ExecContext(driver.ctx, `UPDATE agents SET vram_available = (
-				SELECT SUM(vram_required) FROM sessions WHERE id = ANY($1)
-			), state = $2, gpus = $3, updated_at = now() WHERE id = $4`,
-			pq.StringArray(closedSessions), update.State, gpusData, update.Id)
+		if update.State != "" {
+			_, err = driver.db.ExecContext(driver.ctx, `UPDATE agents SET vram_available = (
+					SELECT SUM(vram_required) FROM sessions WHERE id = ANY($1)
+				), state = $2, gpus = $3, updated_at = now() WHERE id = $4`,
+				pq.StringArray(closedSessions), update.State, gpusData, update.Id)
+		} else {
+			_, err = driver.db.ExecContext(driver.ctx, `UPDATE agents SET vram_available = (
+					SELECT SUM(vram_required) FROM sessions WHERE id = ANY($1)
+				), gpus = $2, updated_at = now() WHERE id = $3`,
+				pq.StringArray(closedSessions), gpusData, update.Id)
+		}
 	} else {
-		_, err = driver.db.ExecContext(driver.ctx, "UPDATE agents SET state = $1, gpus = $2, updated_at = now() WHERE id = $3", update.State, gpusData, update.Id)
+		if update.State != "" {
+			_, err = driver.db.ExecContext(driver.ctx, "UPDATE agents SET state = $1, gpus = $2, updated_at = now() WHERE id = $3", update.State, gpusData, update.Id)
+		} else {
+			_, err = driver.db.ExecContext(driver.ctx, "UPDATE agents SET gpus = $1, updated_at = now() WHERE id = $2", gpusData, update.Id)
+		}
 	}
 
 	if err != nil {
