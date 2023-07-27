@@ -11,7 +11,7 @@ metadata:
 {{ toYaml .Values.backend.additionalLabels | indent 4 }}
 {{- end }}
 spec:
-  replicas: 0
+  replicas: 1
   selector:
     matchLabels:
       app.juicelabs.co/controller: backend
