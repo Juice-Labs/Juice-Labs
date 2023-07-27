@@ -158,6 +158,7 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 
 					err = errors.Join(err, agent.api.UpdateAgentWithContext(group.Ctx(), restapi.AgentUpdate{
 						Id:       agent.Id,
+						State:    restapi.AgentActive,
 						Sessions: sessionsUpdates,
 						Gpus:     agent.getGpuMetrics(),
 					}))
