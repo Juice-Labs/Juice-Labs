@@ -291,7 +291,10 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 	}
 
 	agent := utilities.Require[Agent](obj)
-	agent.State = update.State
+	if update.State != "" {
+		agent.State = update.State
+	}
+
 	agent.LastUpdated = now
 
 	if agent.State != restapi.AgentClosed {
