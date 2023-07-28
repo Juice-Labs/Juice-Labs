@@ -4,6 +4,10 @@ on:
   push:
     branches:
     - master
+    paths:
+    - cmd/controller/**
+    - docker/controller/**
+    - pkg/**
 
 jobs:
   docker:
