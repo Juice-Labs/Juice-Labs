@@ -41,7 +41,7 @@ var (
 
 	address = flag.String("address", "0.0.0.0:8080", "The IP address and port to use for listening for client connections")
 
-	psqlConnection         = flag.String("psql-connection", "host=localhost port=5432 user=postgres password=password dbname=postgres sslmode=disable", "See https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters")
+	psqlConnection         = flag.String("psql-connection", "", "See https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters")
 	psqlConnectionFromFile = flag.String("psql-connection-from-file", "", "See https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters")
 )
 

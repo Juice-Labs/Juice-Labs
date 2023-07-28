@@ -8,5 +8,7 @@ For local development:
     b. docker exec -it --user postgres <container id> psql -d postgres -a -f /var/lib/postgresql/1_init.sql
 3. Connect to postgres via 
  docker exec -it --user postgres <container id> psql
+4. Use the following connection string when running the controller:
+host=localhost port=5432 user=postgres password=password dbname=postgres sslmode=disable
 
 TODO: Script to initialize db
