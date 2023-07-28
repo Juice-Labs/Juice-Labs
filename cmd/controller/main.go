@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/backend"
@@ -39,21 +40,34 @@ var (
 )
 
 func openStorage(ctx context.Context) (storage.Storage, error) {
-	if len(*psqlConnection) > 0 || len(*psqlConnectionFromFile) > 0 {
-		if len(*psqlConnection) > 0 && len(*psqlConnectionFromFile) > 0 {
-			return nil, errors.New("--psql-connection and --psql-connection-from-file are mutually exclusive, one or the other but not both")
+	psqlConnectionFromEnv, psqlConnectionFromEnvPresent := os.LookupEnv("PSQL_CONNECTION")
+	if len(*psqlConnection) > 0 || len(*psqlConnectionFromFile) > 0 || psqlConnectionFromEnvPresent {
+		count := 0
+		if len(*psqlConnection) > 0 {
+			count++
+		}
+		if len(*psqlConnectionFromFile) > 0 {
+			count++
+		}
+		if psqlConnectionFromEnvPresent {
+			count++
+		}
+		if count > 1 {
+			return nil, errors.New("--psql-connection, --psql-connection-from-file and environment variable PSQL_CONNECTION are mutually exclusive")
 		}
 
 		connection := ""
 		if len(*psqlConnection) > 0 {
 			connection = *psqlConnection
-		} else {
+		} else if len(*psqlConnectionFromFile) > 0 {
 			text, err := ioutil.ReadFile(*psqlConnectionFromFile)
 			if err != nil {
 				return nil, fmt.Errorf("unable to read file %s, %v", *psqlConnectionFromFile, err)
 			}
 
 			connection = strings.TrimSpace(string(text))
+		} else {
+			connection = psqlConnectionFromEnv
 		}
 
 		return postgres.OpenStorage(ctx, connection)
