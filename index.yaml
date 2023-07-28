@@ -2,7 +2,20 @@ apiVersion: v1
 entries:
   juice-controller:
   - apiVersion: v2
-    created: "2023-07-28T00:28:06.324919052Z"
+    created: "2023-07-28T00:47:32.277974436Z"
+    digest: df28a1e8dea58c4f9ba03922b5d439ae558beabca394062d19bb1de2a177af3d
+    home: https://github.com/Juice-Labs/Juice-Labs
+    icon: https://raw.githubusercontent.com/Juice-Labs/Juice-Labs/master/assets/Juice.svg
+    maintainers:
+    - name: Juice Technologies, Inc.
+      url: juicelabs.co
+    name: juice-controller
+    type: application
+    urls:
+    - juice-controller-1.0.4.tgz
+    version: 1.0.4
+  - apiVersion: v2
+    created: "2023-07-28T00:47:32.277505695Z"
     digest: 60b0d6695947dab9bfbe3d207e072ab2c103b886a0cbfe62bcfc63f2eda3cc3d
     home: https://github.com/Juice-Labs/Juice-Labs
     icon: https://raw.githubusercontent.com/Juice-Labs/Juice-Labs/master/assets/Juice.svg
@@ -15,7 +28,7 @@ entries:
     - juice-controller-1.0.3.tgz
     version: 1.0.3
   - apiVersion: v2
-    created: "2023-07-28T00:28:06.324546044Z"
+    created: "2023-07-28T00:47:32.277189167Z"
     digest: 90b57d8c5650d024ce1412f26bebf3b3222b0563edd67121ff489574b39eb81b
     home: https://github.com/Juice-Labs/Juice-Labs
     icon: https://raw.githubusercontent.com/Juice-Labs/Juice-Labs/master/assets/Juice.svg
@@ -28,7 +41,7 @@ entries:
     - juice-controller-1.0.2.tgz
     version: 1.0.2
   - apiVersion: v2
-    created: "2023-07-28T00:28:06.324188736Z"
+    created: "2023-07-28T00:47:32.27688774Z"
     digest: 77a3359640ea277a079be6e8df46b89bbd796f23c448d3cfef8966b286fa21e8
     home: https://github.com/Juice-Labs/Juice-Labs
     icon: https://raw.githubusercontent.com/Juice-Labs/Juice-Labs/master/assets/Juice.svg
@@ -41,7 +54,7 @@ entries:
     - juice-controller-1.0.1.tgz
     version: 1.0.1
   - apiVersion: v2
-    created: "2023-07-28T00:28:06.323752227Z"
+    created: "2023-07-28T00:47:32.276505406Z"
     digest: b69274b75058cbf084d0e7f28f2f30dd79ddc836892982cb69621a832171890c
     home: https://github.com/Juice-Labs/Juice-Labs
     icon: https://raw.githubusercontent.com/Juice-Labs/Juice-Labs/master/assets/Juice.svg
@@ -56,7 +69,7 @@ entries:
   juice-server:
   - apiVersion: v2
     appVersion: 11.8-2023.03.22-1943.050999b5
-    created: "2023-07-28T00:28:06.326589188Z"
+    created: "2023-07-28T00:47:32.278741504Z"
     digest: b10bf4fa957e87e44f6c5c0d648f2817a3d7173558928c8e09d2cdcaaf8164b7
     home: https://github.com/Juice-Labs/Juice-Labs
     icon: https://raw.githubusercontent.com/Juice-Labs/Juice-Labs/master/assets/Juice.svg
@@ -70,7 +83,7 @@ entries:
     version: 1.0.2
   - apiVersion: v2
     appVersion: 11.8-2023.01.22-1415.17613ca9
-    created: "2023-07-28T00:28:06.326310082Z"
+    created: "2023-07-28T00:47:32.278495482Z"
     digest: 9a72f62148020a267d9b8b8c916abe2450b0ecb1183a54cfa2362172d8f62f1f
     home: https://github.com/Juice-Labs/Juice-Labs
     icon: https://raw.githubusercontent.com/Juice-Labs/Juice-Labs/master/assets/Juice.svg
@@ -84,7 +97,7 @@ entries:
     version: 1.0.1
   - apiVersion: v2
     appVersion: 2023.01.22-1415.17613ca9
-    created: "2023-07-28T00:28:06.325171957Z"
+    created: "2023-07-28T00:47:32.278262762Z"
     digest: 61616d8c3d6ffb6e7a51b415026d660c7e87c65da3c165295c1002e64aa339de
     home: https://github.com/Juice-Labs/Juice-Labs
     icon: https://raw.githubusercontent.com/Juice-Labs/Juice-Labs/master/assets/Juice.svg
@@ -96,4 +109,4 @@ entries:
     urls:
     - juice-server-1.0.0.tgz
     version: 1.0.0
-generated: "2023-07-28T00:28:06.322541601Z"
+generated: "2023-07-28T00:47:32.276034464Z"
