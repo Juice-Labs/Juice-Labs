@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Values.service.name }}-frontend
+  name: {{ .Values.service.namePrefix }}-frontend
 {{- if .Values.service.additionalAnnotations }}
   annotations:
 {{- if .Values.service.additionalAnnotations }}

@@ -105,8 +105,6 @@ spec:
           "
 {{- end }}
 {{- end }}
-{{- else }}
-        - --use-memdb
 {{- end }}
 {{- if and .Values.common .Values.common.additionalControllerArgs }}
 {{ toYaml .Values.common.additionalControllerArgs | indent 8 }}
