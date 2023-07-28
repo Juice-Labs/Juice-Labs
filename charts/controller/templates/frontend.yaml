@@ -46,6 +46,15 @@ spec:
 {{- if .Values.frontend.additionalTemplateLabels }}
 {{ toYaml .Values.frontend.additionalTemplateLabels | indent 8 }}
 {{- end }}
+{{- if or .Values.frontend.additionalTemplateAnnotations (and .Values.common .Values.common.additionalTemplateAnnotations) }}
+      annotations:
+{{- if and .Values.common .Values.common.additionalTemplateAnnotations }}
+{{ toYaml .Values.common.additionalTemplateAnnotations | indent 6 }}
+{{- end }}
+{{- if .Values.frontend.additionalTemplateAnnotations }}
+{{ toYaml .Values.frontend.additionalTemplateAnnotations | indent 6 }}
+{{- end }}
+{{- end }}
     spec:
 {{- if and .Values.common .Values.common.additionalTemplateSpec }}
 {{ toYaml .Values.common.additionalTemplateSpec | indent 6 }}
