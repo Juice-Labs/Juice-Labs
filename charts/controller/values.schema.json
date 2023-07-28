@@ -92,18 +92,13 @@
             "type": "object",
             "required": [
                 "name",
-                "replicas",
-                "port"
+                "replicas"
             ],
             "additionalProperties": false,
             "properties": {
                 "name": {
-                    "description": "The metadata name for the frontend deployment",
-                    "type": "string"
-                },
-                "port": {
                     "description": "",
-                    "type": "number"
+                    "type": "string"
                 },
                 "replicas": {
                     "description": "",
@@ -141,8 +136,48 @@
             "additionalProperties": false,
             "properties": {
                 "name": {
-                    "description": "The metadata name for the backend deployment",
+                    "description": "",
                     "type": "string"
+                },
+                "additionalLabels": {
+                    "#ref": "#/$defs/additionalSpec"
+                },
+                "additionalAnnotations": {
+                    "#ref": "#/$defs/additionalAnnotations"
+                },
+                "additionalSpec": {
+                    "#ref": "#/$defs/additionalSpec"
+                },
+                "additionalTemplateLabels": {
+                    "#ref": "#/$defs/additionalTemplateLabels"
+                },
+                "additionalTemplateSpec": {
+                    "#ref": "#/$defs/additionalTemplateSpec"
+                },
+                "additionalControllerSpec": {
+                    "#ref": "#/$defs/additionalControllerSpec"
+                },
+                "additionalControllerArgs": {
+                    "#ref": "#/$defs/additionalControllerArgs"
+                }
+            }
+        },
+        "prometheus": {
+            "description": "",
+            "type": "object",
+            "required": [
+                "name",
+                "port"
+            ],
+            "additionalProperties": false,
+            "properties": {
+                "name": {
+                    "description": "",
+                    "type": "string"
+                },
+                "port": {
+                    "description": "",
+                    "type": "number"
                 },
                 "additionalLabels": {
                     "#ref": "#/$defs/additionalSpec"
@@ -200,12 +235,12 @@
             "type": "object",
             "additionalProperties": false,
             "required": [
-                "name",
+                "namePrefix",
                 "port"
             ],
             "properties": {
-                "name": {
-                    "description": "The metadata name for the backend deployment",
+                "namePrefix": {
+                    "description": "",
                     "type": "string"
                 },
                 "port": {
@@ -217,20 +252,6 @@
                 },
                 "additionalAnnotations": {
                     "#ref": "#/$defs/additionalAnnotations"
-                }
-            }
-        },
-        "prometheus": {
-            "description": "",
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-                "port"
-            ],
-            "properties": {
-                "port": {
-                    "description": "",
-                    "type": "number"
                 }
             }
         }

@@ -1,0 +1,22 @@
+{{- if .Values.prometheus }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.service.namePrefix }}-prometheus
+{{- if .Values.service.additionalAnnotations }}
+  annotations:
+{{- if .Values.service.additionalAnnotations }}
+{{ toYaml .Values.service.additionalAnnotations | indent 4 }}
+{{- end }}
+{{- end }}
+spec:
+  selector:
+    app.juicelabs.co/controller: prometheus
+  ports:
+    - protocol: TCP
+      port: {{ .Values.prometheus.port }}
+      targetPort: prometheus
+{{- if .Values.service.additionalSpec }}
+{{ toYaml .Values.service.additionalSpec | indent 2 }}
+{{- end}}
+{{- end }}

@@ -56,6 +56,18 @@ spec:
       containers:
       - name: controller
         image: {{ .Values.image }}
+        ports:
+          - name: controller
+            containerPort: {{ .Values.service.port }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: controller
+          initialDelaySeconds: 5
+          periodSeconds: 30
+        env:
+        - name: PORT
+          value: "{{ .Values.service.port }}"
 {{- if and .Values.common .Values.common.additionalControllerSpec }}
 {{ toYaml .Values.common.additionalControllerSpec | indent 8 }}
 {{- end }}
@@ -94,8 +106,6 @@ spec:
           "
 {{- end }}
 {{- end }}
-{{- else }}
-        - --use-memdb
 {{- end }}
 {{- if and .Values.common .Values.common.additionalControllerArgs }}
 {{ toYaml .Values.common.additionalControllerArgs | indent 8 }}
