@@ -18,6 +18,14 @@ import (
 )
 
 func (frontend *Frontend) initializeEndpoints() {
+	frontend.server.AddCreateEndpoint(func(group task.Group, router *mux.Router) error {
+		router.Methods("GET").Path("/health").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+
+		return nil
+	})
+
 	frontend.server.AddCreateEndpoint(frontend.getStatusFormer)
 	frontend.server.AddCreateEndpoint(frontend.getStatusEp)
 	frontend.server.AddCreateEndpoint(frontend.registerAgentEp)
