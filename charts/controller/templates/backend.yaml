@@ -49,10 +49,10 @@ spec:
 {{- if or .Values.backend.additionalTemplateAnnotations (and .Values.common .Values.common.additionalTemplateAnnotations) }}
       annotations:
 {{- if and .Values.common .Values.common.additionalTemplateAnnotations }}
-{{ toYaml .Values.common.additionalTemplateAnnotations | indent 6 }}
+{{ toYaml .Values.common.additionalTemplateAnnotations | indent 8 }}
 {{- end }}
 {{- if .Values.backend.additionalTemplateAnnotations }}
-{{ toYaml .Values.backend.additionalTemplateAnnotations | indent 6 }}
+{{ toYaml .Values.backend.additionalTemplateAnnotations | indent 8 }}
 {{- end }}
 {{- end }}
     spec:
