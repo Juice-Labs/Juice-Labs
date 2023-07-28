@@ -1,6 +1,6 @@
 apiVersion: v2
 name: juice-controller
-version: 1.0.5
+version: 1.0.6
 type: application
 home: https://github.com/Juice-Labs/Juice-Labs
 icon: https://raw.githubusercontent.com/Juice-Labs/Juice-Labs/master/assets/Juice.svg
