@@ -235,11 +235,11 @@
             "type": "object",
             "additionalProperties": false,
             "required": [
-                "name",
+                "namePrefix",
                 "port"
             ],
             "properties": {
-                "name": {
+                "namePrefix": {
                     "description": "",
                     "type": "string"
                 },
