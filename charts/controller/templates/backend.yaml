@@ -67,7 +67,7 @@ spec:
           periodSeconds: 30
         env:
         - name: PORT
-          value: "{{ .Values.backend.port }}"
+          value: "{{ .Values.service.port }}"
 {{- if and .Values.common .Values.common.additionalControllerSpec }}
 {{ toYaml .Values.common.additionalControllerSpec | indent 8 }}
 {{- end }}
