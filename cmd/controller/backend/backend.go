@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"flag"
 	"net/http"
 	"time"
 
@@ -19,6 +20,10 @@ import (
 	"github.com/gorilla/mux"
 )
 
+var (
+	healthEndpoint = flag.Bool("enable-health", false, "")
+)
+
 type Backend struct {
 	server  *server.Server
 	storage storage.Storage
@@ -29,26 +34,34 @@ func NewBackend(address string, tlsConfig *tls.Config, storage storage.Storage) 
 		logger.Warning("TLS is disabled, data will be unencrypted")
 	}
 
-	server, err := server.NewServer(address, tlsConfig)
-	if err != nil {
-		return nil, err
+	var healthServer *server.Server
+	if *healthEndpoint {
+		server_, err := server.NewServer(address, tlsConfig)
+		if err != nil {
+			return nil, err
+		}
+		healthServer = server_
+
+		healthServer.AddCreateEndpoint(func(group task.Group, router *mux.Router) error {
+			router.Methods("GET").Path("/health").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			})
+
+			return nil
+		})
 	}
 
-	server.AddCreateEndpoint(func(group task.Group, router *mux.Router) error {
-		router.Methods("GET").Path("/health").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		})
-
-		return nil
-	})
-
 	return &Backend{
-		server:  server,
+		server:  healthServer,
 		storage: storage,
 	}, nil
 }
 
 func (backend *Backend) Run(group task.Group) error {
+	if backend.server != nil {
+		group.Go("Backend Server", backend.server)
+	}
+
 	err := backend.update(group.Ctx())
 	if err == nil {
 		ticker := time.NewTicker(5 * time.Second)
