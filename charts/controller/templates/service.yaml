@@ -15,6 +15,11 @@ spec:
     - protocol: TCP
       port: {{ .Values.service.port }}
       targetPort: controller
+{{- if .Values.prometheus }}
+    - protocol: TCP
+      port: {{ .Values.prometheus.port }}
+      targetPort: prometheus
+{{- end }}
 {{- if .Values.service.additionalSpec }}
 {{ toYaml .Values.service.additionalSpec | indent 2 }}
 {{- end}}

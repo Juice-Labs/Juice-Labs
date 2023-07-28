@@ -59,6 +59,10 @@ spec:
         ports:
           - name: controller
             containerPort: {{ .Values.frontend.port }}
+{{- if .Values.prometheus }}
+          - name: prometheus
+            containerPort: {{ .Values.prometheus.port }}
+{{- end }}
         livenessProbe:
           httpGet:
             path: /v1/status
@@ -76,6 +80,10 @@ spec:
 {{- end }}
         args:
         - --frontend
+{{- if .Values.prometheus }}
+        - --prometheus-address
+        - 0.0.0.0:{{ .Values.prometheus.port }}
+{{- end }}
 {{- if .Values.postgresql }}
 {{- with .Values.postgresql }}
 {{- if .from_file }}

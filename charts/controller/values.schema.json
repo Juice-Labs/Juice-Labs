@@ -219,6 +219,20 @@
                     "#ref": "#/$defs/additionalAnnotations"
                 }
             }
+        },
+        "prometheus": {
+            "description": "",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "port"
+            ],
+            "properties": {
+                "port": {
+                    "description": "",
+                    "type": "number"
+                }
+            }
         }
     },
     "$defs": {
