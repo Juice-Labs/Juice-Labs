@@ -62,7 +62,7 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: controller
+            port: {{ .Values.prometheus.port }}
           initialDelaySeconds: 5
           periodSeconds: 30
 {{- if and .Values.common .Values.common.additionalControllerSpec }}
