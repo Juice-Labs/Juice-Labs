@@ -6,6 +6,7 @@ package prometheus
 import (
 	"crypto/tls"
 	"flag"
+	"net/http"
 	"sync"
 	"time"
 
@@ -87,6 +88,14 @@ func NewFrontend(tlsConfig *tls.Config, storage storage.Storage) (*Frontend, err
 		powerDrawByGpuName:       prometheus.NewGaugeVec(getGaugeOpts("powerDrawWattsByGpuName"), []string{"gpu"}),
 	}
 	prometheus.MustRegister(frontend)
+
+	server.AddCreateEndpoint(func(group task.Group, router *mux.Router) error {
+		router.Methods("GET").Path("/health").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+
+		return nil
+	})
 
 	server.AddCreateEndpoint(func(group task.Group, router *mux.Router) error {
 		router.Methods("GET").Path("/metrics").Handler(

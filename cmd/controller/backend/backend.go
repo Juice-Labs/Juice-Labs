@@ -5,24 +5,47 @@ package backend
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
+	"net/http"
 	"time"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
+	"github.com/Juice-Labs/Juice-Labs/pkg/server"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
+	"github.com/gorilla/mux"
 )
 
 type Backend struct {
+	server  *server.Server
 	storage storage.Storage
 }
 
-func NewBackend(storage storage.Storage) *Backend {
-	return &Backend{
-		storage: storage,
+func NewBackend(address string, tlsConfig *tls.Config, storage storage.Storage) (*Backend, error) {
+	if tlsConfig == nil {
+		logger.Warning("TLS is disabled, data will be unencrypted")
 	}
+
+	server, err := server.NewServer(address, tlsConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	server.AddCreateEndpoint(func(group task.Group, router *mux.Router) error {
+		router.Methods("GET").Path("/health").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+
+		return nil
+	})
+
+	return &Backend{
+		server:  server,
+		storage: storage,
+	}, nil
 }
 
 func (backend *Backend) Run(group task.Group) error {

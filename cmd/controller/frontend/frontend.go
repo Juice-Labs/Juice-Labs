@@ -5,7 +5,6 @@ package frontend
 
 import (
 	"crypto/tls"
-	"flag"
 	"os"
 	"time"
 
@@ -14,10 +13,6 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/server"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
-)
-
-var (
-	address = flag.String("address", "0.0.0.0:8080", "The IP address and port to use for listening for client connections")
 )
 
 type Frontend struct {
@@ -29,7 +24,7 @@ type Frontend struct {
 	storage storage.Storage
 }
 
-func NewFrontend(tlsConfig *tls.Config, storage storage.Storage) (*Frontend, error) {
+func NewFrontend(address string, tlsConfig *tls.Config, storage storage.Storage) (*Frontend, error) {
 	if tlsConfig == nil {
 		logger.Warning("TLS is disabled, data will be unencrypted")
 	}
@@ -39,7 +34,7 @@ func NewFrontend(tlsConfig *tls.Config, storage storage.Storage) (*Frontend, err
 		return nil, err
 	}
 
-	server, err := server.NewServer(*address, tlsConfig)
+	server, err := server.NewServer(address, tlsConfig)
 	if err != nil {
 		return nil, err
 	}

@@ -35,6 +35,8 @@ var (
 	enableBackend    = flag.Bool("backend", false, "")
 	enablePrometheus = flag.Bool("prometheus", false, "")
 
+	address = flag.String("address", "0.0.0.0:8080", "The IP address and port to use for listening for client connections")
+
 	psqlConnection         = flag.String("psql-connection", "", "See https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters")
 	psqlConnectionFromFile = flag.String("psql-connection-from-file", "", "See https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters")
 )
@@ -109,7 +111,7 @@ func main() {
 
 		if *enableFrontend {
 			if err == nil {
-				frontend, err := frontend.NewFrontend(tlsConfig, storage)
+				frontend, err := frontend.NewFrontend(*address, tlsConfig, storage)
 				if err == nil {
 					group.Go("Frontend", frontend)
 				}
@@ -118,7 +120,10 @@ func main() {
 
 		if *enableBackend {
 			if err == nil {
-				group.Go("Backend", backend.NewBackend(storage))
+				backend, err := backend.NewBackend(*address, tlsConfig, storage)
+				if err == nil {
+					group.Go("Backend", backend)
+				}
 			}
 		}
 
