@@ -4,7 +4,9 @@ service:
   port: 8080
 frontend:
   name: juice-controller-frontend
-  port: 8080
   replicas: 3
 backend:
   name: juice-controller-backend
+prometheus:
+  name: juice-controller-prometheus
+  port: 9090

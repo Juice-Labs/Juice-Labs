@@ -1,81 +1,80 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.frontend.name }}
+  name: {{ .Values.prometheus.name }}
   labels:
-    app.juicelabs.co/controller: frontend
+    app.juicelabs.co/controller: prometheus
 {{- if and .Values.common .Values.common.additionalLabels }}
 {{ toYaml .Values.common.additionalLabels | indent 4 }}
 {{- end }}
-{{- if .Values.frontend.additionalLabels }}
-{{ toYaml .Values.frontend.additionalLabels | indent 4 }}
+{{- if .Values.prometheus.additionalLabels }}
+{{ toYaml .Values.prometheus.additionalLabels | indent 4 }}
 {{- end }}
-{{- if or .Values.frontend.additionalAnnotations (and .Values.common .Values.common.additionalAnnotations) }}
+{{- if or .Values.prometheus.additionalAnnotations (and .Values.common .Values.common.additionalAnnotations) }}
   annotations:
 {{- if and .Values.common .Values.common.additionalAnnotations }}
 {{ toYaml .Values.common.additionalAnnotations | indent 4 }}
 {{- end }}
-{{- if .Values.frontend.additionalAnnotations }}
-{{ toYaml .Values.frontend.additionalAnnotations | indent 4 }}
+{{- if .Values.prometheus.additionalAnnotations }}
+{{ toYaml .Values.prometheus.additionalAnnotations | indent 4 }}
 {{- end }}
 {{- end }}
 spec:
-  replicas: {{ .Values.frontend.replicas }}
+  replicas: 1
   selector:
     matchLabels:
-      app.juicelabs.co/controller: frontend
+      app.juicelabs.co/controller: prometheus
 {{- if and .Values.common .Values.common.additionalLabels }}
 {{ toYaml .Values.common.additionalLabels | indent 6 }}
 {{- end }}
-{{- if .Values.frontend.additionalLabels }}
-{{ toYaml .Values.frontend.additionalLabels | indent 6 }}
+{{- if .Values.prometheus.additionalLabels }}
+{{ toYaml .Values.prometheus.additionalLabels | indent 6 }}
 {{- end }}
 {{- if and .Values.common .Values.common.additionalSpec }}
 {{ toYaml .Values.common.additionalSpec | indent 2 }}
 {{- end }}
-{{- if .Values.frontend.additionalSpec }}
-{{ toYaml .Values.frontend.additionalSpec | indent 2 }}
+{{- if .Values.prometheus.additionalSpec }}
+{{ toYaml .Values.prometheus.additionalSpec | indent 2 }}
 {{- end }}
   template:
     metadata:
       labels:
-        app.juicelabs.co/controller: frontend
+        app.juicelabs.co/controller: prometheus
 {{- if and .Values.common .Values.common.additionalTemplateLabels }}
 {{ toYaml .Values.common.additionalTemplateLabels | indent 8 }}
 {{- end }}
-{{- if .Values.frontend.additionalTemplateLabels }}
-{{ toYaml .Values.frontend.additionalTemplateLabels | indent 8 }}
+{{- if .Values.prometheus.additionalTemplateLabels }}
+{{ toYaml .Values.prometheus.additionalTemplateLabels | indent 8 }}
 {{- end }}
     spec:
 {{- if and .Values.common .Values.common.additionalTemplateSpec }}
 {{ toYaml .Values.common.additionalTemplateSpec | indent 6 }}
 {{- end }}
-{{- if .Values.frontend.additionalTemplateSpec }}
-{{ toYaml .Values.frontend.additionalTemplateSpec | indent 6 }}
+{{- if .Values.prometheus.additionalTemplateSpec }}
+{{ toYaml .Values.prometheus.additionalTemplateSpec | indent 6 }}
 {{- end }}
       containers:
       - name: controller
         image: {{ .Values.image }}
         ports:
-          - name: controller
-            containerPort: {{ .Values.frontend.port }}
+          - name: prometheus
+            containerPort: {{ .Values.prometheus.port }}
         livenessProbe:
           httpGet:
             path: /health
             port: controller
           initialDelaySeconds: 5
           periodSeconds: 30
-        env:
-        - name: PORT
-          value: "{{ .Values.frontend.port }}"
 {{- if and .Values.common .Values.common.additionalControllerSpec }}
 {{ toYaml .Values.common.additionalControllerSpec | indent 8 }}
 {{- end }}
-{{- if .Values.frontend.additionalControllerSpec }}
-{{ toYaml .Values.frontend.additionalControllerSpec | indent 8 }}
+{{- if .Values.prometheus.additionalControllerSpec }}
+{{ toYaml .Values.prometheus.additionalControllerSpec | indent 8 }}
 {{- end }}
         args:
-        - --frontend
+        - --prometheus
+        - --prometheus-address
+        - 0.0.0.0:{{ .Values.prometheus.port }}
 {{- if .Values.postgresql }}
 {{- with .Values.postgresql }}
 {{- if .from_file }}
@@ -112,6 +111,6 @@ spec:
 {{- if and .Values.common .Values.common.additionalControllerArgs }}
 {{ toYaml .Values.common.additionalControllerArgs | indent 8 }}
 {{- end }}
-{{- if .Values.frontend.additionalControllerArgs }}
-{{ toYaml .Values.frontend.additionalControllerArgs | indent 8 }}
+{{- if .Values.prometheus.additionalControllerArgs }}
+{{ toYaml .Values.prometheus.additionalControllerArgs | indent 8 }}
 {{- end }}

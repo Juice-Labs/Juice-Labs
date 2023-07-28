@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Values.service.name }}
+  name: {{ .Values.service.name }}-frontend
 {{- if .Values.service.additionalAnnotations }}
   annotations:
 {{- if .Values.service.additionalAnnotations }}
@@ -12,16 +12,9 @@ spec:
   selector:
     app.juicelabs.co/controller: frontend
   ports:
-    - name: controller
-      protocol: TCP
+    - protocol: TCP
       port: {{ .Values.service.port }}
       targetPort: controller
-{{- if .Values.prometheus }}
-    - name: prometheus
-      protocol: TCP
-      port: {{ .Values.prometheus.port }}
-      targetPort: prometheus
-{{- end }}
 {{- if .Values.service.additionalSpec }}
 {{ toYaml .Values.service.additionalSpec | indent 2 }}
 {{- end}}
