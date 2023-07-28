@@ -12,11 +12,13 @@ spec:
   selector:
     app.juicelabs.co/controller: frontend
   ports:
-    - protocol: TCP
+    - name: controller
+      protocol: TCP
       port: {{ .Values.service.port }}
       targetPort: controller
 {{- if .Values.prometheus }}
-    - protocol: TCP
+    - name: prometheus
+      protocol: TCP
       port: {{ .Values.prometheus.port }}
       targetPort: prometheus
 {{- end }}
