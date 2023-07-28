@@ -116,6 +116,9 @@
                 "additionalTemplateLabels": {
                     "#ref": "#/$defs/additionalTemplateLabels"
                 },
+                "additionalTemplateAnnotations": {
+                    "#ref": "#/$defs/additionalTemplateAnnotations"
+                },
                 "additionalTemplateSpec": {
                     "#ref": "#/$defs/additionalTemplateSpec"
                 },
@@ -150,6 +153,9 @@
                 },
                 "additionalTemplateLabels": {
                     "#ref": "#/$defs/additionalTemplateLabels"
+                },
+                "additionalTemplateAnnotations": {
+                    "#ref": "#/$defs/additionalTemplateAnnotations"
                 },
                 "additionalTemplateSpec": {
                     "#ref": "#/$defs/additionalTemplateSpec"
@@ -191,6 +197,9 @@
                 "additionalTemplateLabels": {
                     "#ref": "#/$defs/additionalTemplateLabels"
                 },
+                "additionalTemplateAnnotations": {
+                    "#ref": "#/$defs/additionalTemplateAnnotations"
+                },
                 "additionalTemplateSpec": {
                     "#ref": "#/$defs/additionalTemplateSpec"
                 },
@@ -218,6 +227,9 @@
                 },
                 "additionalTemplateLabels": {
                     "#ref": "#/$defs/additionalTemplateLabels"
+                },
+                "additionalTemplateAnnotations": {
+                    "#ref": "#/$defs/additionalTemplateAnnotations"
                 },
                 "additionalTemplateSpec": {
                     "#ref": "#/$defs/additionalTemplateSpec"
@@ -286,6 +298,11 @@
             "properties": {
                 "app.juicelabs.co/controller": false
             }
+        },
+        "additionalTemplateAnnotations": {
+            "description": "",
+            "type": "object",
+            "additionalProperties": true
         },
         "additionalTemplateSpec": {
             "description": "",
