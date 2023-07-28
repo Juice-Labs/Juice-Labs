@@ -15,6 +15,7 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/prometheus"
 	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
+	"github.com/Juice-Labs/Juice-Labs/pkg/middleware"
 	pkgnet "github.com/Juice-Labs/Juice-Labs/pkg/net"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
@@ -52,7 +53,8 @@ func (agent *Agent) getStatusEp(group task.Group, router *mux.Router) error {
 }
 
 func (agent *Agent) requestSessionEp(group task.Group, router *mux.Router) error {
-	router.Methods("POST").Path("/v1/request/session").HandlerFunc(
+	// TODO: Validate create:sessions claim
+	router.Handle("/v1/request/session", middleware.EnsureValidToken()(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			sessionRequirements, err := pkgnet.ReadRequestBody[restapi.SessionRequirements](r)
 			if err != nil {
@@ -72,12 +74,13 @@ func (agent *Agent) requestSessionEp(group task.Group, router *mux.Router) error
 			if err != nil {
 				logger.Error(err)
 			}
-		})
+		}))).Methods("POST")
 	return nil
 }
 
 func (agent *Agent) getSessionEp(group task.Group, router *mux.Router) error {
-	router.Methods("GET").Path("/v1/session/{id}").HandlerFunc(
+	// TODO: Validate read:sessions claim
+	router.Handle("/v1/session/{id}", middleware.EnsureValidToken()(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			id := mux.Vars(r)["id"]
 
@@ -93,12 +96,13 @@ func (agent *Agent) getSessionEp(group task.Group, router *mux.Router) error {
 			if err != nil {
 				logger.Error(err)
 			}
-		})
+		}))).Methods("GET")
 	return nil
 }
 
 func (agent *Agent) connectSessionEp(group task.Group, router *mux.Router) error {
-	router.Methods("POST").Path("/v1/connect/session/{id}").HandlerFunc(
+	// TODO: Validate connect:sessions claim
+	router.Handle("/v1/connect/session/{id}", middleware.EnsureValidToken()(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			id := mux.Vars(r)["id"]
 
@@ -133,6 +137,6 @@ func (agent *Agent) connectSessionEp(group task.Group, router *mux.Router) error
 			if err != nil {
 				logger.Error(err)
 			}
-		})
+		}))).Methods("POST")
 	return nil
 }

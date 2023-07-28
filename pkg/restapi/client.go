@@ -12,9 +12,10 @@ import (
 )
 
 type Client struct {
-	Client  *http.Client
-	Scheme  string
-	Address string
+	Client      *http.Client
+	Scheme      string
+	Address     string
+	AccessToken string
 }
 
 func (api Client) do(ctx context.Context, method string, path string, contentType string, body io.Reader) (*http.Response, error) {
@@ -31,6 +32,10 @@ func (api Client) do(ctx context.Context, method string, path string, contentTyp
 
 	if body != nil {
 		request.Header.Add("Content-Type", contentType)
+	}
+
+	if api.AccessToken != "" {
+		request.Header.Add("Authorization", fmt.Sprintf("Bearer %s", api.AccessToken))
 	}
 
 	return api.Client.Do(request)
