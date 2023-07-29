@@ -4,15 +4,18 @@
 package frontend
 
 import (
-	"crypto/tls"
+	"flag"
 	"os"
 	"time"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
-	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/server"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
+)
+
+var (
+	overrideHostname = flag.String("override-hostname", "", "")
 )
 
 type Frontend struct {
@@ -20,41 +23,32 @@ type Frontend struct {
 
 	hostname string
 
-	server  *server.Server
 	storage storage.Storage
 }
 
-func NewFrontend(address string, tlsConfig *tls.Config, storage storage.Storage) (*Frontend, error) {
-	if tlsConfig == nil {
-		logger.Warning("TLS is disabled, data will be unencrypted")
-	}
+func NewFrontend(server *server.Server, storage storage.Storage) (*Frontend, error) {
+	hostname := *overrideHostname
+	if hostname == "" {
+		hostname_, err := os.Hostname()
+		if err != nil {
+			return nil, err
+		}
 
-	hostname, err := os.Hostname()
-	if err != nil {
-		return nil, err
-	}
-
-	server, err := server.NewServer(address, tlsConfig)
-	logger.Infof("Starting frontend on %s", address)
-
-	if err != nil {
-		return nil, err
+		hostname = hostname_
 	}
 
 	frontend := &Frontend{
 		startTime: time.Now(),
 		hostname:  hostname,
-		server:    server,
 		storage:   storage,
 	}
 
-	frontend.initializeEndpoints()
+	frontend.initializeEndpoints(server)
 
 	return frontend, nil
 }
 
 func (frontend *Frontend) Run(group task.Group) error {
-	group.Go("Frontend Server", frontend.server)
 	return nil
 }
 
