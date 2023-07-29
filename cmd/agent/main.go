@@ -23,7 +23,7 @@ var (
 	certFile     = flag.String("cert-file", "", "")
 	keyFile      = flag.String("key-file", "", "")
 	generateCert = flag.Bool("generate-cert", false, "Generates a certificate for https")
-	disableTls   = flag.Bool("disable-tls", true, "")
+	disableTls   = flag.Bool("disable-tls", false, "")
 )
 
 func main() {
