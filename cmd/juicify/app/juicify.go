@@ -64,7 +64,7 @@ var (
 	testConnection = flag.Bool("test-connection", false, "Verifies juicify is able to reach the server at --address")
 	accessToken    = flag.String("access-token", "", "The access token to use when connecting to the server")
 
-	disableTls = flag.Bool("disable-tls", true, "Always enabled currently. Disables https when connecting to --address")
+	disableTls = flag.Bool("disable-tls", false, "Always enabled currently. Disables https when connecting to --address")
 
 	juicePath = flag.String("juice-path", "", "Path to the juice executables if different than current executable path")
 
