@@ -4,9 +4,6 @@
 package prometheus
 
 import (
-	"crypto/tls"
-	"flag"
-	"net/http"
 	"sync"
 	"time"
 
@@ -15,19 +12,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
-	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/server"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
-)
-
-var (
-	address = flag.String("prometheus-address", "0.0.0.0:9090", "The IP address and port to use for listening for Prometheus connections")
 )
 
 type Frontend struct {
 	sync.Mutex
 
-	server  *server.Server
 	storage storage.Storage
 
 	agents                   prometheus.Gauge
@@ -56,18 +47,8 @@ func getGaugeOpts(name string) prometheus.GaugeOpts {
 	}
 }
 
-func NewFrontend(tlsConfig *tls.Config, storage storage.Storage) (*Frontend, error) {
-	if tlsConfig == nil {
-		logger.Warning("TLS is disabled, data will be unencrypted")
-	}
-
-	server, err := server.NewServer(*address, tlsConfig)
-	if err != nil {
-		return nil, err
-	}
-
+func NewFrontend(server *server.Server, storage storage.Storage) *Frontend {
 	frontend := &Frontend{
-		server:  server,
 		storage: storage,
 
 		agents:                   prometheus.NewGauge(getGaugeOpts("agents")),
@@ -90,26 +71,16 @@ func NewFrontend(tlsConfig *tls.Config, storage storage.Storage) (*Frontend, err
 	prometheus.MustRegister(frontend)
 
 	server.AddCreateEndpoint(func(group task.Group, router *mux.Router) error {
-		router.Methods("GET").Path("/health").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		})
-
-		return nil
-	})
-
-	server.AddCreateEndpoint(func(group task.Group, router *mux.Router) error {
 		router.Methods("GET").Path("/metrics").Handler(
 			promhttp.Handler())
 
 		return nil
 	})
 
-	return frontend, nil
+	return frontend
 }
 
 func (frontend *Frontend) Run(group task.Group) error {
-	group.Go("Frontend Server", frontend.server)
-
 	err := frontend.update()
 	if err == nil {
 		ticker := time.NewTicker(5 * time.Second)

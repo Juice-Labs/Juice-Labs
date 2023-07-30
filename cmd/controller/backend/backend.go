@@ -5,63 +5,27 @@ package backend
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
-	"flag"
-	"net/http"
 	"time"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
-	"github.com/Juice-Labs/Juice-Labs/pkg/server"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
-	"github.com/gorilla/mux"
-)
-
-var (
-	healthEndpoint = flag.Bool("enable-health", false, "")
 )
 
 type Backend struct {
-	server  *server.Server
 	storage storage.Storage
 }
 
-func NewBackend(address string, tlsConfig *tls.Config, storage storage.Storage) (*Backend, error) {
-	if tlsConfig == nil {
-		logger.Warning("TLS is disabled, data will be unencrypted")
-	}
-
-	var healthServer *server.Server
-	if *healthEndpoint {
-		server_, err := server.NewServer(address, tlsConfig)
-		if err != nil {
-			return nil, err
-		}
-		healthServer = server_
-
-		healthServer.AddCreateEndpoint(func(group task.Group, router *mux.Router) error {
-			router.Methods("GET").Path("/health").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusOK)
-			})
-
-			return nil
-		})
-	}
-
+func NewBackend(storage storage.Storage) *Backend {
 	return &Backend{
-		server:  healthServer,
 		storage: storage,
-	}, nil
+	}
 }
 
 func (backend *Backend) Run(group task.Group) error {
-	if backend.server != nil {
-		group.Go("Backend Server", backend.server)
-	}
-
 	err := backend.update(group.Ctx())
 	if err == nil {
 		ticker := time.NewTicker(5 * time.Second)

@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"strings"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage/memdb"
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage/postgres"
+	"github.com/gorilla/mux"
 
 	"github.com/joho/godotenv"
 
@@ -26,6 +28,7 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/pkg/appmain"
 	"github.com/Juice-Labs/Juice-Labs/pkg/crypto"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
+	"github.com/Juice-Labs/Juice-Labs/pkg/server"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
 
@@ -39,10 +42,14 @@ var (
 	enableBackend    = flag.Bool("backend", false, "")
 	enablePrometheus = flag.Bool("prometheus", false, "")
 
-	address = flag.String("address", "0.0.0.0:8080", "The IP address and port to use for listening for client connections")
+	address           = flag.String("address", "0.0.0.0:8080", "The IP address and port to use for listening for client connections")
+	prometheusAddress = flag.String("prometheus-address", "0.0.0.0:9090", "The IP address and port to use for listening for Prometheus connections")
 
 	psqlConnection         = flag.String("psql-connection", "", "See https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters")
 	psqlConnectionFromFile = flag.String("psql-connection-from-file", "", "See https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters")
+
+	mainServer       *server.Server
+	prometheusServer *server.Server
 )
 
 func openStorage(ctx context.Context) (storage.Storage, error) {
@@ -96,7 +103,7 @@ func main() {
 
 		var tlsConfig *tls.Config
 
-		if (*enableFrontend || *enablePrometheus) && !*disableTls {
+		if !*disableTls {
 			var certificate tls.Certificate
 			if *certFile != "" && *keyFile != "" {
 				certificate, err = tls.LoadX509KeyPair(*certFile, *keyFile)
@@ -117,29 +124,61 @@ func main() {
 			logger.Warningf("Error loading the .env file: %v", err)
 		}
 
-		if *enableFrontend {
-			if err == nil {
-				frontend, err := frontend.NewFrontend(*address, tlsConfig, storage)
+		if err == nil {
+			if *enableFrontend || *enableBackend {
+				mainServer, err = server.NewServer(*address, tlsConfig)
 				if err == nil {
-					group.Go("Frontend", frontend)
+					mainServer.AddCreateEndpoint(func(group task.Group, router *mux.Router) error {
+						router.Methods("GET").Path("/health").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+							w.WriteHeader(http.StatusOK)
+						})
+
+						return nil
+					})
+				}
+
+				if err == nil {
+					if *enableFrontend {
+						logger.Infof("Starting frontend on %s", *address)
+
+						frontend, err_ := frontend.NewFrontend(mainServer, storage)
+						err = err_
+						if err == nil {
+							group.Go("Frontend", frontend)
+						}
+					}
+				}
+
+				if err == nil {
+					if *enableBackend {
+						logger.Infof("Starting backend on %s", *address)
+
+						group.Go("Backend", backend.NewBackend(storage))
+					}
+				}
+
+				if err == nil {
+					group.Go("Main Server", mainServer)
 				}
 			}
 		}
 
-		if *enableBackend {
-			if err == nil {
-				backend, err := backend.NewBackend(*address, tlsConfig, storage)
+		if err == nil {
+			if *enablePrometheus {
+				prometheusServer, err = server.NewServer(*prometheusAddress, tlsConfig)
 				if err == nil {
-					group.Go("Backend", backend)
-				}
-			}
-		}
+					prometheusServer.AddCreateEndpoint(func(group task.Group, router *mux.Router) error {
+						router.Methods("GET").Path("/health").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+							w.WriteHeader(http.StatusOK)
+						})
 
-		if *enablePrometheus {
-			if err == nil {
-				frontend, err := prometheus.NewFrontend(tlsConfig, storage)
-				if err == nil {
-					group.Go("Prometheus", frontend)
+						return nil
+					})
+
+					logger.Infof("Starting prometheus on %s", *prometheusAddress)
+
+					group.Go("Prometheus", prometheus.NewFrontend(prometheusServer, storage))
+					group.Go("Prometheus Server", prometheusServer)
 				}
 			}
 		}

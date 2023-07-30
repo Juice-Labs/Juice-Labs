@@ -1,6 +1,16 @@
 name: Controller Docker Image
 
 on:
+  pull_request:
+    types:
+    - opened
+    - synchronize
+    branches:
+    - master
+    paths:
+    - cmd/controller/**
+    - docker/controller/**
+    - pkg/**
   push:
     branches:
     - master
@@ -32,7 +42,8 @@ jobs:
         run: |
           tag=`git show -s --date=format:'%Y.%m.%d-%H%M' --format=%cd.%h ${SHA}`
           echo "version=${tag}" >> $GITHUB_OUTPUT
-      - name: Controller Image
+      - if: ${{ github.event_name == 'push' }}
+        name: Controller Image
         uses: docker/build-push-action@v3
         with:
           build-args: |
@@ -41,3 +52,13 @@ jobs:
           file: docker/controller/Dockerfile
           push: true
           tags: juicelabs/controller:latest,juicelabs/controller:${{ steps.version.outputs.version }}
+      - if: ${{ github.event_name == 'pull_request' }}
+        name: Controller Image
+        uses: docker/build-push-action@v3
+        with:
+          build-args: |
+            BASE_CONTAINER=ubuntu:22.04
+            JUICE_VERSION=${{ steps.version.outputs.version }}
+          file: docker/controller/Dockerfile
+          push: true
+          tags: juicelabs/controller-test:latest,juicelabs/controller-test:${{ steps.version.outputs.version }}

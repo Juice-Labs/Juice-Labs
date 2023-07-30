@@ -15,11 +15,12 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/pkg/middleware"
 	pkgnet "github.com/Juice-Labs/Juice-Labs/pkg/net"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
+	"github.com/Juice-Labs/Juice-Labs/pkg/server"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
 
-func (frontend *Frontend) initializeEndpoints() {
-	frontend.server.AddCreateEndpoint(func(group task.Group, router *mux.Router) error {
+func (frontend *Frontend) initializeEndpoints(server *server.Server) {
+	server.AddCreateEndpoint(func(group task.Group, router *mux.Router) error {
 		router.Methods("GET").Path("/health").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		})
@@ -27,14 +28,14 @@ func (frontend *Frontend) initializeEndpoints() {
 		return nil
 	})
 
-	frontend.server.AddCreateEndpoint(frontend.getStatusFormer)
-	frontend.server.AddCreateEndpoint(frontend.getStatusEp)
-	frontend.server.AddCreateEndpoint(frontend.registerAgentEp)
-	frontend.server.AddCreateEndpoint(frontend.getAgentEp)
-	frontend.server.AddCreateEndpoint(frontend.getAgentsEp)
-	frontend.server.AddCreateEndpoint(frontend.updateAgentEp)
-	frontend.server.AddCreateEndpoint(frontend.requestSessionEp)
-	frontend.server.AddCreateEndpoint(frontend.getSessionEp)
+	server.AddCreateEndpoint(frontend.getStatusFormer)
+	server.AddCreateEndpoint(frontend.getStatusEp)
+	server.AddCreateEndpoint(frontend.registerAgentEp)
+	server.AddCreateEndpoint(frontend.getAgentEp)
+	server.AddCreateEndpoint(frontend.getAgentsEp)
+	server.AddCreateEndpoint(frontend.updateAgentEp)
+	server.AddCreateEndpoint(frontend.requestSessionEp)
+	server.AddCreateEndpoint(frontend.getSessionEp)
 }
 
 func (frontend *Frontend) getStatusEp(group task.Group, router *mux.Router) error {
