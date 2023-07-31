@@ -62,6 +62,10 @@ spec:
 {{- if .Values.backend.additionalTemplateSpec }}
 {{ toYaml .Values.backend.additionalTemplateSpec | indent 6 }}
 {{- end }}
+     volumes:
+        - name: config
+          configMap:
+            name: {{ .Release.Name }}-configmap
       containers:
       - name: controller
         image: {{ .Values.image }}

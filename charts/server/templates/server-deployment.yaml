@@ -13,6 +13,10 @@ spec:
   selector:
     matchLabels:
       app: {{ .Values.name }}
+  volumes:
+    - name: config
+      configMap:
+        name: {{ .Release.Name }}-configmap
   template:
     metadata:
       labels:
