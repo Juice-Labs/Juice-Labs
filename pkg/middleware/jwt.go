@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"flag"
 	"log"
 	"net/http"
 	"net/url"
@@ -24,17 +25,26 @@ func (c CustomClaims) Validate(ctx context.Context) error {
 	return nil
 }
 
+var (
+	disableTokenValidation = flag.Bool("disable-token-validation", false, "Disables token validation, all requests will be allowed")
+	authDomain             = flag.String("auth-domain", "", "The domain used for validating jwt tokens")
+	authAudience           = flag.String("auth-audience", "", "The audience used for validating jwt tokens")
+)
+
 // EnsureValidToken is a middleware that will check the validity of our JWT.
 func EnsureValidToken() func(next http.Handler) http.Handler {
 
-	disableValidation := os.Getenv("DISABLE_VALIDATION")
+	disableValidation := *disableTokenValidation || (os.Getenv("DISABLE_VALIDATION") == "true")
 
-	if disableValidation == "true" {
+	if disableValidation {
 		return func(next http.Handler) http.Handler {
 			return next
 		}
 	}
-	domain := os.Getenv("AUTH0_DOMAIN")
+	domain := *authDomain
+	if domain == "" {
+		domain = os.Getenv("AUTH0_DOMAIN")
+	}
 	issuerURL, err := url.Parse("https://" + domain + "/")
 	if err != nil {
 		log.Fatalf("Failed to parse the issuer url: %v", err)
@@ -42,8 +52,10 @@ func EnsureValidToken() func(next http.Handler) http.Handler {
 
 	provider := jwks.NewCachingProvider(issuerURL, 5*time.Minute)
 
-	audience := os.Getenv("AUTH0_AUDIENCE")
-
+	audience := *authAudience
+	if audience == "" {
+		audience = os.Getenv("AUTH0_AUDIENCE")
+	}
 	jwtValidator, err := validator.New(
 		provider.KeyFunc,
 		validator.RS256,
