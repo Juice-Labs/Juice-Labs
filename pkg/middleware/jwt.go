@@ -34,16 +34,16 @@ var (
 // EnsureValidToken is a middleware that will check the validity of our JWT.
 func EnsureValidToken() func(next http.Handler) http.Handler {
 
-	disableValidation := *disableTokenValidation || (os.Getenv("DISABLE_VALIDATION") == "true")
+	disableValidation := (os.Getenv("DISABLE_VALIDATION") == "true") || *disableTokenValidation
 
 	if disableValidation {
 		return func(next http.Handler) http.Handler {
 			return next
 		}
 	}
-	domain := *authDomain
+	domain := os.Getenv("AUTH0_DOMAIN")
 	if domain == "" {
-		domain = os.Getenv("AUTH0_DOMAIN")
+		domain = *authDomain
 	}
 	issuerURL, err := url.Parse("https://" + domain + "/")
 	if err != nil {
@@ -52,9 +52,9 @@ func EnsureValidToken() func(next http.Handler) http.Handler {
 
 	provider := jwks.NewCachingProvider(issuerURL, 5*time.Minute)
 
-	audience := *authAudience
+	audience := os.Getenv("AUTH0_AUDIENCE")
 	if audience == "" {
-		audience = os.Getenv("AUTH0_AUDIENCE")
+		audience = *authAudience
 	}
 	jwtValidator, err := validator.New(
 		provider.KeyFunc,
