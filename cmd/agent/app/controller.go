@@ -21,7 +21,7 @@ import (
 
 var (
 	controllerAddress    = flag.String("controller", "", "The IP address and port of the controller")
-	disableControllerTls = flag.Bool("controller-disable-tls", true, "")
+	disableControllerTls = flag.Bool("controller-disable-tls", false, "")
 	accessToken          = flag.String("access-token", "", "The access token to use when connecting to the controller")
 
 	expose = flag.String("expose", "", "The IP address and port to expose through the controller for clients to see. The value is not checked for correctness.")
