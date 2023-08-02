@@ -4,7 +4,6 @@
 package app
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -63,8 +62,6 @@ var (
 	test           = flag.Bool("test", false, "Deprecated: Use --test-connection instead")
 	testConnection = flag.Bool("test-connection", false, "Verifies juicify is able to reach the server at --address")
 	accessToken    = flag.String("access-token", "", "The access token to use when connecting to the server")
-
-	disableTls = flag.Bool("disable-tls", false, "Always enabled currently. Disables https when connecting to --address")
 
 	juicePath = flag.String("juice-path", "", "Path to the juice executables if different than current executable path")
 
@@ -152,23 +149,10 @@ func Run(group task.Group) error {
 		return err
 	}
 
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: *disableTls,
-			},
-		},
-	}
-
 	api := restapi.Client{
-		Client:      client,
-		Scheme:      "https",
+		Client:      &http.Client{},
 		Address:     fmt.Sprintf("%s:%d", config.Host, config.Port),
 		AccessToken: *accessToken,
-	}
-
-	if *disableTls {
-		api.Scheme = "http"
 	}
 
 	if config.Id != "" {

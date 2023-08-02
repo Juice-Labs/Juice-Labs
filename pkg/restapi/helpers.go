@@ -15,7 +15,7 @@ func parseBody(body io.Reader, length int64) ([]byte, error) {
 	if length > 0 {
 		message := make([]byte, length)
 		n, err := body.Read(message)
-		if err != io.EOF {
+		if err != nil && err != io.EOF {
 			return nil, err
 		} else if length != int64(n) {
 			return nil, fmt.Errorf("body length %d did not match expected content length %d", n, length)

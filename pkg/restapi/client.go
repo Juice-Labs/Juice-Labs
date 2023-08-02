@@ -13,18 +13,12 @@ import (
 
 type Client struct {
 	Client      *http.Client
-	Scheme      string
 	Address     string
 	AccessToken string
+	httpScheme  bool
 }
 
-func (api Client) do(ctx context.Context, method string, path string, contentType string, body io.Reader) (*http.Response, error) {
-	url := url.URL{
-		Scheme: api.Scheme,
-		Host:   api.Address,
-		Path:   path,
-	}
-
+func (api Client) doUrl(ctx context.Context, method string, url url.URL, contentType string, body io.Reader) (*http.Response, error) {
 	request, err := http.NewRequestWithContext(ctx, method, url.String(), body)
 	if err != nil {
 		return nil, err
@@ -39,6 +33,24 @@ func (api Client) do(ctx context.Context, method string, path string, contentTyp
 	}
 
 	return api.Client.Do(request)
+}
+
+func (api Client) do(ctx context.Context, method string, path string, contentType string, body io.Reader) (*http.Response, error) {
+	response, err := api.doUrl(ctx, method, url.URL{
+		Scheme: "https",
+		Host:   api.Address,
+		Path:   path,
+	}, contentType, body)
+
+	if err == nil {
+		return response, err
+	}
+
+	return api.doUrl(ctx, method, url.URL{
+		Scheme: "http",
+		Host:   api.Address,
+		Path:   path,
+	}, contentType, body)
 }
 
 func (api Client) get(ctx context.Context, path string) (*http.Response, error) {
