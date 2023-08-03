@@ -67,18 +67,31 @@ func canTolerate(taints, tolerates map[string]string) bool {
 
 func agentMatches(agent restapi.Agent, requirements restapi.SessionRequirements) (*gpu.SelectedGpuSet, error) {
 	if matchesLabels(agent.Labels, requirements.MatchLabels) && canTolerate(agent.Taints, requirements.Tolerates) {
+		var err error
+
 		// Need to ensure the agent has the GPU capacity to support this session
 		gpuSet := gpu.NewGpuSet(agent.Gpus)
 
 		// Add the currently assigned sessions to the gpuSet
 		for _, session := range agent.Sessions {
-			gpuSet.Select(session.Gpus)
+			_, err_ := gpuSet.Select(session.Gpus)
+			err = errors.Join(err, err_)
 		}
 
-		return gpuSet.Find(requirements.Gpus)
+		selectedGpus, err_ := gpuSet.Find(requirements.Gpus)
+		err = errors.Join(err, err_)
+		return selectedGpus, err
 	}
 
 	return nil, nil
+}
+
+func validateSession(session storage.QueuedSession) error {
+	if len(session.Requirements.Gpus) == 0 {
+		return errors.New("session must request at least one GPU")
+	}
+
+	return nil
 }
 
 func (backend *Backend) update(ctx context.Context) error {
@@ -104,6 +117,12 @@ func (backend *Backend) update(ctx context.Context) error {
 
 		default:
 			session := sessionIterator.Value()
+			err_ := validateSession(session)
+			if err_ != nil {
+				err = errors.Join(err_, backend.storage.CancelSession(session.Id))
+				logger.Debugf("invalid session, %s", err.Error())
+				continue
+			}
 
 			// Get an iterator of the agents matching a subset of the requirements
 			agentIterator, err_ := backend.storage.GetAvailableAgentsMatching(storage.TotalVramRequired(session.Requirements))
