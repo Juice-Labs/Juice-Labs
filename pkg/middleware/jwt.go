@@ -26,7 +26,7 @@ func (c CustomClaims) Validate(ctx context.Context) error {
 }
 
 var (
-	enableTokenValidation = flag.Bool("enable-token-validation", false, "Enables token validation, all requests will be validated")
+	enableTokenValidation = flag.Bool("enable-token-validation", false, "Enable token validation")
 	authDomain            = flag.String("auth-domain", "", "The domain used for validating jwt tokens")
 	authAudience          = flag.String("auth-audience", "", "The audience used for validating jwt tokens")
 )
@@ -34,9 +34,9 @@ var (
 // EnsureValidToken is a middleware that will check the validity of our JWT.
 func EnsureValidToken() func(next http.Handler) http.Handler {
 
-	enableValidation := (os.Getenv("ENABLE_VALIDATION") == "true") || *enableTokenValidation
+	enableValidation := (os.Getenv("ENABLE_TOKEN_VALIDATION") == "true") || *enableTokenValidation
 
-	if enableValidation {
+	if !enableValidation {
 		return func(next http.Handler) http.Handler {
 			return next
 		}

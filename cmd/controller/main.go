@@ -116,7 +116,7 @@ func main() {
 		}
 
 		if err := godotenv.Load(); err != nil {
-			logger.Debugf("unable to load the .env file: %v", err)
+			logger.Infof("Could not load .env file: %v", err)
 		}
 
 		if err == nil {
