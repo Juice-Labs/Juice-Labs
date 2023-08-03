@@ -52,7 +52,7 @@ jobs:
           file: docker/controller/Dockerfile
           push: true
           tags: juicelabs/controller:latest,juicelabs/controller:${{ steps.version.outputs.version }}
-      - if: ${{ github.event_name == 'pull_request' }}
+      - if: ${{ github.event_name == 'pull_request_target' }}
         name: Controller Image
         uses: docker/build-push-action@v3
         with:
