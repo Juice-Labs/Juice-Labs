@@ -102,16 +102,24 @@ func main() {
 
 		var tlsConfig *tls.Config
 
-		var certificate tls.Certificate
+		var certificates []tls.Certificate
 		if *certFile != "" && *keyFile != "" {
-			certificate, err = tls.LoadX509KeyPair(*certFile, *keyFile)
+			certificate, err_ := tls.LoadX509KeyPair(*certFile, *keyFile)
+			err = err_
+			if err == nil {
+				certificates = append(certificates, certificate)
+			}
 		} else if *generateCert {
-			certificate, err = crypto.GenerateCertificate()
+			certificate, err_ := crypto.GenerateCertificate()
+			err = err_
+			if err == nil {
+				certificates = append(certificates, certificate)
+			}
 		}
 
-		if err == nil {
+		if certificates != nil {
 			tlsConfig = &tls.Config{
-				Certificates: []tls.Certificate{certificate},
+				Certificates: certificates,
 			}
 		}
 
