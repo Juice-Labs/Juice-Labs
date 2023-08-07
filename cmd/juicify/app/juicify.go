@@ -8,12 +8,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -26,9 +23,7 @@ import (
 type Configuration struct {
 	Id string `json:"id"`
 
-	Host string `json:"host"`
-
-	Port int `json:"port"`
+	Servers []string `json:"servers"`
 
 	LogGroup string `json:"logGroup,omitempty"`
 
@@ -58,7 +53,7 @@ type Configuration struct {
 }
 
 var (
-	address        = flag.String("host", "", "The IP address or hostname and port of the server to connect to")
+	address        = flag.String("address", "", "The IP address or hostname and port of the server to connect to")
 	test           = flag.Bool("test", false, "Deprecated: Use --test-connection instead")
 	testConnection = flag.Bool("test-connection", false, "Verifies juicify is able to reach the server at --address")
 	accessToken    = flag.String("access-token", "", "The access token to use when connecting to the server")
@@ -109,37 +104,21 @@ func Run(group task.Group) error {
 		}
 	}
 
-	if *address != "" {
+	server := *address
+	if server != "" {
 		// SplitHostPort() rejects addresses that don't have a port or a
 		// trailing ":".  Add a trailing ":" to have SplitHostPort() parse
 		// the port as 0 and fill in the default port later on to accept
 		// hostnames or IP addresses without ports.
-		if !strings.Contains(*address, ":") {
-			*address = *address + ":"
+		if !strings.Contains(server, ":") {
+			server = server + ":"
 		}
 
-		host, portStr, err := net.SplitHostPort(*address)
-		if err != nil {
-			return err
-		}
-
-		if portStr != "" {
-			port, err := strconv.Atoi(portStr)
-			if err != nil {
-				return err
-			}
-			config.Port = port
-		}
-
-		config.Host = host
-	}
-
-	if config.Host == "" {
-		config.Host = "127.0.0.1"
-	}
-
-	if config.Port == 0 {
-		config.Port = 43210
+		config.Servers = []string{server}
+	} else if len(config.Servers) > 0 {
+		server = config.Servers[0]
+	} else {
+		return errors.New("require either juice.cfg to have servers set or --address")
 	}
 
 	config.PCIBus = pcibus
@@ -151,7 +130,7 @@ func Run(group task.Group) error {
 
 	api := restapi.Client{
 		Client:      &http.Client{},
-		Address:     fmt.Sprintf("%s:%d", config.Host, config.Port),
+		Address:     server,
 		AccessToken: *accessToken,
 	}
 
@@ -182,26 +161,7 @@ func Run(group task.Group) error {
 		}
 
 		if session.Address != "" {
-			uri := url.URL{
-				Host: session.Address,
-			}
-
-			hostname := uri.Hostname()
-			if hostname != "" {
-				config.Host = uri.Hostname()
-			}
-
-			portStr := uri.Port()
-			if portStr != "" {
-				portInt, err := strconv.Atoi(portStr)
-				if err != nil {
-					return err
-				}
-
-				config.Port = portInt
-			}
-
-			api.Address = fmt.Sprintf("%s:%d", config.Host, config.Port)
+			api.Address = session.Address
 		}
 	}
 
@@ -210,7 +170,7 @@ func Run(group task.Group) error {
 		return err
 	}
 
-	logger.Infof("Connected to %s:%d, v%s", config.Host, config.Port, status.Version)
+	logger.Infof("Connected to %s, v%s", server, status.Version)
 
 	if *testConnection {
 		return nil
