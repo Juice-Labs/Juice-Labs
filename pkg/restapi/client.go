@@ -88,7 +88,7 @@ func (api Client) GetSession(id string) (Session, error) {
 }
 
 func (api Client) GetSessionWithContext(ctx context.Context, id string) (Session, error) {
-	response, err := api.get(ctx, fmt.Sprint("/v1/session", id))
+	response, err := api.get(ctx, fmt.Sprint("/v1/session/", id))
 	if err != nil {
 		return Session{}, err
 	}
@@ -107,7 +107,7 @@ func (api Client) UpdateSessionWithContext(ctx context.Context, session Session)
 		return err
 	}
 
-	response, err := api.putWithJson(ctx, fmt.Sprint("/v1/session", session.Id), body)
+	response, err := api.putWithJson(ctx, fmt.Sprint("/v1/session/", session.Id), body)
 	if err != nil {
 		return err
 	}
