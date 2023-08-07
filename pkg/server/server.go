@@ -90,7 +90,7 @@ func (server *Server) Run(group task.Group) error {
 
 	// Enable CORS
 	cors := cors.New(cors.Options{
-		AllowedOrigins: []string{"http://localhost:3000", "https://juiceweb.vercel.app", "http://wails.localhost:34115", "wails://wails"},
+		AllowedOrigins: []string{"http://localhost:3000", "https://juiceweb.vercel.app", "http://wails.localhost:34115", "wails://wails", "http://wails.localhost"},
 		AllowedMethods: []string{
 			http.MethodGet,
 			http.MethodPost,
