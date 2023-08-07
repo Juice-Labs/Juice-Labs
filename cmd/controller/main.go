@@ -36,7 +36,6 @@ var (
 	certFile     = flag.String("cert-file", "", "")
 	keyFile      = flag.String("key-file", "", "")
 	generateCert = flag.Bool("generate-cert", false, "Generates a certificate for https")
-	disableTls   = flag.Bool("disable-tls", false, "")
 
 	enableFrontend   = flag.Bool("frontend", false, "")
 	enableBackend    = flag.Bool("backend", false, "")
@@ -103,20 +102,24 @@ func main() {
 
 		var tlsConfig *tls.Config
 
-		if !*disableTls {
-			var certificate tls.Certificate
-			if *certFile != "" && *keyFile != "" {
-				certificate, err = tls.LoadX509KeyPair(*certFile, *keyFile)
-			} else if *generateCert {
-				certificate, err = crypto.GenerateCertificate()
-			} else {
-				err = errors.New("https is required, use both --cert-file and --key-file or --generate-cert")
-			}
-
+		var certificates []tls.Certificate
+		if *certFile != "" && *keyFile != "" {
+			certificate, err_ := tls.LoadX509KeyPair(*certFile, *keyFile)
+			err = err_
 			if err == nil {
-				tlsConfig = &tls.Config{
-					Certificates: []tls.Certificate{certificate},
-				}
+				certificates = append(certificates, certificate)
+			}
+		} else if *generateCert {
+			certificate, err_ := crypto.GenerateCertificate()
+			err = err_
+			if err == nil {
+				certificates = append(certificates, certificate)
+			}
+		}
+
+		if certificates != nil {
+			tlsConfig = &tls.Config{
+				Certificates: certificates,
 			}
 		}
 

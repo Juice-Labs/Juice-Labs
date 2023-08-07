@@ -407,6 +407,7 @@ func (driver *storageDriver) AssignSession(sessionId string, agentId string, gpu
 
 	obj, err = txn.First("sessions", "id", sessionId)
 	if err != nil {
+		txn.Abort()
 		return err
 	}
 	session := utilities.Require[Session](obj)
@@ -432,6 +433,26 @@ func (driver *storageDriver) AssignSession(sessionId string, agentId string, gpu
 	if err != nil {
 		txn.Abort()
 		return err
+	}
+
+	txn.Commit()
+	return nil
+}
+
+func (driver *storageDriver) CancelSession(sessionId string) error {
+	txn := driver.db.Txn(true)
+
+	obj, err := txn.First("sessions", "id", sessionId)
+	if err != nil {
+		txn.Abort()
+		return err
+	}
+	session := utilities.Require[Session](obj)
+	if session.AgentId == "" {
+		session.State = restapi.SessionClosed
+		session.ExitStatus = restapi.ExitStatusCanceled
+	} else {
+		session.State = restapi.SessionCanceling
 	}
 
 	txn.Commit()

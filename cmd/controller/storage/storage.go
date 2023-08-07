@@ -85,6 +85,7 @@ type Storage interface {
 
 	RequestSession(requirements restapi.SessionRequirements) (string, error)
 	AssignSession(sessionId string, agentId string, gpus []restapi.SessionGpu) error
+	CancelSession(sessionId string) error
 	GetSessionById(id string) (restapi.Session, error)
 	GetQueuedSessionById(id string) (QueuedSession, error) // For Testing
 
