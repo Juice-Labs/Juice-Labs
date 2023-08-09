@@ -10,9 +10,11 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
+	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/server"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
@@ -26,8 +28,10 @@ var (
 type Frontend struct {
 	startTime time.Time
 
-	hostname      string
-	webhookClient restapi.Client
+	hostname string
+
+	webhookClient   restapi.Client
+	webhookMessages chan string
 
 	storage storage.Storage
 }
@@ -54,6 +58,7 @@ func NewFrontend(server *server.Server, storage storage.Storage) (*Frontend, err
 			Client:  &http.Client{},
 			Address: *webhook,
 		}
+		frontend.webhookMessages = make(chan string, 32)
 	}
 
 	frontend.initializeEndpoints(server)
@@ -62,6 +67,62 @@ func NewFrontend(server *server.Server, storage storage.Storage) (*Frontend, err
 }
 
 func (frontend *Frontend) Run(group task.Group) error {
+	var messages []string
+
+	messagesCond := sync.NewCond(&sync.Mutex{})
+
+	group.GoFn("Webhook Copying", func(group task.Group) error {
+		for {
+			select {
+			case <-group.Ctx().Done():
+				messagesCond.Signal()
+				return nil
+
+			case msg := <-frontend.webhookMessages:
+				messagesCond.L.Lock()
+				messages = append(messages, msg)
+				messagesCond.L.Unlock()
+				messagesCond.Signal()
+			}
+		}
+	})
+
+	group.GoFn("Webhook Calling", func(g task.Group) error {
+		for {
+			for len(messages) > 0 {
+				select {
+				case <-group.Ctx().Done():
+					return nil
+
+				default:
+					messagesCond.L.Lock()
+					msg := messages[0]
+					messages = messages[1:]
+					messagesCond.L.Unlock()
+
+					response, err := frontend.webhookClient.Post(group.Ctx(), msg)
+					if response != nil {
+						err = errors.Join(err, response.Body.Close())
+						if err != nil {
+							logger.Error(err)
+						}
+					}
+				}
+			}
+
+			messagesCond.L.Lock()
+			for len(messages) == 0 {
+				messagesCond.Wait()
+			}
+			messagesCond.L.Unlock()
+
+			select {
+			case <-group.Ctx().Done():
+				return nil
+			}
+		}
+	})
+
 	return nil
 }
 
@@ -92,11 +153,7 @@ func (frontend *Frontend) updateAgent(ctx context.Context, update restapi.AgentU
 	err := frontend.storage.UpdateAgent(update)
 	if err == nil && len(update.Sessions) > 0 {
 		for sessionId, session := range update.Sessions {
-			response, err_ := frontend.webhookClient.Post(ctx, fmt.Sprintf("/v1/session/update?agentId=%s&sessionId=%s&newState=%s", update.Id, sessionId, session.State))
-			err = err_
-			if response != nil {
-				err = errors.Join(err, response.Body.Close())
-			}
+			frontend.webhookMessages <- fmt.Sprintf("/v1/session/update?agentId=%s&sessionId=%s&newState=%s", update.Id, sessionId, session.State)
 		}
 	}
 
