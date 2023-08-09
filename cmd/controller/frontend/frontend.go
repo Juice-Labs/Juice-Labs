@@ -4,7 +4,11 @@
 package frontend
 
 import (
+	"context"
+	"errors"
 	"flag"
+	"fmt"
+	"net/http"
 	"os"
 	"time"
 
@@ -16,12 +20,14 @@ import (
 
 var (
 	overrideHostname = flag.String("override-hostname", "", "")
+	webhook          = flag.String("webhook-url", "", "")
 )
 
 type Frontend struct {
 	startTime time.Time
 
-	hostname string
+	hostname      string
+	webhookClient restapi.Client
 
 	storage storage.Storage
 }
@@ -41,6 +47,13 @@ func NewFrontend(server *server.Server, storage storage.Storage) (*Frontend, err
 		startTime: time.Now(),
 		hostname:  hostname,
 		storage:   storage,
+	}
+
+	if *webhook != "" {
+		frontend.webhookClient = restapi.Client{
+			Client:  &http.Client{},
+			Address: *webhook,
+		}
 	}
 
 	frontend.initializeEndpoints(server)
@@ -75,8 +88,19 @@ func (frontend *Frontend) getAgentById(id string) (restapi.Agent, error) {
 	return frontend.storage.GetAgentById(id)
 }
 
-func (frontend *Frontend) updateAgent(update restapi.AgentUpdate) error {
-	return frontend.storage.UpdateAgent(update)
+func (frontend *Frontend) updateAgent(ctx context.Context, update restapi.AgentUpdate) error {
+	err := frontend.storage.UpdateAgent(update)
+	if err == nil && len(update.Sessions) > 0 {
+		for sessionId, session := range update.Sessions {
+			response, err_ := frontend.webhookClient.Post(ctx, fmt.Sprintf("/v1/session/update?agentId=%s&sessionId=%s&newState=%s", update.Id, sessionId, session.State))
+			err = err_
+			if response != nil {
+				err = errors.Join(err, response.Body.Close())
+			}
+		}
+	}
+
+	return err
 }
 
 func (frontend *Frontend) requestSession(sessionRequirements restapi.SessionRequirements) (string, error) {

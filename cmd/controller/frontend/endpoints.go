@@ -136,7 +136,7 @@ func (frontend *Frontend) updateAgentEp(group task.Group, router *mux.Router) er
 				return
 			}
 
-			err = frontend.updateAgent(update)
+			err = frontend.updateAgent(group.Ctx(), update)
 			if err != nil {
 				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 				logger.Error(err)
