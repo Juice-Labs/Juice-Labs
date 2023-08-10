@@ -103,23 +103,25 @@ func (frontend *Frontend) Run(group task.Group) error {
 					response, err := frontend.webhookClient.Post(group.Ctx(), msg)
 					if response != nil {
 						err = errors.Join(err, response.Body.Close())
-						if err != nil {
-							logger.Error(err)
-						}
+					}
+					if err != nil {
+						logger.Error(err)
 					}
 				}
 			}
 
 			messagesCond.L.Lock()
 			for len(messages) == 0 {
+				select {
+				case <-group.Ctx().Done():
+					return nil
+
+				default:
+				}
+
 				messagesCond.Wait()
 			}
 			messagesCond.L.Unlock()
-
-			select {
-			case <-group.Ctx().Done():
-				return nil
-			}
 		}
 	})
 

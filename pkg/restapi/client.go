@@ -18,7 +18,7 @@ type Client struct {
 	httpScheme  bool
 }
 
-func (api Client) doUrl(ctx context.Context, method string, url url.URL, contentType string, body io.Reader) (*http.Response, error) {
+func (api Client) doUrl(ctx context.Context, method string, url *url.URL, contentType string, body io.Reader) (*http.Response, error) {
 	request, err := http.NewRequestWithContext(ctx, method, url.String(), body)
 	if err != nil {
 		return nil, err
@@ -36,21 +36,23 @@ func (api Client) doUrl(ctx context.Context, method string, url url.URL, content
 }
 
 func (api Client) do(ctx context.Context, method string, path string, contentType string, body io.Reader) (*http.Response, error) {
-	response, err := api.doUrl(ctx, method, url.URL{
-		Scheme: "https",
-		Host:   api.Address,
-		Path:   path,
-	}, contentType, body)
+	pathUrl, err := url.Parse(path)
+	if err != nil {
+		return nil, err
+	}
+
+	pathUrl.Scheme = "https"
+	pathUrl.Host = api.Address
+
+	response, err := api.doUrl(ctx, method, pathUrl, contentType, body)
 
 	if err == nil {
 		return response, err
 	}
 
-	return api.doUrl(ctx, method, url.URL{
-		Scheme: "http",
-		Host:   api.Address,
-		Path:   path,
-	}, contentType, body)
+	pathUrl.Scheme = "http"
+
+	return api.doUrl(ctx, method, pathUrl, contentType, body)
 }
 
 func (api Client) Get(ctx context.Context, path string) (*http.Response, error) {
