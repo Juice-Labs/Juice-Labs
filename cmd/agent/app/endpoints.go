@@ -133,7 +133,7 @@ func (agent *Agent) connectSessionEp(group task.Group, router *mux.Router) error
 				return
 			}
 
-			err = reference.Object.Connect(conn)
+			err = agent.startConnection(group, id, conn)
 			if err != nil {
 				logger.Error(err)
 			}

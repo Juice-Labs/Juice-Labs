@@ -1,7 +1,7 @@
 /*
  *  Copyright (c) 2023 Juice Technologies, Inc. All Rights Reserved.
  */
-package session
+package connection
 
 import (
 	"os"
@@ -28,7 +28,7 @@ func inheritFiles(cmd *exec.Cmd, files ...*os.File) {
 	}
 }
 
-func (session *Session) forwardSocket(rawConn syscall.RawConn) error {
+func (connection *Connection) forwardSocket(rawConn syscall.RawConn) error {
 	var rights []byte
 	err := rawConn.Control(func(fd uintptr) {
 		rights = unix.UnixRights(int(fd))
@@ -37,6 +37,6 @@ func (session *Session) forwardSocket(rawConn syscall.RawConn) error {
 		return err
 	}
 
-	_, err = unix.SendmsgN(int(session.writePipe.Fd()), nil, rights, nil, 0)
+	_, err = unix.SendmsgN(int(connection.writePipe.Fd()), nil, rights, nil, 0)
 	return err
 }

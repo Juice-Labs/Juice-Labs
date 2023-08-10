@@ -8,6 +8,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,8 +18,8 @@ import (
 	"github.com/google/uuid"
 	orderedmap "github.com/wk8/go-ordered-map/v2"
 
+	"github.com/Juice-Labs/Juice-Labs/cmd/agent/connection"
 	cmdgpu "github.com/Juice-Labs/Juice-Labs/cmd/agent/gpu"
-	"github.com/Juice-Labs/Juice-Labs/cmd/agent/session"
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
@@ -62,6 +63,112 @@ func (reference *Reference[T]) Release() {
 	}
 }
 
+type Session struct {
+	mutex sync.Mutex
+
+	id        string
+	juicePath string
+	version   string
+	gpus      *gpu.SelectedGpuSet
+
+	state       string
+	connections *orderedmap.OrderedMap[string, *Reference[connection.Connection]]
+}
+
+func (session *Session) Id() string {
+	session.mutex.Lock()
+	defer session.mutex.Unlock()
+
+	return session.id
+}
+
+func NewSession(id string, juicePath string, version string, gpus *gpu.SelectedGpuSet) *Session {
+	return &Session{
+		id:          id,
+		juicePath:   juicePath,
+		version:     version,
+		state:       restapi.SessionActive,
+		gpus:        gpus,
+		connections: orderedmap.New[string, *Reference[connection.Connection]](),
+	}
+}
+
+func (session *Session) Session() restapi.Session {
+	session.mutex.Lock()
+	defer session.mutex.Unlock()
+
+	connections := make([]restapi.Connection, session.connections.Len())
+	for pair := session.connections.Oldest(); pair != nil; pair = pair.Next() {
+		connections = append(connections, pair.Value.Object.Connection())
+	}
+
+	return restapi.Session{
+		Id:          session.id,
+		State:       session.state,
+		Version:     session.version,
+		Gpus:        session.gpus.GetGpus(),
+		Connections: connections,
+	}
+}
+
+func (session *Session) Close() error {
+	session.mutex.Lock()
+	defer session.mutex.Unlock()
+
+	errs := []error{}
+	for pair := session.connections.Oldest(); pair != nil; pair = pair.Next() {
+		connection := pair.Value.Object
+		errs = append(errs, connection.Close())
+		pair.Value.Release()
+	}
+
+	session.connections = nil
+
+	session.gpus.Release()
+	session.gpus = nil
+
+	err := errors.Join(errs...)
+	return err
+}
+
+func (session *Session) Cancel() error {
+	session.mutex.Lock()
+	defer session.mutex.Unlock()
+
+	session.state = restapi.SessionCanceling
+	errs := []error{}
+
+	for pair := session.connections.Oldest(); pair != nil; pair = pair.Next() {
+		connection := pair.Value.Object
+		errs = append(errs, connection.Cancel())
+	}
+
+	return errors.Join(errs...)
+}
+
+func (session *Session) AddConnection(connection *connection.Connection) *Reference[connection.Connection] {
+	session.mutex.Lock()
+	defer session.mutex.Unlock()
+
+	connectionRef := NewReference(connection, func() {
+		err := connection.Close()
+		if err != nil {
+			logger.Errorf("session %s experienced a failure during closing, %v", session.Id(), err)
+		}
+
+		session.mutex.Lock()
+		defer session.mutex.Unlock()
+
+		session.connections.Delete(connection.Id())
+
+		// TODO: if session is not persistant, close it here if there are no more connections
+	})
+
+	session.connections.Set(connection.Id(), connectionRef)
+
+	return connectionRef
+}
+
 type Agent struct {
 	Id string
 
@@ -77,7 +184,7 @@ type Agent struct {
 	taints map[string]string
 
 	sessionsMutex sync.Mutex
-	sessions      *orderedmap.OrderedMap[string, *Reference[session.Session]]
+	sessions      *orderedmap.OrderedMap[string, *Reference[Session]]
 
 	controllerData
 }
@@ -98,7 +205,7 @@ func NewAgent(tlsConfig *tls.Config) (*Agent, error) {
 		Server:    server,
 		labels:    map[string]string{},
 		taints:    map[string]string{},
-		sessions:  orderedmap.New[string, *Reference[session.Session]](),
+		sessions:  orderedmap.New[string, *Reference[Session]](),
 	}
 
 	if *labels != "" {
@@ -168,14 +275,7 @@ func NewAgent(tlsConfig *tls.Config) (*Agent, error) {
 	return agent, nil
 }
 
-func (agent *Agent) getSessionsCount() int {
-	agent.sessionsMutex.Lock()
-	defer agent.sessionsMutex.Unlock()
-
-	return agent.sessions.Len()
-}
-
-func (agent *Agent) getSession(id string) (*Reference[session.Session], error) {
+func (agent *Agent) getSession(id string) (*Reference[Session], error) {
 	agent.sessionsMutex.Lock()
 	defer agent.sessionsMutex.Unlock()
 
@@ -190,10 +290,14 @@ func (agent *Agent) getSession(id string) (*Reference[session.Session], error) {
 	return nil, fmt.Errorf("no session found with id %s", id)
 }
 
-func (agent *Agent) addSession(session *session.Session) *Reference[session.Session] {
+func (agent *Agent) addSession(session *Session) *Reference[Session] {
 	logger.Tracef("Starting Session %s", session.Id())
 
 	reference := NewReference(session, func() {
+		// We delete this reference inside cancelSession
+
+		// TODO: Close the session when the last connection if the session is not persistant
+
 		err := session.Close()
 		if err != nil {
 			logger.Errorf("session %s experienced a failure during closing, %v", session.Id(), err)
@@ -219,19 +323,53 @@ func (agent *Agent) Run(group task.Group) error {
 	return nil
 }
 
-func (agent *Agent) runSession(group task.Group, id string, juicePath string, version string, gpus *gpu.SelectedGpuSet) error {
-	reference := agent.addSession(session.New(id, juicePath, version, gpus, agent))
+func (agent *Agent) setSession(group task.Group, id string, juicePath string, version string, gpus *gpu.SelectedGpuSet) error {
+	agent.addSession(NewSession(id, juicePath, version, gpus))
 
-	err := reference.Object.Start(group)
+	return nil
+}
+
+func (agent *Agent) cancelSession(id string) error {
+	sessionRef, err := agent.getSession(id)
+	if err != nil {
+		return err
+	}
+
+	err = sessionRef.Object.Cancel()
+	sessionRef.Release()
+	if err != nil {
+		return err
+	}
+	agent.sessionsMutex.Lock()
+	defer agent.sessionsMutex.Unlock()
+	// Release underlying reference
+	reference, found := agent.sessions.Get(id)
+	if found {
+		reference.Release()
+	}
+	return nil
+}
+
+func (agent *Agent) startConnection(group task.Group, sessionId string, c net.Conn) error {
+
+	sessionRef, err := agent.getSession(sessionId)
+	if err != nil {
+		return err
+	}
+
+	id := uuid.NewString()
+	connectionRef := sessionRef.Object.AddConnection(connection.New(id, sessionRef.Object.juicePath, sessionRef.Object.version, sessionRef.Object.gpus, agent))
 	if err == nil {
-		group.GoFn("Agent runSession", func(group task.Group) error {
-			err := reference.Object.Wait()
-			reference.Release()
+		group.GoFn("Agent startConnection", func(group task.Group) error {
+			err := connectionRef.Object.Wait()
+			connectionRef.Release()
 			return err
 		})
 	} else {
-		reference.Release()
+		connectionRef.Release()
 	}
+
+	connectionRef.Object.Connect(c)
 
 	return err
 }
@@ -243,7 +381,7 @@ func (agent *Agent) requestSession(group task.Group, sessionRequirements restapi
 	}
 
 	id := uuid.NewString()
-	return id, agent.runSession(group, id, agent.JuicePath, sessionRequirements.Version, selectedGpus)
+	return id, agent.setSession(group, id, agent.JuicePath, sessionRequirements.Version, selectedGpus)
 }
 
 func (agent *Agent) registerSession(group task.Group, apiSession restapi.Session) error {
@@ -252,5 +390,23 @@ func (agent *Agent) registerSession(group task.Group, apiSession restapi.Session
 		return fmt.Errorf("Agent.registerSession: unable to select a matching set of GPUs")
 	}
 
-	return agent.runSession(group, apiSession.Id, agent.JuicePath, apiSession.Version, selectedGpus)
+	return agent.setSession(group, apiSession.Id, agent.JuicePath, apiSession.Version, selectedGpus)
+}
+
+func (agent *Agent) ConnectionTerminated(id string, exitStatus string) {
+	if agent.connectionUpdates != nil {
+		logger.Tracef("connection %s changed state to %s", id, exitStatus)
+		agent.connectionUpdates <- connectionUpdate{
+			Id:          id,
+			ExistStatus: exitStatus,
+		}
+	}
+}
+
+func (agent *Agent) getGpuMetrics() []restapi.GpuMetrics {
+	agent.gpuMetricsMutex.Lock()
+	defer agent.gpuMetricsMutex.Unlock()
+
+	// Make a copy
+	return append(make([]restapi.GpuMetrics, 0, len(agent.gpuMetrics)), agent.gpuMetrics...)
 }

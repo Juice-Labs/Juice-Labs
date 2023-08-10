@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
-	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
@@ -25,15 +24,15 @@ var (
 	expose = flag.String("expose", "", "The IP address and port to expose through the controller for clients to see. The value is not checked for correctness.")
 )
 
-type sessionUpdate struct {
-	Id    string
-	State string
+type connectionUpdate struct {
+	Id          string
+	ExistStatus string
 }
 
 type controllerData struct {
 	api restapi.Client
 
-	sessionUpdates chan sessionUpdate
+	connectionUpdates chan connectionUpdate
 
 	gpuMetricsMutex sync.Mutex
 	gpuMetrics      []restapi.GpuMetrics
@@ -52,7 +51,7 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 		}
 
 		// Default queue depth of 32 to limit the amount of potential blocking between updates
-		agent.sessionUpdates = make(chan sessionUpdate, 32)
+		agent.connectionUpdates = make(chan connectionUpdate, 32)
 
 		if *expose == "" {
 			return errors.New("--expose must be set when connecting to a controller")
@@ -128,14 +127,14 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 
 					// Update the controller with our current state
 					// Multiple updates can occur within one cycle so create a map to get the latest updates
-					sessionsUpdates := map[string]restapi.SessionUpdate{}
+					connectionUpdates := map[string]restapi.ConnectionUpdate{}
 
 				CopySessions:
 					for {
 						select {
-						case update := <-agent.sessionUpdates:
-							sessionsUpdates[update.Id] = restapi.SessionUpdate{
-								State: update.State,
+						case update := <-agent.connectionUpdates:
+							connectionUpdates[update.Id] = restapi.ConnectionUpdate{
+								ExitStatus: update.ExistStatus,
 							}
 
 						default:
@@ -144,10 +143,10 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 					}
 
 					err = errors.Join(err, agent.api.UpdateAgentWithContext(group.Ctx(), restapi.AgentUpdate{
-						Id:       agent.Id,
-						State:    restapi.AgentActive,
-						Sessions: sessionsUpdates,
-						Gpus:     agent.getGpuMetrics(),
+						Id:          agent.Id,
+						State:       restapi.AgentActive,
+						Connections: connectionUpdates,
+						Gpus:        agent.getGpuMetrics(),
 					}))
 					if err != nil {
 						return err
@@ -158,22 +157,4 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 	}
 
 	return nil
-}
-
-func (agent *Agent) SessionStateChanged(id string, state string) {
-	if agent.sessionUpdates != nil {
-		logger.Tracef("session %s changed state to %s", id, state)
-		agent.sessionUpdates <- sessionUpdate{
-			Id:    id,
-			State: state,
-		}
-	}
-}
-
-func (agent *Agent) getGpuMetrics() []restapi.GpuMetrics {
-	agent.gpuMetricsMutex.Lock()
-	defer agent.gpuMetricsMutex.Unlock()
-
-	// Make a copy
-	return append(make([]restapi.GpuMetrics, 0, len(agent.gpuMetrics)), agent.gpuMetrics...)
 }

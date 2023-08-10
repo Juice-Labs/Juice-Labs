@@ -114,10 +114,10 @@ const (
 				SELECT ( SELECT row(key, value) FROM key_values WHERE id = agent_taints.key_value_id ) FROM agent_taints WHERE agent_id = agents.id
 			) ) taints, 
 			( SELECT ARRAY (
-				SELECT row(id, state, exit_status, address, version, persistent, gpus) FROM sessions tab WHERE tab.agent_id = agents.id AND tab.state != 'closed'
+				SELECT row(id, state, address, version, persistent, gpus) FROM sessions tab WHERE tab.agent_id = agents.id AND tab.state != 'closed'
 			) ) sessions
 		FROM agents`
-	selectSessions       = "SELECT id, state, exit_status, address, version, persistent, gpus FROM sessions"
+	selectSessions       = "SELECT id, state, address, version, persistent, gpus FROM sessions"
 	selectQueuedSessions = "SELECT id, requirements FROM sessions WHERE state = 'queued'"
 
 	orderBy     = " ORDER BY created_at ASC"
@@ -201,7 +201,7 @@ func unmarshalSession(row sqlRow) (restapi.Session, error) {
 	var address []byte
 	var gpus []byte
 
-	err := row.Scan(&session.Id, &session.State, &session.ExitStatus, &address, &session.Version, &session.Persistent, &gpus)
+	err := row.Scan(&session.Id, &session.State, &address, &session.Version, &session.Persistent, &gpus)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			err = storage.ErrNotFound
@@ -544,45 +544,55 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 		return errors.Join(err, tx.Rollback())
 	}
 
+	// TODO: Automatically close sessions that are not persistant when the last connection is closed
+	// This should be done by the agent or controller, not the storage implementation
+
 	// Check if any of the sessions are being closed
-	closedSessions := make([]string, 0, len(update.Sessions))
-	closedSessionsCount := 0
-	for key, value := range update.Sessions {
-		if value.State == restapi.SessionClosed {
-			closedSessions = append(closedSessions, key)
-			closedSessionsCount++
+	// closedSessions := make([]string, 0, len(update.Sessions))
+	// closedSessionsCount := 0
+	// for key, value := range update.Sessions {
+	// 	if value.State == restapi.SessionClosed {
+	// 		closedSessions = append(closedSessions, key)
+	// 		closedSessionsCount++
+	// 	}
+	// }
+
+	// if closedSessionsCount > 0 {
+	// 	if update.State != "" {
+	// 		_, err = tx.ExecContext(driver.ctx, `UPDATE agents SET vram_available = (
+	// 				SELECT SUM(vram_required) FROM sessions WHERE id = ANY($1)
+	// 			), state = $2, gpus = $3, updated_at = now() WHERE id = $4`,
+	// 			pq.StringArray(closedSessions), update.State, gpusData, update.Id)
+	// 	} else {
+	// 		_, err = tx.ExecContext(driver.ctx, `UPDATE agents SET vram_available = (
+	// 				SELECT SUM(vram_required) FROM sessions WHERE id = ANY($1)
+	// 			), gpus = $2, updated_at = now() WHERE id = $3`,
+	// 			pq.StringArray(closedSessions), gpusData, update.Id)
+	// 	}
+	// }
+
+	// for id, sessionUpdate := range update.Sessions {
+	// 	_, err = tx.ExecContext(driver.ctx, "UPDATE sessions SET state = $1 WHERE id = $2", sessionUpdate.State, id)
+	// 	if err != nil {
+	// 		return errors.Join(err, tx.Rollback())
+	// 	}
+	// }
+
+	for id, connectionUpdate := range update.Connections {
+		_, err = tx.ExecContext(driver.ctx, "UPDATE connections SET exit_status = $1 WHERE id = $2", connectionUpdate.ExitStatus, id)
+		if err != nil {
+			return errors.Join(err, tx.Rollback())
 		}
 	}
 
-	if closedSessionsCount > 0 {
-		if update.State != "" {
-			_, err = tx.ExecContext(driver.ctx, `UPDATE agents SET vram_available = (
-					SELECT SUM(vram_required) FROM sessions WHERE id = ANY($1)
-				), state = $2, gpus = $3, updated_at = now() WHERE id = $4`,
-				pq.StringArray(closedSessions), update.State, gpusData, update.Id)
-		} else {
-			_, err = tx.ExecContext(driver.ctx, `UPDATE agents SET vram_available = (
-					SELECT SUM(vram_required) FROM sessions WHERE id = ANY($1)
-				), gpus = $2, updated_at = now() WHERE id = $3`,
-				pq.StringArray(closedSessions), gpusData, update.Id)
-		}
+	if update.State != "" {
+		_, err = tx.ExecContext(driver.ctx, "UPDATE agents SET state = $1, gpus = $2, updated_at = now() WHERE id = $3", update.State, gpusData, update.Id)
 	} else {
-		if update.State != "" {
-			_, err = tx.ExecContext(driver.ctx, "UPDATE agents SET state = $1, gpus = $2, updated_at = now() WHERE id = $3", update.State, gpusData, update.Id)
-		} else {
-			_, err = tx.ExecContext(driver.ctx, "UPDATE agents SET gpus = $1, updated_at = now() WHERE id = $2", gpusData, update.Id)
-		}
+		_, err = tx.ExecContext(driver.ctx, "UPDATE agents SET gpus = $1, updated_at = now() WHERE id = $2", gpusData, update.Id)
 	}
 
 	if err != nil {
 		return errors.Join(err, tx.Rollback())
-	}
-
-	for id, sessionUpdate := range update.Sessions {
-		_, err = tx.ExecContext(driver.ctx, "UPDATE sessions SET state = $1 WHERE id = $2", sessionUpdate.State, id)
-		if err != nil {
-			return errors.Join(err, tx.Rollback())
-		}
 	}
 
 	return tx.Commit()
@@ -601,7 +611,7 @@ func (driver *storageDriver) RequestSession(sessionRequirements restapi.SessionR
 
 	var id string
 	err = tx.QueryRowContext(driver.ctx, "INSERT INTO sessions ("+
-		"state, exit_status, version, persistent, requirements, vram_required, updated_at"+
+		"state, version, persistent, requirements, vram_required, updated_at"+
 		") VALUES ("+
 		"$1, $2, $3, $4, $5, $6, now()"+
 		") RETURNING id",
@@ -672,9 +682,9 @@ func (driver *storageDriver) AssignSession(sessionId string, agentId string, gpu
 		return errors.Join(err, tx.Rollback())
 	}
 
-	_, err = tx.ExecContext(driver.ctx, `UPDATE sessions SET agent_id = $1, state = $2, exit_status = $3, address = (
+	_, err = tx.ExecContext(driver.ctx, `UPDATE sessions SET agent_id = $1, state = $2, address = (
 			SELECT address FROM agents WHERE id = $1
-		), gpus = $4, updated_at = now() WHERE id = $5`, agentId, restapi.SessionAssigned, restapi.ExitStatusUnknown, gpusData, sessionId)
+		), gpus = $4, updated_at = now() WHERE id = $5`, agentId, restapi.SessionAssigned, gpusData, sessionId)
 	if err != nil {
 		return errors.Join(err, tx.Rollback())
 	}
@@ -687,11 +697,7 @@ func (driver *storageDriver) CancelSession(sessionId string) error {
 		state = CASE WHEN table.agent_id IS NULL
 					THEN 'closed'
 					ELSE 'canceling'
-				END,
-		exit_status = CASE WHEN table.agent_id IS NULL
-						  THEN 'canceled'
-						  ELSE table.exit_status
-					  END
+				END
 		WHERE table.id = $1`, sessionId)
 	return err
 }
