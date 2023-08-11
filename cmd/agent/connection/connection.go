@@ -24,7 +24,7 @@ import (
 )
 
 type EventListener interface {
-	ConnectionTerminated(id string, existStatus string)
+	ConnectionTerminated(id string, sessionId string, existStatus string)
 }
 
 type Connection struct {
@@ -32,6 +32,7 @@ type Connection struct {
 	juicePath string
 
 	id         string
+	sessionId  string
 	exitStatus string
 
 	gpus *gpu.SelectedGpuSet
@@ -43,7 +44,7 @@ type Connection struct {
 	eventListener EventListener
 }
 
-func New(id string, juicePath string, version string, gpus *gpu.SelectedGpuSet, eventListener EventListener) *Connection {
+func New(id string, juicePath string, version string, gpus *gpu.SelectedGpuSet, sessionId string, eventListener EventListener) *Connection {
 	return &Connection{
 		id:            id,
 		juicePath:     juicePath,
@@ -58,6 +59,12 @@ func (connection *Connection) Id() string {
 	defer connection.mutex.Unlock()
 
 	return connection.id
+}
+func (connection *Connection) ExitStatus() string {
+	connection.mutex.Lock()
+	defer connection.mutex.Unlock()
+
+	return connection.exitStatus
 }
 
 func (connection *Connection) Connection() restapi.Connection {
@@ -74,7 +81,7 @@ func (connection *Connection) setExitStatus(exitStatus string) {
 	if connection.exitStatus == restapi.ExitStatusUnknown {
 		connection.exitStatus = exitStatus
 	}
-	connection.eventListener.ConnectionTerminated(connection.id, exitStatus)
+	connection.eventListener.ConnectionTerminated(connection.id, connection.sessionId, exitStatus)
 }
 
 func (connection *Connection) Close() error {
@@ -91,7 +98,7 @@ func (connection *Connection) Close() error {
 	connection.gpus.Release()
 	connection.gpus = nil
 
-	connection.eventListener.ConnectionTerminated(connection.id, restapi.ExitStatusCanceled)
+	connection.eventListener.ConnectionTerminated(connection.id, connection.sessionId, restapi.ExitStatusCanceled)
 
 	return err
 }

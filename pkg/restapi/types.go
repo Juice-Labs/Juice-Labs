@@ -111,13 +111,14 @@ type Status struct {
 	Hostname string `json:"hostname"`
 }
 
-type ConnectionUpdate struct {
-	ExitStatus string `json:"exitStatus"`
+type SessionUpdate struct {
+	State       string       `json:"State"`
+	Connections []Connection `json:"connections"`
 }
 
 type AgentUpdate struct {
-	Id          string                      `json:"id"`
-	State       string                      `json:"state"`
-	Connections map[string]ConnectionUpdate `json:"connections"`
-	Gpus        []GpuMetrics                `json:"gpus"`
+	Id             string                   `json:"id"`
+	State          string                   `json:"state"`
+	SessionsUpdate map[string]SessionUpdate `json:"sessions"`
+	Gpus           []GpuMetrics             `json:"gpus"`
 }

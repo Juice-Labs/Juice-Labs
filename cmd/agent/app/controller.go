@@ -25,14 +25,19 @@ var (
 )
 
 type connectionUpdate struct {
+	Id         string
+	ExitStatus string
+}
+type sessionUpdate struct {
 	Id          string
-	ExistStatus string
+	State       string
+	Connections []connectionUpdate
 }
 
 type controllerData struct {
 	api restapi.Client
 
-	connectionUpdates chan connectionUpdate
+	sessionUpdates chan sessionUpdate
 
 	gpuMetricsMutex sync.Mutex
 	gpuMetrics      []restapi.GpuMetrics
@@ -51,7 +56,7 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 		}
 
 		// Default queue depth of 32 to limit the amount of potential blocking between updates
-		agent.connectionUpdates = make(chan connectionUpdate, 32)
+		agent.sessionUpdates = make(chan sessionUpdate, 32)
 
 		if *expose == "" {
 			return errors.New("--expose must be set when connecting to a controller")
@@ -127,14 +132,23 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 
 					// Update the controller with our current state
 					// Multiple updates can occur within one cycle so create a map to get the latest updates
-					connectionUpdates := map[string]restapi.ConnectionUpdate{}
+					sessionUpdates := map[string]restapi.SessionUpdate{}
 
 				CopySessions:
 					for {
 						select {
-						case update := <-agent.connectionUpdates:
-							connectionUpdates[update.Id] = restapi.ConnectionUpdate{
-								ExitStatus: update.ExistStatus,
+						case update := <-agent.sessionUpdates:
+							connectionUpdates := make([]restapi.Connection, len(update.Connections))
+							for index, connection := range update.Connections {
+								connectionUpdates[index] = restapi.Connection{
+									Id:         connection.Id,
+									ExitStatus: connection.ExitStatus,
+								}
+							}
+
+							sessionUpdates[update.Id] = restapi.SessionUpdate{
+								State:       update.State,
+								Connections: connectionUpdates,
 							}
 
 						default:
@@ -143,10 +157,10 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 					}
 
 					err = errors.Join(err, agent.api.UpdateAgentWithContext(group.Ctx(), restapi.AgentUpdate{
-						Id:          agent.Id,
-						State:       restapi.AgentActive,
-						Connections: connectionUpdates,
-						Gpus:        agent.getGpuMetrics(),
+						Id:             agent.Id,
+						State:          restapi.AgentActive,
+						SessionsUpdate: sessionUpdates,
+						Gpus:           agent.getGpuMetrics(),
 					}))
 					if err != nil {
 						return err

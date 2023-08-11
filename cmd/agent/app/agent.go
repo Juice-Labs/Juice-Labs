@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"github.com/google/uuid"
 	orderedmap "github.com/wk8/go-ordered-map/v2"
@@ -34,140 +33,6 @@ var (
 	labels  = flag.String("labels", "", "Comma separated list of key=value pairs")
 	taints  = flag.String("taints", "", "Comma separated list of key=value pairs")
 )
-
-type Reference[T any] struct {
-	Object      *T
-	count       atomic.Int32
-	onCountZero func()
-}
-
-func NewReference[T any](object *T, onCountZero func()) *Reference[T] {
-	reference := &Reference[T]{
-		Object:      object,
-		count:       atomic.Int32{},
-		onCountZero: onCountZero,
-	}
-
-	reference.count.Store(1)
-	return reference
-}
-
-func (reference *Reference[T]) Acquire() bool {
-	return reference.count.Add(1) > 1
-}
-
-func (reference *Reference[T]) Release() {
-	if reference.count.Add(-1) == 0 {
-		reference.onCountZero()
-		reference.Object = nil
-	}
-}
-
-type Session struct {
-	mutex sync.Mutex
-
-	id        string
-	juicePath string
-	version   string
-	gpus      *gpu.SelectedGpuSet
-
-	state       string
-	connections *orderedmap.OrderedMap[string, *Reference[connection.Connection]]
-}
-
-func (session *Session) Id() string {
-	session.mutex.Lock()
-	defer session.mutex.Unlock()
-
-	return session.id
-}
-
-func NewSession(id string, juicePath string, version string, gpus *gpu.SelectedGpuSet) *Session {
-	return &Session{
-		id:          id,
-		juicePath:   juicePath,
-		version:     version,
-		state:       restapi.SessionActive,
-		gpus:        gpus,
-		connections: orderedmap.New[string, *Reference[connection.Connection]](),
-	}
-}
-
-func (session *Session) Session() restapi.Session {
-	session.mutex.Lock()
-	defer session.mutex.Unlock()
-
-	connections := make([]restapi.Connection, session.connections.Len())
-	for pair := session.connections.Oldest(); pair != nil; pair = pair.Next() {
-		connections = append(connections, pair.Value.Object.Connection())
-	}
-
-	return restapi.Session{
-		Id:          session.id,
-		State:       session.state,
-		Version:     session.version,
-		Gpus:        session.gpus.GetGpus(),
-		Connections: connections,
-	}
-}
-
-func (session *Session) Close() error {
-	session.mutex.Lock()
-	defer session.mutex.Unlock()
-
-	errs := []error{}
-	for pair := session.connections.Oldest(); pair != nil; pair = pair.Next() {
-		connection := pair.Value.Object
-		errs = append(errs, connection.Close())
-		pair.Value.Release()
-	}
-
-	session.connections = nil
-
-	session.gpus.Release()
-	session.gpus = nil
-
-	err := errors.Join(errs...)
-	return err
-}
-
-func (session *Session) Cancel() error {
-	session.mutex.Lock()
-	defer session.mutex.Unlock()
-
-	session.state = restapi.SessionCanceling
-	errs := []error{}
-
-	for pair := session.connections.Oldest(); pair != nil; pair = pair.Next() {
-		connection := pair.Value.Object
-		errs = append(errs, connection.Cancel())
-	}
-
-	return errors.Join(errs...)
-}
-
-func (session *Session) AddConnection(connection *connection.Connection) *Reference[connection.Connection] {
-	session.mutex.Lock()
-	defer session.mutex.Unlock()
-
-	connectionRef := NewReference(connection, func() {
-		err := connection.Close()
-		if err != nil {
-			logger.Errorf("session %s experienced a failure during closing, %v", session.Id(), err)
-		}
-
-		session.mutex.Lock()
-		defer session.mutex.Unlock()
-
-		session.connections.Delete(connection.Id())
-
-		// TODO: if session is not persistant, close it here if there are no more connections
-	})
-
-	session.connections.Set(connection.Id(), connectionRef)
-
-	return connectionRef
-}
 
 type Agent struct {
 	Id string
@@ -310,9 +175,10 @@ func (agent *Agent) addSession(session *Session) *Reference[Session] {
 	})
 
 	agent.sessionsMutex.Lock()
-	defer agent.sessionsMutex.Unlock()
-
 	agent.sessions.Set(session.Id(), reference)
+	agent.sessionsMutex.Unlock()
+
+	agent.SessionStateChanged(session.id, session.state)
 
 	return reference
 }
@@ -324,7 +190,7 @@ func (agent *Agent) Run(group task.Group) error {
 }
 
 func (agent *Agent) setSession(group task.Group, id string, juicePath string, version string, gpus *gpu.SelectedGpuSet) error {
-	agent.addSession(NewSession(id, juicePath, version, gpus))
+	agent.addSession(NewSession(id, juicePath, version, gpus, agent))
 
 	return nil
 }
@@ -358,7 +224,9 @@ func (agent *Agent) startConnection(group task.Group, sessionId string, c net.Co
 	}
 
 	id := uuid.NewString()
-	connectionRef := sessionRef.Object.AddConnection(connection.New(id, sessionRef.Object.juicePath, sessionRef.Object.version, sessionRef.Object.gpus, agent))
+	connectionRef := sessionRef.Object.AddConnection(connection.New(id, sessionRef.Object.juicePath, sessionRef.Object.version, sessionRef.Object.gpus, sessionId, agent))
+
+	err = connectionRef.Object.Start(group)
 	if err == nil {
 		group.GoFn("Agent startConnection", func(group task.Group) error {
 			err := connectionRef.Object.Wait()
@@ -368,7 +236,6 @@ func (agent *Agent) startConnection(group task.Group, sessionId string, c net.Co
 	} else {
 		connectionRef.Release()
 	}
-
 	connectionRef.Object.Connect(c)
 
 	return err
@@ -393,12 +260,32 @@ func (agent *Agent) registerSession(group task.Group, apiSession restapi.Session
 	return agent.setSession(group, apiSession.Id, agent.JuicePath, apiSession.Version, selectedGpus)
 }
 
-func (agent *Agent) ConnectionTerminated(id string, exitStatus string) {
-	if agent.connectionUpdates != nil {
-		logger.Tracef("connection %s changed state to %s", id, exitStatus)
-		agent.connectionUpdates <- connectionUpdate{
-			Id:          id,
-			ExistStatus: exitStatus,
+func (agent *Agent) ConnectionTerminated(id string, sessionId string, exitStatus string) {
+	logger.Tracef("connection %s changed exitStatus to %s", id, exitStatus)
+	agent.SessionStateChanged(sessionId, exitStatus)
+}
+
+func (agent *Agent) SessionStateChanged(sessionId string, state string) {
+	logger.Tracef("session %s changed state to %s", sessionId, state)
+
+	session, err := agent.getSession(sessionId)
+	if err != nil {
+		logger.Errorf("session not found %s with error %s", sessionId, err)
+	}
+
+	if agent.sessionUpdates != nil {
+		connectionUpdates := make([]connectionUpdate, 0, session.Object.connections.Len())
+		for pair := session.Object.connections.Oldest(); pair != nil; pair = pair.Next() {
+			connection := pair.Value.Object
+			connectionUpdates = append(connectionUpdates, connectionUpdate{
+				Id:         connection.Id(),
+				ExitStatus: connection.ExitStatus(),
+			})
+		}
+		agent.sessionUpdates <- sessionUpdate{
+			Id:          sessionId,
+			State:       session.Object.state,
+			Connections: connectionUpdates,
 		}
 	}
 }

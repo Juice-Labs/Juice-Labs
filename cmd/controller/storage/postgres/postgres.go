@@ -228,6 +228,22 @@ func unmarshalSession(row sqlRow) (restapi.Session, error) {
 	return session, nil
 }
 
+func unmarshalConnections(rows []sqlRow) ([]restapi.Connection, error) {
+	connections := []restapi.Connection{}
+
+	for _, row := range rows {
+		var connection restapi.Connection
+		err := row.Scan(&connection.Id, &connection.ExitStatus)
+		if err != nil {
+			return []restapi.Connection{}, err
+		}
+
+		connections = append(connections, connection)
+	}
+
+	return connections, nil
+}
+
 func selectQueuedSessionsWhere(where string) string {
 	return fmt.Sprint(selectQueuedSessions, " AND ", where, orderBy)
 }
@@ -571,17 +587,18 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 	// 	}
 	// }
 
-	// for id, sessionUpdate := range update.Sessions {
-	// 	_, err = tx.ExecContext(driver.ctx, "UPDATE sessions SET state = $1 WHERE id = $2", sessionUpdate.State, id)
-	// 	if err != nil {
-	// 		return errors.Join(err, tx.Rollback())
-	// 	}
-	// }
+	for id, sessionUpdate := range update.SessionsUpdate {
 
-	for id, connectionUpdate := range update.Connections {
-		_, err = tx.ExecContext(driver.ctx, "UPDATE connections SET exit_status = $1 WHERE id = $2", connectionUpdate.ExitStatus, id)
+		_, err = tx.ExecContext(driver.ctx, "UPDATE sessions SET state = $1 WHERE id = $2", sessionUpdate.State, id)
 		if err != nil {
 			return errors.Join(err, tx.Rollback())
+		}
+
+		for _, connectionUpdate := range sessionUpdate.Connections {
+			_, err = tx.ExecContext(driver.ctx, "UPDATE connections SET state = $1 WHERE id = $2", connectionUpdate.ExitStatus, connectionUpdate.Id)
+			if err != nil {
+				return errors.Join(err, tx.Rollback())
+			}
 		}
 	}
 
@@ -613,9 +630,9 @@ func (driver *storageDriver) RequestSession(sessionRequirements restapi.SessionR
 	err = tx.QueryRowContext(driver.ctx, "INSERT INTO sessions ("+
 		"state, version, persistent, requirements, vram_required, updated_at"+
 		") VALUES ("+
-		"$1, $2, $3, $4, $5, $6, now()"+
+		"$1, $2, $3, $4, $5, now()"+
 		") RETURNING id",
-		restapi.SessionQueued, restapi.ExitStatusUnknown, sessionRequirements.Version,
+		restapi.SessionQueued, sessionRequirements.Version,
 		sessionRequirements.Persistent, requirements, storage.TotalVramRequired(sessionRequirements)).Scan(&id)
 	if err != nil {
 		return "", errors.Join(err, tx.Rollback())
@@ -684,7 +701,7 @@ func (driver *storageDriver) AssignSession(sessionId string, agentId string, gpu
 
 	_, err = tx.ExecContext(driver.ctx, `UPDATE sessions SET agent_id = $1, state = $2, address = (
 			SELECT address FROM agents WHERE id = $1
-		), gpus = $4, updated_at = now() WHERE id = $5`, agentId, restapi.SessionAssigned, gpusData, sessionId)
+		), gpus = $3, updated_at = now() WHERE id = $4`, agentId, restapi.SessionAssigned, gpusData, sessionId)
 	if err != nil {
 		return errors.Join(err, tx.Rollback())
 	}
@@ -703,7 +720,25 @@ func (driver *storageDriver) CancelSession(sessionId string) error {
 }
 
 func (driver *storageDriver) GetSessionById(id string) (restapi.Session, error) {
-	return unmarshalSession(driver.db.QueryRowContext(driver.ctx, selectSessionsWhere("id = $1"), id))
+	session, err := unmarshalSession(driver.db.QueryRowContext(driver.ctx, selectSessionsWhere("id = $1"), id))
+	if err != nil {
+		return restapi.Session{}, err
+	}
+	connectionRows, err := driver.db.QueryContext(driver.ctx, fmt.Sprint("SELECT id, exit_status FROM connections WHERE session_id = $1"), id)
+	if err != nil {
+		return restapi.Session{}, err
+	}
+	for connectionRows.Next() {
+		var connection restapi.Connection
+		err = connectionRows.Scan(&connection.Id, &connection.ExitStatus)
+		if err != nil {
+			return restapi.Session{}, err
+		}
+		session.Connections = append(session.Connections, connection)
+	}
+
+	return session, nil
+
 }
 
 func (driver *storageDriver) GetQueuedSessionById(id string) (storage.QueuedSession, error) {

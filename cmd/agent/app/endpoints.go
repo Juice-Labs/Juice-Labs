@@ -30,6 +30,7 @@ func (agent *Agent) initializeEndpoints() {
 	agent.Server.AddCreateEndpoint(agent.getStatusEp)
 	agent.Server.SetCreateEndpoint(RequestSessionName, agent.requestSessionEp)
 	agent.Server.AddCreateEndpoint(agent.getSessionEp)
+	agent.Server.AddCreateEndpoint(agent.cancelSessionEp)
 	agent.Server.AddCreateEndpoint(agent.connectSessionEp)
 
 	prometheus.InitializeEndpoints(agent.Server)
@@ -97,6 +98,27 @@ func (agent *Agent) getSessionEp(group task.Group, router *mux.Router) error {
 				logger.Error(err)
 			}
 		}))).Methods("GET")
+	return nil
+}
+
+func (agent *Agent) cancelSessionEp(group task.Group, router *mux.Router) error {
+	// TODO: Validate write:sessions claim
+	router.Handle("/v1/session/{id}", middleware.EnsureValidToken()(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			id := mux.Vars(r)["id"]
+
+			err := agent.cancelSession(id)
+			if err != nil {
+				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+				logger.Error(err)
+				return
+			}
+
+			err = pkgnet.Respond(w, http.StatusOK, fmt.Sprintf("Session %s cancelled", id))
+			if err != nil {
+				logger.Error(err)
+			}
+		}))).Methods("DELETE")
 	return nil
 }
 
