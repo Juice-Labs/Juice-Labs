@@ -595,7 +595,7 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 		}
 
 		for _, connectionUpdate := range sessionUpdate.Connections {
-			_, err = tx.ExecContext(driver.ctx, "UPDATE connections SET state = $1 WHERE id = $2", connectionUpdate.ExitStatus, connectionUpdate.Id)
+			_, err = tx.ExecContext(driver.ctx, "UPDATE connections SET exit_status = $1 WHERE id = $2", connectionUpdate.ExitStatus, connectionUpdate.Id)
 			if err != nil {
 				return errors.Join(err, tx.Rollback())
 			}

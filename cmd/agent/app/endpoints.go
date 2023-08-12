@@ -127,6 +127,12 @@ func (agent *Agent) connectSessionEp(group task.Group, router *mux.Router) error
 	router.Handle("/v1/connect/session/{id}", middleware.EnsureValidToken()(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			id := mux.Vars(r)["id"]
+			connectionData, err := pkgnet.ReadRequestBody[restapi.ConnectionData](r)
+			if err != nil {
+				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+				logger.Error(err)
+				return
+			}
 
 			reference, err := agent.getSession(id)
 			if err != nil {
@@ -155,7 +161,7 @@ func (agent *Agent) connectSessionEp(group task.Group, router *mux.Router) error
 				return
 			}
 
-			err = agent.startConnection(group, id, conn)
+			err = agent.connect(group, connectionData, id, conn)
 			if err != nil {
 				logger.Error(err)
 			}

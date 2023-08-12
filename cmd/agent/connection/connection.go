@@ -47,6 +47,7 @@ type Connection struct {
 func New(id string, juicePath string, version string, gpus *gpu.SelectedGpuSet, sessionId string, eventListener EventListener) *Connection {
 	return &Connection{
 		id:            id,
+		sessionId:     sessionId,
 		juicePath:     juicePath,
 		exitStatus:    restapi.ExitStatusUnknown,
 		gpus:          gpus,
@@ -78,15 +79,17 @@ func (connection *Connection) Connection() restapi.Connection {
 }
 
 func (connection *Connection) setExitStatus(exitStatus string) {
+	connection.mutex.Lock()
 	if connection.exitStatus == restapi.ExitStatusUnknown {
 		connection.exitStatus = exitStatus
 	}
+	connection.mutex.Unlock()
+
 	connection.eventListener.ConnectionTerminated(connection.id, connection.sessionId, exitStatus)
 }
 
 func (connection *Connection) Close() error {
 	connection.mutex.Lock()
-	defer connection.mutex.Unlock()
 
 	connection.cmd = nil
 
@@ -98,7 +101,7 @@ func (connection *Connection) Close() error {
 	connection.gpus.Release()
 	connection.gpus = nil
 
-	connection.eventListener.ConnectionTerminated(connection.id, connection.sessionId, restapi.ExitStatusCanceled)
+	connection.mutex.Unlock()
 
 	return err
 }
@@ -157,7 +160,9 @@ func (connection *Connection) Start(group task.Group) error {
 
 	if err != nil {
 		err = fmt.Errorf("Connection: failed to start Renderer_Win with %s", err)
+		connection.mutex.Unlock()
 		connection.setExitStatus(restapi.ExitStatusFailure)
+		return err
 	}
 
 	return err
@@ -167,16 +172,18 @@ func (connection *Connection) Wait() error {
 	err := connection.cmd.Wait()
 
 	connection.mutex.Lock()
-	defer connection.mutex.Unlock()
+	connection.cmd = nil
 
 	if err != nil {
 		logger.Error(fmt.Sprintf("Connection: connection %s failed with %s", connection.id, err))
+		connection.mutex.Unlock()
 		connection.setExitStatus(restapi.ExitStatusFailure)
 	} else {
+
+		connection.mutex.Unlock()
 		connection.setExitStatus(restapi.ExitStatusSuccess)
 	}
 
-	connection.cmd = nil
 	return nil
 }
 
@@ -185,6 +192,7 @@ func (connection *Connection) Cancel() error {
 	defer connection.mutex.Unlock()
 
 	if connection.cmd != nil {
+		connection.mutex.Unlock()
 		connection.setExitStatus(restapi.ExitStatusCanceled)
 		return connection.cmd.Cancel()
 	}

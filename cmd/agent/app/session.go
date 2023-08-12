@@ -2,12 +2,14 @@ package app
 
 import (
 	"errors"
+	"net"
 	"sync"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/connection"
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
+	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 	orderedmap "github.com/wk8/go-ordered-map/v2"
 )
 
@@ -69,7 +71,6 @@ func (session *Session) Session() restapi.Session {
 
 func (session *Session) Close() error {
 	session.mutex.Lock()
-	defer session.mutex.Unlock()
 
 	errs := []error{}
 	for pair := session.connections.Oldest(); pair != nil; pair = pair.Next() {
@@ -84,6 +85,7 @@ func (session *Session) Close() error {
 	session.gpus = nil
 
 	session.state = restapi.SessionClosed
+	session.mutex.Unlock()
 	session.eventListener.SessionStateChanged(session.id, session.state)
 
 	err := errors.Join(errs...)
@@ -92,10 +94,8 @@ func (session *Session) Close() error {
 
 func (session *Session) Cancel() error {
 	session.mutex.Lock()
-	defer session.mutex.Unlock()
 
 	session.state = restapi.SessionCanceling
-	session.eventListener.SessionStateChanged(session.id, session.state)
 
 	errs := []error{}
 
@@ -103,6 +103,8 @@ func (session *Session) Cancel() error {
 		connection := pair.Value.Object
 		errs = append(errs, connection.Cancel())
 	}
+	session.mutex.Unlock()
+	session.eventListener.SessionStateChanged(session.id, session.state)
 
 	return errors.Join(errs...)
 }
@@ -112,6 +114,7 @@ func (session *Session) AddConnection(connection *connection.Connection) *Refere
 	defer session.mutex.Unlock()
 
 	connectionRef := NewReference(connection, func() {
+		logger.Tracef("session %s closing connection %s", session.Id(), connection.Id())
 		err := connection.Close()
 		if err != nil {
 			logger.Errorf("session %s experienced a failure during closing, %v", session.Id(), err)
@@ -128,4 +131,45 @@ func (session *Session) AddConnection(connection *connection.Connection) *Refere
 	session.connections.Set(connection.Id(), connectionRef)
 
 	return connectionRef
+}
+
+func (session *Session) Connect(group task.Group, connectionData restapi.ConnectionData, c net.Conn, agent *Agent) error {
+	connectionRef, found := session.GetConnection(connectionData.Id)
+	if found {
+		logger.Tracef("Connecting to existing connection: %s", connectionData.Id)
+		defer connectionRef.Release()
+	} else {
+		// New Connection - Create it and start RenderWin
+		connectionRef = session.AddConnection(connection.New(connectionData.Id, session.juicePath, session.version, session.gpus, session.id, agent))
+		err := connectionRef.Object.Start(group)
+		if err == nil {
+			group.GoFn("Agent startConnection", func(group task.Group) error {
+				err := connectionRef.Object.Wait()
+				logger.Tracef("Connection %s exited with code: %v", connectionRef.Object.Id(), connectionRef.Object.ExitStatus())
+				connectionRef.Release()
+				return err
+			})
+		} else {
+			connectionRef.Release()
+		}
+		logger.Tracef("Connection %s created for pid: %s, process name: %s", connectionData.Id, connectionData.Pid, connectionData.ProcessName)
+	}
+
+	err := connectionRef.Object.Connect(c)
+
+	return err
+}
+
+func (session *Session) GetConnection(id string) (*Reference[connection.Connection], bool) {
+	session.mutex.Lock()
+	defer session.mutex.Unlock()
+
+	connectionRef, ok := session.connections.Get(id)
+	if !ok {
+		return nil, false
+	}
+	if !connectionRef.Acquire() {
+		return nil, false
+	}
+	return connectionRef, true
 }

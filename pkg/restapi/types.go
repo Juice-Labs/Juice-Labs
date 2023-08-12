@@ -40,6 +40,12 @@ type SessionRequirements struct {
 	Tolerates   map[string]string `json:"tolerates"`
 }
 
+type ConnectionData struct {
+	Id          string `json:"id"`
+	Pid         string `json:"pid"`
+	ProcessName string `json:"processName"`
+}
+
 type SessionGpu struct {
 	Index int `json:"index"`
 

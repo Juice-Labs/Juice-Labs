@@ -17,7 +17,6 @@ import (
 	"github.com/google/uuid"
 	orderedmap "github.com/wk8/go-ordered-map/v2"
 
-	"github.com/Juice-Labs/Juice-Labs/cmd/agent/connection"
 	cmdgpu "github.com/Juice-Labs/Juice-Labs/cmd/agent/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
@@ -162,7 +161,7 @@ func (agent *Agent) addSession(session *Session) *Reference[Session] {
 		// We delete this reference inside cancelSession
 
 		// TODO: Close the session when the last connection if the session is not persistant
-
+		logger.Tracef("Closing Session %s", session.Id())
 		err := session.Close()
 		if err != nil {
 			logger.Errorf("session %s experienced a failure during closing, %v", session.Id(), err)
@@ -216,29 +215,14 @@ func (agent *Agent) cancelSession(id string) error {
 	return nil
 }
 
-func (agent *Agent) startConnection(group task.Group, sessionId string, c net.Conn) error {
-
+func (agent *Agent) connect(group task.Group, connectionData restapi.ConnectionData, sessionId string, c net.Conn) error {
 	sessionRef, err := agent.getSession(sessionId)
 	if err != nil {
 		return err
 	}
+	defer sessionRef.Release()
 
-	id := uuid.NewString()
-	connectionRef := sessionRef.Object.AddConnection(connection.New(id, sessionRef.Object.juicePath, sessionRef.Object.version, sessionRef.Object.gpus, sessionId, agent))
-
-	err = connectionRef.Object.Start(group)
-	if err == nil {
-		group.GoFn("Agent startConnection", func(group task.Group) error {
-			err := connectionRef.Object.Wait()
-			connectionRef.Release()
-			return err
-		})
-	} else {
-		connectionRef.Release()
-	}
-	connectionRef.Object.Connect(c)
-
-	return err
+	return sessionRef.Object.Connect(group, connectionData, c, agent)
 }
 
 func (agent *Agent) requestSession(group task.Group, sessionRequirements restapi.SessionRequirements) (string, error) {
@@ -262,20 +246,25 @@ func (agent *Agent) registerSession(group task.Group, apiSession restapi.Session
 
 func (agent *Agent) ConnectionTerminated(id string, sessionId string, exitStatus string) {
 	logger.Tracef("connection %s changed exitStatus to %s", id, exitStatus)
-	agent.SessionStateChanged(sessionId, exitStatus)
+	agent.NotifySessionUpdates(sessionId)
 }
 
 func (agent *Agent) SessionStateChanged(sessionId string, state string) {
 	logger.Tracef("session %s changed state to %s", sessionId, state)
+	agent.NotifySessionUpdates(sessionId)
+}
 
-	session, err := agent.getSession(sessionId)
+func (agent *Agent) NotifySessionUpdates(sessionId string) {
+	sessionRef, err := agent.getSession(sessionId)
 	if err != nil {
 		logger.Errorf("session not found %s with error %s", sessionId, err)
+		return
 	}
+	defer sessionRef.Release()
 
 	if agent.sessionUpdates != nil {
-		connectionUpdates := make([]connectionUpdate, 0, session.Object.connections.Len())
-		for pair := session.Object.connections.Oldest(); pair != nil; pair = pair.Next() {
+		connectionUpdates := make([]connectionUpdate, 0, sessionRef.Object.connections.Len())
+		for pair := sessionRef.Object.connections.Oldest(); pair != nil; pair = pair.Next() {
 			connection := pair.Value.Object
 			connectionUpdates = append(connectionUpdates, connectionUpdate{
 				Id:         connection.Id(),
@@ -284,7 +273,7 @@ func (agent *Agent) SessionStateChanged(sessionId string, state string) {
 		}
 		agent.sessionUpdates <- sessionUpdate{
 			Id:          sessionId,
-			State:       session.Object.state,
+			State:       sessionRef.Object.state,
 			Connections: connectionUpdates,
 		}
 	}
