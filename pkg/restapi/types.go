@@ -64,8 +64,10 @@ type Session struct {
 }
 
 type Connection struct {
-	Id         string `json:"id"`
-	ExitStatus string `json:"exitStatus"`
+	Id          string `json:"id"`
+	ExitStatus  string `json:"exitStatus"`
+	Pid         int64  `json:"pid"`
+	ProcessName string `json:"processName"`
 }
 
 type GpuMetrics struct {

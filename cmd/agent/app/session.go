@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"net"
+	"strconv"
 	"sync"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/connection"
@@ -40,12 +41,13 @@ func (session *Session) Id() string {
 
 func NewSession(id string, juicePath string, version string, gpus *gpu.SelectedGpuSet, eventListener EventListener) *Session {
 	session := Session{
-		id:          id,
-		juicePath:   juicePath,
-		version:     version,
-		state:       restapi.SessionActive,
-		gpus:        gpus,
-		connections: orderedmap.New[string, *Reference[connection.Connection]](),
+		id:            id,
+		juicePath:     juicePath,
+		version:       version,
+		state:         restapi.SessionActive,
+		gpus:          gpus,
+		connections:   orderedmap.New[string, *Reference[connection.Connection]](),
+		eventListener: eventListener,
 	}
 
 	return &session
@@ -140,8 +142,12 @@ func (session *Session) Connect(group task.Group, connectionData restapi.Connect
 		defer connectionRef.Release()
 	} else {
 		// New Connection - Create it and start RenderWin
-		connectionRef = session.AddConnection(connection.New(connectionData.Id, session.juicePath, session.version, session.gpus, session.id, agent))
-		err := connectionRef.Object.Start(group)
+		pid, err := strconv.ParseInt(connectionData.Pid, 10, 64)
+		if err != nil {
+			pid = 0
+		}
+		connectionRef = session.AddConnection(connection.New(connectionData.Id, session.juicePath, session.version, session.gpus, session.id, pid, connectionData.ProcessName, agent))
+		err = connectionRef.Object.Start(group)
 		if err == nil {
 			group.GoFn("Agent startConnection", func(group task.Group) error {
 				err := connectionRef.Object.Wait()
@@ -153,6 +159,7 @@ func (session *Session) Connect(group task.Group, connectionData restapi.Connect
 			connectionRef.Release()
 		}
 		logger.Tracef("Connection %s created for pid: %s, process name: %s", connectionData.Id, connectionData.Pid, connectionData.ProcessName)
+		session.eventListener.SessionStateChanged(session.id, session.state)
 	}
 
 	err := connectionRef.Object.Connect(c)

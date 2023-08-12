@@ -31,9 +31,11 @@ type Connection struct {
 	mutex     sync.Mutex
 	juicePath string
 
-	id         string
-	sessionId  string
-	exitStatus string
+	id          string
+	sessionId   string
+	exitStatus  string
+	pid         int64
+	processName string
 
 	gpus *gpu.SelectedGpuSet
 
@@ -44,10 +46,12 @@ type Connection struct {
 	eventListener EventListener
 }
 
-func New(id string, juicePath string, version string, gpus *gpu.SelectedGpuSet, sessionId string, eventListener EventListener) *Connection {
+func New(id string, juicePath string, version string, gpus *gpu.SelectedGpuSet, sessionId string, pid int64, processName string, eventListener EventListener) *Connection {
 	return &Connection{
 		id:            id,
 		sessionId:     sessionId,
+		pid:           pid,
+		processName:   processName,
 		juicePath:     juicePath,
 		exitStatus:    restapi.ExitStatusUnknown,
 		gpus:          gpus,
@@ -66,6 +70,20 @@ func (connection *Connection) ExitStatus() string {
 	defer connection.mutex.Unlock()
 
 	return connection.exitStatus
+}
+
+func (connection *Connection) Pid() int64 {
+	connection.mutex.Lock()
+	defer connection.mutex.Unlock()
+
+	return connection.pid
+}
+
+func (connection *Connection) ProcessName() string {
+	connection.mutex.Lock()
+	defer connection.mutex.Unlock()
+
+	return connection.processName
 }
 
 func (connection *Connection) Connection() restapi.Connection {

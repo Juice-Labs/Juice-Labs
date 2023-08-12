@@ -25,8 +25,10 @@ var (
 )
 
 type connectionUpdate struct {
-	Id         string
-	ExitStatus string
+	Id          string
+	ExitStatus  string
+	Pid         int64
+	ProcessName string
 }
 type sessionUpdate struct {
 	Id          string
@@ -141,8 +143,10 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 							connectionUpdates := make([]restapi.Connection, len(update.Connections))
 							for index, connection := range update.Connections {
 								connectionUpdates[index] = restapi.Connection{
-									Id:         connection.Id,
-									ExitStatus: connection.ExitStatus,
+									Id:          connection.Id,
+									ExitStatus:  connection.ExitStatus,
+									Pid:         connection.Pid,
+									ProcessName: connection.ProcessName,
 								}
 							}
 

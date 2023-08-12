@@ -267,8 +267,10 @@ func (agent *Agent) NotifySessionUpdates(sessionId string) {
 		for pair := sessionRef.Object.connections.Oldest(); pair != nil; pair = pair.Next() {
 			connection := pair.Value.Object
 			connectionUpdates = append(connectionUpdates, connectionUpdate{
-				Id:         connection.Id(),
-				ExitStatus: connection.ExitStatus(),
+				Id:          connection.Id(),
+				ExitStatus:  connection.ExitStatus(),
+				Pid:         connection.Pid(),
+				ProcessName: connection.ProcessName(),
 			})
 		}
 		agent.sessionUpdates <- sessionUpdate{
