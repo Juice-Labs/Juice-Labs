@@ -228,20 +228,13 @@ func unmarshalSession(row sqlRow) (restapi.Session, error) {
 	return session, nil
 }
 
-func unmarshalConnections(rows []sqlRow) ([]restapi.Connection, error) {
-	connections := []restapi.Connection{}
-
-	for _, row := range rows {
-		var connection restapi.Connection
-		err := row.Scan(&connection.Id, &connection.ExitStatus)
-		if err != nil {
-			return []restapi.Connection{}, err
-		}
-
-		connections = append(connections, connection)
+func unmarshalConnection(row sqlRow) (restapi.Connection, error) {
+	var connection restapi.Connection
+	err := row.Scan(&connection.Id, &connection.Pid, &connection.ProcessName, &connection.ExitStatus)
+	if err != nil {
+		return []restapi.Connection{}, err
 	}
-
-	return connections, nil
+	return connection, nil
 }
 
 func selectQueuedSessionsWhere(where string) string {
@@ -729,13 +722,13 @@ func (driver *storageDriver) GetSessionById(id string) (restapi.Session, error) 
 	if err != nil {
 		return restapi.Session{}, err
 	}
-	connectionRows, err := driver.db.QueryContext(driver.ctx, fmt.Sprint("SELECT id, exit_status FROM connections WHERE session_id = $1"), id)
+	connectionRows, err := driver.db.QueryContext(driver.ctx, fmt.Sprint("SELECT id, pid, process_name, exit_status FROM connections WHERE session_id = $1"), id)
 	if err != nil {
 		return restapi.Session{}, err
 	}
 	for connectionRows.Next() {
 		var connection restapi.Connection
-		err = connectionRows.Scan(&connection.Id, &connection.ExitStatus)
+		err = connectionRows.Scan(&connection.Id, &connection.Pid, &connection.ProcessName, &connection.ExitStatus)
 		if err != nil {
 			return restapi.Session{}, err
 		}
