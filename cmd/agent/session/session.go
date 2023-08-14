@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -138,11 +139,13 @@ func (session *Session) Start(group task.Group) error {
 			logName := fmt.Sprint(now.Format("20060102-150405_"), session.id, ".log")
 
 			if err == nil {
+				logLevel, _ := logger.LogLevelAsString()
 				session.cmd = exec.CommandContext(group.Ctx(),
 					filepath.Join(session.juicePath, "Renderer_Win"),
 					append(
 						[]string{
 							"--id", session.id,
+							"--log_group", strings.ToLower(logLevel),
 							"--log_file", filepath.Join(logsPath, logName),
 							"--ipc_write", fmt.Sprint(ch1Write.Fd()),
 							"--ipc_read", fmt.Sprint(ch2Read.Fd()),
