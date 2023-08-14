@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"fmt"
 	"net/http"
 	"os"
 	"sync"
@@ -31,7 +30,7 @@ type Frontend struct {
 	hostname string
 
 	webhookClient   restapi.Client
-	webhookMessages chan string
+	webhookMessages chan restapi.WebhookMessage
 
 	storage storage.Storage
 }
@@ -58,7 +57,7 @@ func NewFrontend(server *server.Server, storage storage.Storage) (*Frontend, err
 			Client:  &http.Client{},
 			Address: *webhook,
 		}
-		frontend.webhookMessages = make(chan string, 32)
+		frontend.webhookMessages = make(chan restapi.WebhookMessage, 32)
 	}
 
 	frontend.initializeEndpoints(server)
@@ -67,7 +66,7 @@ func NewFrontend(server *server.Server, storage storage.Storage) (*Frontend, err
 }
 
 func (frontend *Frontend) Run(group task.Group) error {
-	var messages []string
+	var messages []restapi.WebhookMessage
 
 	messagesCond := sync.NewCond(&sync.Mutex{})
 
@@ -100,10 +99,14 @@ func (frontend *Frontend) Run(group task.Group) error {
 					messages = messages[1:]
 					messagesCond.L.Unlock()
 
-					response, err := frontend.webhookClient.Post(group.Ctx(), msg)
-					if response != nil {
-						err = errors.Join(err, response.Body.Close())
+					body, err := restapi.JsonReaderFromObject(msg)
+					if err == nil {
+						response, err_ := frontend.webhookClient.PostWithJson(group.Ctx(), *webhook, body)
+						if response != nil {
+							err = errors.Join(err_, response.Body.Close())
+						}
 					}
+
 					if err != nil {
 						logger.Error(err)
 					}
@@ -155,7 +158,11 @@ func (frontend *Frontend) updateAgent(ctx context.Context, update restapi.AgentU
 	err := frontend.storage.UpdateAgent(update)
 	if err == nil && len(update.Sessions) > 0 {
 		for sessionId, session := range update.Sessions {
-			frontend.webhookMessages <- fmt.Sprintf("/v1/session/update?agentId=%s&sessionId=%s&newState=%s", update.Id, sessionId, session.State)
+			frontend.webhookMessages <- restapi.WebhookMessage{
+				Agent:   update.Id,
+				Session: sessionId,
+				State:   session.State,
+			}
 		}
 	}
 

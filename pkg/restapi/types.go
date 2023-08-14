@@ -116,3 +116,9 @@ type AgentUpdate struct {
 	Sessions map[string]SessionUpdate `json:"sessions"`
 	Gpus     []GpuMetrics             `json:"gpus"`
 }
+
+type WebhookMessage struct {
+	Agent   string `json:"agent"`
+	Session string `json:"session"`
+	State   string `json:"state"`
+}
