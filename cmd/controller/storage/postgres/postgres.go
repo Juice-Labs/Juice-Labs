@@ -228,15 +228,6 @@ func unmarshalSession(row sqlRow) (restapi.Session, error) {
 	return session, nil
 }
 
-func unmarshalConnection(row sqlRow) (restapi.Connection, error) {
-	var connection restapi.Connection
-	err := row.Scan(&connection.Id, &connection.Pid, &connection.ProcessName, &connection.ExitStatus)
-	if err != nil {
-		return []restapi.Connection{}, err
-	}
-	return connection, nil
-}
-
 func selectQueuedSessionsWhere(where string) string {
 	return fmt.Sprint(selectQueuedSessions, " AND ", where, orderBy)
 }
