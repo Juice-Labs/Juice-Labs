@@ -24,9 +24,10 @@ const (
 )
 
 var (
-	quiet       = flag.Bool("quiet", false, "Disables all logging output")
-	logLevelArg = flag.String("log-level", "info", "Sets the maximum level of output [Fatal, Error, Warning, Info (Default), Debug, Trace]")
-	logFile     = flag.String("log-file", "", "")
+	quiet                = flag.Bool("quiet", false, "Disables all logging output")
+	logLevelArg          = flag.String("log-level", "info", "Sets the maximum level of output [Fatal, Error, Warning, Info (Default), Debug, Trace]")
+	logFilePath          = flag.String("log-file", "", "")
+	logFile     *os.File = nil
 
 	logLevel = LevelInfo
 
@@ -58,6 +59,10 @@ func LogLevelAsString() (string, error) {
 	return "", fmt.Errorf("unknown log-level %d", logLevel)
 }
 
+func LogFile() *os.File {
+	return logFile
+}
+
 func Configure() error {
 	switch strings.ToLower(strings.TrimSpace(*logLevelArg)) {
 	case "fatal":
@@ -76,17 +81,19 @@ func Configure() error {
 		return fmt.Errorf("unknown log-level %s", *logLevelArg)
 	}
 
+	var err error
 	stdout := os.Stdout
 	stderr := os.Stderr
+	logFile = stdout
 
-	if *logFile != "" {
-		file, err := os.OpenFile(*logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if *logFilePath != "" {
+		logFile, err = os.OpenFile(*logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err != nil {
 			return err
 		}
 
-		stdout = file
-		stderr = file
+		stdout = logFile
+		stderr = logFile
 	}
 
 	var out io.Writer

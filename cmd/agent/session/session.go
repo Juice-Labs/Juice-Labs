@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
@@ -133,11 +132,6 @@ func (session *Session) Start(group task.Group) error {
 				}
 			}
 
-			now := time.Now()
-
-			// NOTE: time.Format is really weird. The string below equates to YYYYMMDD-HHMMSS_
-			logName := fmt.Sprint(now.Format("20060102-150405_"), session.id, ".log")
-
 			if err == nil {
 				logLevel, err_ := logger.LogLevelAsString()
 				if err_ != nil {
@@ -149,7 +143,6 @@ func (session *Session) Start(group task.Group) error {
 						[]string{
 							"--id", session.id,
 							"--log_group", strings.ToLower(logLevel),
-							"--log_file", filepath.Join(logsPath, logName),
 							"--ipc_write", fmt.Sprint(ch1Write.Fd()),
 							"--ipc_read", fmt.Sprint(ch2Read.Fd()),
 							"--pcibus", session.gpus.GetPciBusString(),
@@ -157,6 +150,7 @@ func (session *Session) Start(group task.Group) error {
 						flag.Args()[0:]...,
 					)...,
 				)
+				session.cmd.Stdout = logger.LogFile()
 
 				inheritFiles(session.cmd, ch1Write, ch2Read)
 
