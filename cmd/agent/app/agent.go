@@ -159,18 +159,18 @@ func (agent *Agent) addSession(session *Session) *Reference[Session] {
 
 	reference := NewReference(session, func() {
 		// We delete this reference inside cancelSession
-
-		// TODO: Close the session when the last connection if the session is not persistant
-		logger.Tracef("Closing Session %s", session.Id())
+		sessionId := session.Id()
+		logger.Tracef("Closing Session %s", sessionId)
 		err := session.Close()
 		if err != nil {
-			logger.Errorf("session %s experienced a failure during closing, %v", session.Id(), err)
+			logger.Errorf("session %s experienced a failure during closing, %v", sessionId, err)
 		}
 
 		agent.sessionsMutex.Lock()
 		defer agent.sessionsMutex.Unlock()
 
-		agent.sessions.Delete(session.Id())
+		agent.sessions.Delete(sessionId)
+		logger.Tracef("Closed Session %s", sessionId)
 	})
 
 	agent.sessionsMutex.Lock()
@@ -188,9 +188,8 @@ func (agent *Agent) Run(group task.Group) error {
 	return nil
 }
 
-func (agent *Agent) setSession(group task.Group, id string, juicePath string, version string, gpus *gpu.SelectedGpuSet) error {
-	agent.addSession(NewSession(id, juicePath, version, gpus, agent))
-
+func (agent *Agent) setSession(group task.Group, id string, juicePath string, version string, gpus *gpu.SelectedGpuSet, persistent bool) error {
+	agent.addSession(NewSession(id, juicePath, version, gpus, agent, persistent))
 	return nil
 }
 
@@ -206,9 +205,9 @@ func (agent *Agent) cancelSession(id string) error {
 		return err
 	}
 	agent.sessionsMutex.Lock()
-	defer agent.sessionsMutex.Unlock()
 	// Release underlying reference
 	reference, found := agent.sessions.Get(id)
+	agent.sessionsMutex.Unlock()
 	if found {
 		reference.Release()
 	}
@@ -232,7 +231,7 @@ func (agent *Agent) requestSession(group task.Group, sessionRequirements restapi
 	}
 
 	id := uuid.NewString()
-	return id, agent.setSession(group, id, agent.JuicePath, sessionRequirements.Version, selectedGpus)
+	return id, agent.setSession(group, id, agent.JuicePath, sessionRequirements.Version, selectedGpus, sessionRequirements.Persistent)
 }
 
 func (agent *Agent) registerSession(group task.Group, apiSession restapi.Session) error {
@@ -241,17 +240,29 @@ func (agent *Agent) registerSession(group task.Group, apiSession restapi.Session
 		return fmt.Errorf("Agent.registerSession: unable to select a matching set of GPUs")
 	}
 
-	return agent.setSession(group, apiSession.Id, agent.JuicePath, apiSession.Version, selectedGpus)
+	return agent.setSession(group, apiSession.Id, agent.JuicePath, apiSession.Version, selectedGpus, apiSession.Persistent)
 }
 
 func (agent *Agent) ConnectionTerminated(id string, sessionId string, exitStatus string) {
 	logger.Tracef("connection %s changed exitStatus to %s", id, exitStatus)
+	sessionRef, err := agent.getSession(sessionId)
+	if err != nil {
+		logger.Errorf("session not found %s with error %s", sessionId, err)
+		return
+	}
+	defer sessionRef.Release()
+
 	agent.NotifySessionUpdates(sessionId)
 }
 
 func (agent *Agent) SessionStateChanged(sessionId string, state string) {
 	logger.Tracef("session %s changed state to %s", sessionId, state)
-	agent.NotifySessionUpdates(sessionId)
+	if state == restapi.SessionClosed {
+		// Closed sessions can't be accessed anymore
+		agent.NotifySessionClosed(sessionId)
+	} else {
+		agent.NotifySessionUpdates(sessionId)
+	}
 }
 
 func (agent *Agent) NotifySessionUpdates(sessionId string) {
@@ -277,6 +288,15 @@ func (agent *Agent) NotifySessionUpdates(sessionId string) {
 			Id:          sessionId,
 			State:       sessionRef.Object.state,
 			Connections: connectionUpdates,
+		}
+	}
+}
+
+func (agent *Agent) NotifySessionClosed(sessionId string) {
+	if agent.sessionUpdates != nil {
+		agent.sessionUpdates <- sessionUpdate{
+			Id:    sessionId,
+			State: restapi.SessionClosed,
 		}
 	}
 }

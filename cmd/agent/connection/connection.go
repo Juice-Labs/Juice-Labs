@@ -28,7 +28,7 @@ type EventListener interface {
 }
 
 type Connection struct {
-	mutex     sync.Mutex
+	mutex     sync.RWMutex
 	juicePath string
 
 	id          string
@@ -60,35 +60,35 @@ func New(id string, juicePath string, version string, gpus *gpu.SelectedGpuSet, 
 }
 
 func (connection *Connection) Id() string {
-	connection.mutex.Lock()
-	defer connection.mutex.Unlock()
+	connection.mutex.RLock()
+	defer connection.mutex.RUnlock()
 
 	return connection.id
 }
 func (connection *Connection) ExitStatus() string {
-	connection.mutex.Lock()
-	defer connection.mutex.Unlock()
+	connection.mutex.RLock()
+	defer connection.mutex.RUnlock()
 
 	return connection.exitStatus
 }
 
 func (connection *Connection) Pid() int64 {
-	connection.mutex.Lock()
-	defer connection.mutex.Unlock()
+	connection.mutex.RLock()
+	defer connection.mutex.RUnlock()
 
 	return connection.pid
 }
 
 func (connection *Connection) ProcessName() string {
-	connection.mutex.Lock()
-	defer connection.mutex.Unlock()
+	connection.mutex.RLock()
+	defer connection.mutex.RUnlock()
 
 	return connection.processName
 }
 
 func (connection *Connection) Connection() restapi.Connection {
-	connection.mutex.Lock()
-	defer connection.mutex.Unlock()
+	connection.mutex.RLock()
+	defer connection.mutex.RUnlock()
 
 	return restapi.Connection{
 		Id:         connection.id,
@@ -116,7 +116,7 @@ func (connection *Connection) Close() error {
 		connection.writePipe.Close(),
 	)
 
-	connection.gpus.Release()
+	// We don't release the gpus here because the session owns them
 	connection.gpus = nil
 
 	connection.mutex.Unlock()
@@ -191,14 +191,12 @@ func (connection *Connection) Wait() error {
 
 	connection.mutex.Lock()
 	connection.cmd = nil
+	connection.mutex.Unlock()
 
 	if err != nil {
-		logger.Error(fmt.Sprintf("Connection: connection %s failed with %s", connection.id, err))
-		connection.mutex.Unlock()
+		logger.Error(fmt.Sprintf("Connection: connection %s failed with %s", connection.Id(), err))
 		connection.setExitStatus(restapi.ExitStatusFailure)
 	} else {
-
-		connection.mutex.Unlock()
 		connection.setExitStatus(restapi.ExitStatusSuccess)
 	}
 
