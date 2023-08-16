@@ -699,12 +699,12 @@ func (driver *storageDriver) AssignSession(sessionId string, agentId string, gpu
 }
 
 func (driver *storageDriver) CancelSession(sessionId string) error {
-	_, err := driver.db.ExecContext(driver.ctx, `UPDATE sessions table SET
-		state = CASE WHEN table.agent_id IS NULL
-					THEN 'closed'
-					ELSE 'canceling'
+	_, err := driver.db.ExecContext(driver.ctx, `UPDATE sessions s SET
+		state = CASE WHEN s.agent_id IS NULL
+					THEN 'closed'::session_state
+					ELSE 'canceling'::session_state
 				END
-		WHERE table.id = $1`, sessionId)
+		WHERE s.id = $1`, sessionId)
 	return err
 }
 
