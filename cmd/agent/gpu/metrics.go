@@ -71,7 +71,19 @@ func (provider *MetricsProvider) Run(group task.Group) error {
 			}
 		}
 
-		return cmd.Wait()
+		if err := cmd.Wait(); err != nil {
+			if exiterr, ok := err.(*exec.ExitError); ok {
+				// Ignore signal errors, -1 Linux, 1 on Windows (contrary to docs?)
+				if exiterr.ExitCode() == -1 || exiterr.ExitCode() == 1 {
+					return nil
+				}
+				return err
+			} else {
+				return err
+			}
+		}
+
+		return nil
 	}
 
 	return nil
