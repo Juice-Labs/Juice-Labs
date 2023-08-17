@@ -95,12 +95,12 @@ func Run(group task.Group) error {
 	configBytes, err := os.ReadFile(filepath.Join(*juicePath, "juice.cfg"))
 	if err != nil {
 		if !os.IsNotExist(err) {
-			return err
+			return fmt.Errorf("juice.cfg read error: %w", err)
 		}
 	} else {
 		err = json.Unmarshal(configBytes, &config)
 		if err != nil {
-			return err
+			return fmt.Errorf("juice.cfg parser error: %w", err)
 		}
 	}
 
@@ -133,6 +133,8 @@ func Run(group task.Group) error {
 		Address:     server,
 		AccessToken: *accessToken,
 	}
+
+	logger.Infof("Connecting to %s", server)
 
 	if config.Id != "" {
 		session, err := api.GetSessionWithContext(group.Ctx(), config.Id)
