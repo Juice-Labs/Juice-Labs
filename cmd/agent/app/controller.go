@@ -123,7 +123,7 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 
 						case restapi.SessionCanceling:
 							if reference != nil {
-								err = errors.Join(err, err_, reference.Object.Cancel())
+								err = errors.Join(err, err_, agent.cancelSession(session.Id))
 							}
 						}
 
