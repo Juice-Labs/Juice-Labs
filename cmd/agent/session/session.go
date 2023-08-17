@@ -139,7 +139,10 @@ func (session *Session) Start(group task.Group) error {
 			logName := fmt.Sprint(now.Format("20060102-150405_"), session.id, ".log")
 
 			if err == nil {
-				logLevel, _ := logger.LogLevelAsString()
+				logLevel, err_ := logger.LogLevelAsString()
+				if err_ != nil {
+					logLevel = "Info"
+				}
 				session.cmd = exec.CommandContext(group.Ctx(),
 					filepath.Join(session.juicePath, "Renderer_Win"),
 					append(
