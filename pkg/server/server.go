@@ -123,6 +123,8 @@ func (server *Server) Run(group task.Group) error {
 		TLSConfig: server.tlsConfig,
 	}
 
+	logger.Infof("Listening on %s", server.url.Host)
+
 	group.GoFn("HTTP Listen", func(group task.Group) error {
 		var err error
 		if server.tlsConfig != nil {
