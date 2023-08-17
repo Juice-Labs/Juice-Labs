@@ -52,7 +52,6 @@ func Run(name string, version string, logic task.TaskFn) {
 	}
 
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(ExitFailure)
+		logger.Fatal(err)
 	}
 }
