@@ -8,7 +8,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/fs"
 	"net"
 	"os"
 	"os/exec"
@@ -122,15 +121,6 @@ func (session *Session) Start(group task.Group) error {
 		if err == nil {
 			session.writePipe = ch2Write
 			defer ch2Read.Close()
-
-			logsPath := filepath.Join(session.juicePath, "logs")
-			_, err_ = os.Stat(logsPath)
-			if err_ != nil && os.IsNotExist(err_) {
-				err_ = os.MkdirAll(logsPath, fs.ModeDir|fs.ModePerm)
-				if err_ != nil {
-					logger.Errorf("unable to create directory %s, %s", logsPath, err_.Error())
-				}
-			}
 
 			if err == nil {
 				logLevel, err_ := logger.LogLevelAsString()
