@@ -205,13 +205,13 @@ func (connection *Connection) Wait() error {
 
 func (connection *Connection) Cancel() error {
 	connection.mutex.Lock()
-	defer connection.mutex.Unlock()
 
 	if connection.cmd != nil {
 		connection.mutex.Unlock()
 		connection.setExitStatus(restapi.ExitStatusCanceled)
 		return connection.cmd.Cancel()
 	}
+	connection.mutex.Unlock()
 
 	return nil
 }
