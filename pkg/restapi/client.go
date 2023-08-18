@@ -18,7 +18,7 @@ type Client struct {
 	httpScheme  bool
 }
 
-func (api Client) doUrl(ctx context.Context, method string, url url.URL, contentType string, body io.Reader) (*http.Response, error) {
+func (api Client) doUrl(ctx context.Context, method string, url *url.URL, contentType string, body io.Reader) (*http.Response, error) {
 	request, err := http.NewRequestWithContext(ctx, method, url.String(), body)
 	if err != nil {
 		return nil, err
@@ -36,36 +36,38 @@ func (api Client) doUrl(ctx context.Context, method string, url url.URL, content
 }
 
 func (api Client) do(ctx context.Context, method string, path string, contentType string, body io.Reader) (*http.Response, error) {
-	response, err := api.doUrl(ctx, method, url.URL{
-		Scheme: "https",
-		Host:   api.Address,
-		Path:   path,
-	}, contentType, body)
+	pathUrl, err := url.Parse(path)
+	if err != nil {
+		return nil, err
+	}
+
+	pathUrl.Scheme = "https"
+	pathUrl.Host = api.Address
+
+	response, err := api.doUrl(ctx, method, pathUrl, contentType, body)
 
 	if err == nil {
 		return response, err
 	}
 
-	return api.doUrl(ctx, method, url.URL{
-		Scheme: "http",
-		Host:   api.Address,
-		Path:   path,
-	}, contentType, body)
+	pathUrl.Scheme = "http"
+
+	return api.doUrl(ctx, method, pathUrl, contentType, body)
 }
 
-func (api Client) get(ctx context.Context, path string) (*http.Response, error) {
+func (api Client) Get(ctx context.Context, path string) (*http.Response, error) {
 	return api.do(ctx, "GET", path, "", nil)
 }
 
-func (api Client) post(ctx context.Context, path string) (*http.Response, error) {
+func (api Client) Post(ctx context.Context, path string) (*http.Response, error) {
 	return api.do(ctx, "POST", path, "", nil)
 }
 
-func (api Client) postWithJson(ctx context.Context, path string, body io.Reader) (*http.Response, error) {
+func (api Client) PostWithJson(ctx context.Context, path string, body io.Reader) (*http.Response, error) {
 	return api.do(ctx, "POST", path, "application/json", body)
 }
 
-func (api Client) putWithJson(ctx context.Context, path string, body io.Reader) (*http.Response, error) {
+func (api Client) PutWithJson(ctx context.Context, path string, body io.Reader) (*http.Response, error) {
 	return api.do(ctx, "PUT", path, "application/json", body)
 }
 
@@ -74,7 +76,7 @@ func (api Client) Status() (Status, error) {
 }
 
 func (api Client) StatusWithContext(ctx context.Context) (Status, error) {
-	response, err := api.get(ctx, "/v1/status")
+	response, err := api.Get(ctx, "/v1/status")
 	if err != nil {
 		return Status{}, err
 	}
@@ -88,7 +90,7 @@ func (api Client) GetSession(id string) (Session, error) {
 }
 
 func (api Client) GetSessionWithContext(ctx context.Context, id string) (Session, error) {
-	response, err := api.get(ctx, fmt.Sprint("/v1/session/", id))
+	response, err := api.Get(ctx, fmt.Sprint("/v1/session/", id))
 	if err != nil {
 		return Session{}, err
 	}
@@ -107,7 +109,7 @@ func (api Client) UpdateSessionWithContext(ctx context.Context, session Session)
 		return err
 	}
 
-	response, err := api.putWithJson(ctx, fmt.Sprint("/v1/session/", session.Id), body)
+	response, err := api.PutWithJson(ctx, fmt.Sprint("/v1/session/", session.Id), body)
 	if err != nil {
 		return err
 	}
@@ -126,7 +128,7 @@ func (api Client) RequestSessionWithContext(ctx context.Context, requirements Se
 		return "", err
 	}
 
-	response, err := api.postWithJson(ctx, "/v1/request/session", body)
+	response, err := api.PostWithJson(ctx, "/v1/request/session", body)
 	if err != nil {
 		return "", err
 	}
@@ -140,7 +142,7 @@ func (api Client) ReleaseSession(id string) error {
 }
 
 func (api Client) ReleaseSessionWithContext(ctx context.Context, id string) error {
-	response, err := api.post(ctx, fmt.Sprint("/v1/release/session/", id))
+	response, err := api.Post(ctx, fmt.Sprint("/v1/release/session/", id))
 	if err != nil {
 		return err
 	}
@@ -154,7 +156,7 @@ func (api Client) GetAgent(id string) (Agent, error) {
 }
 
 func (api Client) GetAgentWithContext(ctx context.Context, id string) (Agent, error) {
-	response, err := api.get(ctx, fmt.Sprint("/v1/agent/", id))
+	response, err := api.Get(ctx, fmt.Sprint("/v1/agent/", id))
 	if err != nil {
 		return Agent{}, err
 	}
@@ -173,7 +175,7 @@ func (api Client) UpdateAgentWithContext(ctx context.Context, update AgentUpdate
 		return err
 	}
 
-	response, err := api.putWithJson(ctx, fmt.Sprint("/v1/agent/", update.Id), body)
+	response, err := api.PutWithJson(ctx, fmt.Sprint("/v1/agent/", update.Id), body)
 	if err != nil {
 		return err
 	}
@@ -192,7 +194,7 @@ func (api Client) RegisterAgentWithContext(ctx context.Context, agent Agent) (st
 		return "", err
 	}
 
-	response, err := api.postWithJson(ctx, "/v1/register/agent", body)
+	response, err := api.PostWithJson(ctx, "/v1/register/agent", body)
 	if err != nil {
 		return "", err
 	}

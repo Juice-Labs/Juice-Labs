@@ -94,3 +94,7 @@ func jsonReaderFromObject[T any](object T) (io.Reader, error) {
 
 	return bytes.NewReader(data), nil
 }
+
+func JsonReaderFromObject[T any](object T) (io.Reader, error) {
+	return jsonReaderFromObject[T](object)
+}
