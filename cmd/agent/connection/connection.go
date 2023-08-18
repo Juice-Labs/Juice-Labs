@@ -97,6 +97,10 @@ func (connection *Connection) Connection() restapi.Connection {
 }
 
 func (connection *Connection) setExitStatus(exitStatus string) {
+	if connection.exitStatus == exitStatus {
+		return
+	}
+
 	connection.mutex.Lock()
 	if connection.exitStatus == restapi.ExitStatusUnknown {
 		connection.exitStatus = exitStatus
@@ -204,14 +208,18 @@ func (connection *Connection) Wait() error {
 }
 
 func (connection *Connection) Cancel() error {
-	connection.mutex.Lock()
+	if connection.exitStatus != restapi.ExitStatusUnknown {
+		logger.Tracef("Connection: connection %s already terminated", connection.Id())
+		return nil
+	}
+	connection.setExitStatus(restapi.ExitStatusCanceled)
+
+	connection.mutex.RLock()
+	defer connection.mutex.RUnlock()
 
 	if connection.cmd != nil {
-		connection.mutex.Unlock()
-		connection.setExitStatus(restapi.ExitStatusCanceled)
 		return connection.cmd.Cancel()
 	}
-	connection.mutex.Unlock()
 
 	return nil
 }

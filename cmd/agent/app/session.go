@@ -47,20 +47,29 @@ func (session *Session) Persistent() bool {
 	return session.persistant
 }
 
+func (session *Session) State() string {
+	session.mutex.RLock()
+	defer session.mutex.RUnlock()
+
+	return session.state
+}
+
 func (session *Session) ActiveConnections() *orderedmap.OrderedMap[string, *Reference[connection.Connection]] {
 	session.mutex.RLock()
 	defer session.mutex.RUnlock()
 
-	activeConnections := orderedmap.New[string, *Reference[connection.Connection]]()
+	// activeConnections := orderedmap.New[string, *Reference[connection.Connection]]()
 
-	for pair := session.connections.Oldest(); pair != nil; pair = pair.Next() {
-		connection := pair.Value.Object
-		if connection.ExitStatus() == restapi.ExitStatusUnknown {
-			activeConnections.Set(pair.Key, pair.Value)
-		}
-	}
+	// for pair := session.connections.Oldest(); pair != nil; pair = pair.Next() {
+	// 	connection := pair.Value.Object
+	// 	if connection.ExitStatus() == restapi.ExitStatusUnknown {
+	// 		activeConnections.Set(pair.Key, pair.Value)
+	// 	}
+	// }
 
-	return activeConnections
+	// return activeConnections
+
+	return session.connections
 }
 
 func NewSession(id string, juicePath string, version string, gpus *gpu.SelectedGpuSet, eventListener EventListener, persistent bool) *Session {
@@ -98,22 +107,14 @@ func (session *Session) Session() restapi.Session {
 }
 
 func (session *Session) Close() error {
-	session.mutex.RLock()
-
 	errs := []error{}
-	copyConnections := make([]*Reference[connection.Connection], 0, session.connections.Len())
-	for pair := session.connections.Oldest(); pair != nil; pair = pair.Next() {
-		copyConnections = append(copyConnections, pair.Value)
+	// verify that there are no connections
+	if session.ActiveConnections().Len() > 0 {
+		logger.Errorf("closing session has active connections, %s", session.Id())
+		errs = append(errs, errors.New("closing session has active connections"))
 	}
-	session.mutex.RUnlock()
-
-	// We need to release the connections while not holding the mutex
-	// TODO: is there a possible race here where a connection comes in while we're closing?
-	for _, connectionRef := range copyConnections {
-		connectionRef.Release()
-	}
-
 	session.mutex.Lock()
+
 	session.state = restapi.SessionClosed
 
 	session.connections = nil
@@ -130,8 +131,11 @@ func (session *Session) Close() error {
 
 func (session *Session) Cancel() error {
 	session.mutex.Lock()
-
 	session.state = restapi.SessionCanceling
+	session.mutex.Unlock()
+
+	session.mutex.RLock()
+	defer session.mutex.RUnlock()
 
 	errs := []error{}
 
@@ -139,7 +143,6 @@ func (session *Session) Cancel() error {
 		connection := pair.Value.Object
 		errs = append(errs, connection.Cancel())
 	}
-	session.mutex.Unlock()
 	session.eventListener.SessionStateChanged(session.id, session.state)
 
 	return errors.Join(errs...)
@@ -184,14 +187,19 @@ func (session *Session) Connect(group task.Group, connectionData restapi.Connect
 			group.GoFn("Agent startConnection", func(group task.Group) error {
 				err := connectionRef.Object.Wait()
 				logger.Tracef("Connection %s exited with code: %v", connectionRef.Object.Id(), connectionRef.Object.ExitStatus())
+				if err != nil {
+					logger.Errorf("session %s experienced a failure during waiting, %v", session.Id(), err)
+				}
 				connectionRef.Release()
 
-				if !session.Persistent() && session.ActiveConnections().Len() == 0 {
-					sessionId := session.Id()
-					err = agent.cancelSession(sessionId)
-					if err != nil {
-						logger.Errorf("session %s experienced a failure during canceling, %v", sessionId, err)
+				if session.ActiveConnections().Len() == 0 {
+					if !session.Persistent() {
+						err = session.Cancel()
+						if err != nil {
+							logger.Errorf("session %s experienced a failure canceling, %v", session.Id(), err)
+						}
 					}
+
 				}
 				return err
 			})

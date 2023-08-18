@@ -158,7 +158,7 @@ func (agent *Agent) addSession(session *Session) *Reference[Session] {
 	logger.Tracef("Starting Session %s", session.Id())
 
 	reference := NewReference(session, func() {
-		// We delete this reference inside cancelSession
+		// We decrement this reference inside deleteSession
 		sessionId := session.Id()
 		logger.Tracef("Closing Session %s", sessionId)
 		err := session.Close()
@@ -204,6 +204,10 @@ func (agent *Agent) cancelSession(id string) error {
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (agent *Agent) deleteSession(id string) {
 	agent.sessionsMutex.Lock()
 	// Release underlying reference
 	reference, found := agent.sessions.Get(id)
@@ -211,7 +215,6 @@ func (agent *Agent) cancelSession(id string) error {
 	if found {
 		reference.Release()
 	}
-	return nil
 }
 
 func (agent *Agent) connect(group task.Group, connectionData restapi.ConnectionData, sessionId string, c net.Conn) error {
@@ -252,11 +255,32 @@ func (agent *Agent) ConnectionTerminated(id string, sessionId string, exitStatus
 	}
 	defer sessionRef.Release()
 
+	session := sessionRef.Object
+
+	if session.ActiveConnections().Len() == 0 {
+		if session.State() == restapi.SessionCanceling {
+			agent.deleteSession(session.Id())
+		}
+	}
+
 	agent.NotifySessionUpdates(sessionId)
 }
 
 func (agent *Agent) SessionStateChanged(sessionId string, state string) {
 	logger.Tracef("session %s changed state to %s", sessionId, state)
+	if state == restapi.SessionCanceling {
+		sessionRef, err := agent.getSession(sessionId)
+		if err != nil {
+			logger.Errorf("session not found %s with error %s", sessionId, err)
+			return
+		}
+		defer sessionRef.Release()
+		// If session has no connections, go ahead and close it
+		if sessionRef.Object.ActiveConnections().Len() == 0 {
+			agent.deleteSession(sessionId)
+		}
+	}
+
 	if state == restapi.SessionClosed {
 		// Closed sessions can't be accessed anymore
 		agent.NotifySessionClosed(sessionId)

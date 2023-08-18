@@ -278,12 +278,11 @@ func TestAssigningSessions(t *testing.T) {
 		}
 
 		session := restapi.Session{
-			Id:         sessionId,
-			State:      restapi.SessionAssigned,
-			ExitStatus: restapi.ExitStatusUnknown,
-			Address:    agent.Address,
-			Version:    requirements.Version,
-			Gpus:       selectedGpus,
+			Id:      sessionId,
+			State:   restapi.SessionAssigned,
+			Address: agent.Address,
+			Version: requirements.Version,
+			Gpus:    selectedGpus,
 		}
 		checkSession(t, db, session)
 
@@ -295,7 +294,7 @@ func TestAssigningSessions(t *testing.T) {
 		db.UpdateAgent(restapi.AgentUpdate{
 			Id:    agent.Id,
 			State: agent.State,
-			Sessions: map[string]restapi.SessionUpdate{
+			SessionsUpdate: map[string]restapi.SessionUpdate{
 				session.Id: {
 					State: restapi.SessionActive,
 				},
@@ -309,7 +308,7 @@ func TestAssigningSessions(t *testing.T) {
 		db.UpdateAgent(restapi.AgentUpdate{
 			Id:    agent.Id,
 			State: agent.State,
-			Sessions: map[string]restapi.SessionUpdate{
+			SessionsUpdate: map[string]restapi.SessionUpdate{
 				session.Id: {
 					State: restapi.SessionClosed,
 				},
