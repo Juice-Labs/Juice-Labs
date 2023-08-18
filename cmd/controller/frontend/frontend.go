@@ -86,3 +86,7 @@ func (frontend *Frontend) requestSession(sessionRequirements restapi.SessionRequ
 func (frontend *Frontend) getSessionById(id string) (restapi.Session, error) {
 	return frontend.storage.GetSessionById(id)
 }
+
+func (frontend *Frontend) cancelSession(id string) error {
+	return frontend.storage.CancelSession(id)
+}

@@ -8,17 +8,16 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"github.com/google/uuid"
 	orderedmap "github.com/wk8/go-ordered-map/v2"
 
 	cmdgpu "github.com/Juice-Labs/Juice-Labs/cmd/agent/gpu"
-	"github.com/Juice-Labs/Juice-Labs/cmd/agent/session"
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
@@ -33,34 +32,6 @@ var (
 	labels  = flag.String("labels", "", "Comma separated list of key=value pairs")
 	taints  = flag.String("taints", "", "Comma separated list of key=value pairs")
 )
-
-type Reference[T any] struct {
-	Object      *T
-	count       atomic.Int32
-	onCountZero func()
-}
-
-func NewReference[T any](object *T, onCountZero func()) *Reference[T] {
-	reference := &Reference[T]{
-		Object:      object,
-		count:       atomic.Int32{},
-		onCountZero: onCountZero,
-	}
-
-	reference.count.Store(1)
-	return reference
-}
-
-func (reference *Reference[T]) Acquire() bool {
-	return reference.count.Add(1) > 1
-}
-
-func (reference *Reference[T]) Release() {
-	if reference.count.Add(-1) == 0 {
-		reference.onCountZero()
-		reference.Object = nil
-	}
-}
 
 type Agent struct {
 	Id string
@@ -77,7 +48,7 @@ type Agent struct {
 	taints map[string]string
 
 	sessionsMutex sync.Mutex
-	sessions      *orderedmap.OrderedMap[string, *Reference[session.Session]]
+	sessions      *orderedmap.OrderedMap[string, *Reference[Session]]
 
 	controllerData
 }
@@ -98,7 +69,7 @@ func NewAgent(tlsConfig *tls.Config) (*Agent, error) {
 		Server:    server,
 		labels:    map[string]string{},
 		taints:    map[string]string{},
-		sessions:  orderedmap.New[string, *Reference[session.Session]](),
+		sessions:  orderedmap.New[string, *Reference[Session]](),
 	}
 
 	if *labels != "" {
@@ -168,14 +139,7 @@ func NewAgent(tlsConfig *tls.Config) (*Agent, error) {
 	return agent, nil
 }
 
-func (agent *Agent) getSessionsCount() int {
-	agent.sessionsMutex.Lock()
-	defer agent.sessionsMutex.Unlock()
-
-	return agent.sessions.Len()
-}
-
-func (agent *Agent) getSession(id string) (*Reference[session.Session], error) {
+func (agent *Agent) getSession(id string) (*Reference[Session], error) {
 	agent.sessionsMutex.Lock()
 	defer agent.sessionsMutex.Unlock()
 
@@ -190,25 +154,30 @@ func (agent *Agent) getSession(id string) (*Reference[session.Session], error) {
 	return nil, fmt.Errorf("no session found with id %s", id)
 }
 
-func (agent *Agent) addSession(session *session.Session) *Reference[session.Session] {
+func (agent *Agent) addSession(session *Session) *Reference[Session] {
 	logger.Tracef("Starting Session %s", session.Id())
 
 	reference := NewReference(session, func() {
+		// We decrement this reference inside deleteSession
+		sessionId := session.Id()
+		logger.Tracef("Closing Session %s", sessionId)
 		err := session.Close()
 		if err != nil {
-			logger.Errorf("session %s experienced a failure during closing, %v", session.Id(), err)
+			logger.Errorf("session %s experienced a failure during closing, %v", sessionId, err)
 		}
 
 		agent.sessionsMutex.Lock()
 		defer agent.sessionsMutex.Unlock()
 
-		agent.sessions.Delete(session.Id())
+		agent.sessions.Delete(sessionId)
+		logger.Tracef("Closed Session %s", sessionId)
 	})
 
 	agent.sessionsMutex.Lock()
-	defer agent.sessionsMutex.Unlock()
-
 	agent.sessions.Set(session.Id(), reference)
+	agent.sessionsMutex.Unlock()
+
+	agent.SessionStateChanged(session.id, session.state)
 
 	return reference
 }
@@ -219,21 +188,43 @@ func (agent *Agent) Run(group task.Group) error {
 	return nil
 }
 
-func (agent *Agent) runSession(group task.Group, id string, juicePath string, version string, gpus *gpu.SelectedGpuSet) error {
-	reference := agent.addSession(session.New(id, juicePath, version, gpus, agent))
+func (agent *Agent) setSession(group task.Group, id string, juicePath string, version string, gpus *gpu.SelectedGpuSet, persistent bool) error {
+	agent.addSession(NewSession(id, juicePath, version, gpus, agent, persistent))
+	return nil
+}
 
-	err := reference.Object.Start(group)
-	if err == nil {
-		group.GoFn("Agent runSession", func(group task.Group) error {
-			err := reference.Object.Wait()
-			reference.Release()
-			return err
-		})
-	} else {
-		reference.Release()
+func (agent *Agent) cancelSession(id string) error {
+	sessionRef, err := agent.getSession(id)
+	if err != nil {
+		return err
 	}
 
-	return err
+	err = sessionRef.Object.Cancel()
+	sessionRef.Release()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (agent *Agent) deleteSession(id string) {
+	agent.sessionsMutex.Lock()
+	// Release underlying reference
+	reference, found := agent.sessions.Get(id)
+	agent.sessionsMutex.Unlock()
+	if found {
+		reference.Release()
+	}
+}
+
+func (agent *Agent) connect(group task.Group, connectionData restapi.ConnectionData, sessionId string, c net.Conn) error {
+	sessionRef, err := agent.getSession(sessionId)
+	if err != nil {
+		return err
+	}
+	defer sessionRef.Release()
+
+	return sessionRef.Object.Connect(group, connectionData, c, agent)
 }
 
 func (agent *Agent) requestSession(group task.Group, sessionRequirements restapi.SessionRequirements) (string, error) {
@@ -243,7 +234,7 @@ func (agent *Agent) requestSession(group task.Group, sessionRequirements restapi
 	}
 
 	id := uuid.NewString()
-	return id, agent.runSession(group, id, agent.JuicePath, sessionRequirements.Version, selectedGpus)
+	return id, agent.setSession(group, id, agent.JuicePath, sessionRequirements.Version, selectedGpus, sessionRequirements.Persistent)
 }
 
 func (agent *Agent) registerSession(group task.Group, apiSession restapi.Session) error {
@@ -252,5 +243,92 @@ func (agent *Agent) registerSession(group task.Group, apiSession restapi.Session
 		return fmt.Errorf("Agent.registerSession: unable to select a matching set of GPUs")
 	}
 
-	return agent.runSession(group, apiSession.Id, agent.JuicePath, apiSession.Version, selectedGpus)
+	return agent.setSession(group, apiSession.Id, agent.JuicePath, apiSession.Version, selectedGpus, apiSession.Persistent)
+}
+
+func (agent *Agent) ConnectionTerminated(id string, sessionId string, exitStatus string) {
+	logger.Tracef("connection %s changed exitStatus to %s", id, exitStatus)
+	sessionRef, err := agent.getSession(sessionId)
+	if err != nil {
+		logger.Errorf("session not found %s with error %s", sessionId, err)
+		return
+	}
+	defer sessionRef.Release()
+
+	session := sessionRef.Object
+
+	if session.ActiveConnections().Len() == 0 {
+		if session.State() == restapi.SessionCanceling {
+			agent.deleteSession(session.Id())
+		}
+	}
+
+	agent.NotifySessionUpdates(sessionId)
+}
+
+func (agent *Agent) SessionStateChanged(sessionId string, state string) {
+	logger.Tracef("session %s changed state to %s", sessionId, state)
+	if state == restapi.SessionCanceling {
+		sessionRef, err := agent.getSession(sessionId)
+		if err != nil {
+			logger.Errorf("session not found %s with error %s", sessionId, err)
+			return
+		}
+		defer sessionRef.Release()
+		// If session has no connections, go ahead and close it
+		if sessionRef.Object.ActiveConnections().Len() == 0 {
+			agent.deleteSession(sessionId)
+		}
+	}
+
+	if state == restapi.SessionClosed {
+		// Closed sessions can't be accessed anymore
+		agent.NotifySessionClosed(sessionId)
+	} else {
+		agent.NotifySessionUpdates(sessionId)
+	}
+}
+
+func (agent *Agent) NotifySessionUpdates(sessionId string) {
+	sessionRef, err := agent.getSession(sessionId)
+	if err != nil {
+		logger.Errorf("session not found %s with error %s", sessionId, err)
+		return
+	}
+	defer sessionRef.Release()
+
+	if agent.sessionUpdates != nil {
+		connectionUpdates := make([]connectionUpdate, 0, sessionRef.Object.connections.Len())
+		for pair := sessionRef.Object.connections.Oldest(); pair != nil; pair = pair.Next() {
+			connection := pair.Value.Object
+			connectionUpdates = append(connectionUpdates, connectionUpdate{
+				Id:          connection.Id(),
+				ExitStatus:  connection.ExitStatus(),
+				Pid:         connection.Pid(),
+				ProcessName: connection.ProcessName(),
+			})
+		}
+		agent.sessionUpdates <- sessionUpdate{
+			Id:          sessionId,
+			State:       sessionRef.Object.state,
+			Connections: connectionUpdates,
+		}
+	}
+}
+
+func (agent *Agent) NotifySessionClosed(sessionId string) {
+	if agent.sessionUpdates != nil {
+		agent.sessionUpdates <- sessionUpdate{
+			Id:    sessionId,
+			State: restapi.SessionClosed,
+		}
+	}
+}
+
+func (agent *Agent) getGpuMetrics() []restapi.GpuMetrics {
+	agent.gpuMetricsMutex.Lock()
+	defer agent.gpuMetricsMutex.Unlock()
+
+	// Make a copy
+	return append(make([]restapi.GpuMetrics, 0, len(agent.gpuMetrics)), agent.gpuMetrics...)
 }

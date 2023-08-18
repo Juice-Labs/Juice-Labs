@@ -40,6 +40,12 @@ type SessionRequirements struct {
 	Tolerates   map[string]string `json:"tolerates"`
 }
 
+type ConnectionData struct {
+	Id          string `json:"id"`
+	Pid         string `json:"pid"`
+	ProcessName string `json:"processName"`
+}
+
 type SessionGpu struct {
 	Index int `json:"index"`
 
@@ -49,12 +55,19 @@ type SessionGpu struct {
 type Session struct {
 	Id         string `json:"id"`
 	State      string `json:"state"`
-	ExitStatus string `json:"exitStatus"`
 	Address    string `json:"address"`
 	Version    string `json:"version"`
 	Persistent bool   `json:"persistent"`
 
-	Gpus []SessionGpu `json:"gpus"`
+	Gpus        []SessionGpu `json:"gpus"`
+	Connections []Connection `json:"connections"`
+}
+
+type Connection struct {
+	Id          string `json:"id"`
+	ExitStatus  string `json:"exitStatus"`
+	Pid         int64  `json:"pid"`
+	ProcessName string `json:"processName"`
 }
 
 type GpuMetrics struct {
@@ -107,12 +120,13 @@ type Status struct {
 }
 
 type SessionUpdate struct {
-	State string `json:"state"`
+	State       string       `json:"State"`
+	Connections []Connection `json:"connections"`
 }
 
 type AgentUpdate struct {
-	Id       string                   `json:"id"`
-	State    string                   `json:"state"`
-	Sessions map[string]SessionUpdate `json:"sessions"`
-	Gpus     []GpuMetrics             `json:"gpus"`
+	Id             string                   `json:"id"`
+	State          string                   `json:"state"`
+	SessionsUpdate map[string]SessionUpdate `json:"sessions"`
+	Gpus           []GpuMetrics             `json:"gpus"`
 }

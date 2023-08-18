@@ -302,37 +302,40 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 		sessions := make([]restapi.Session, 0, len(agent.Sessions))
 
 		for index, sessionId := range agent.SessionIds {
-			sessionUpdate, present := update.Sessions[sessionId]
-			if present {
-				// First, update the session information within the agent structure
-				agent.Sessions[index].State = sessionUpdate.State
+			// TODO: Handle closing sessions
+			// This should be handled by the controller or agent
 
-				// Next, update the session object itself
-				obj, err = txn.First("sessions", "id", sessionId)
-				if err != nil {
-					txn.Abort()
-					return err
-				}
-				session := utilities.Require[Session](obj)
-				session.State = sessionUpdate.State
-				session.LastUpdated = now
+			// sessionUpdate, present := update.Sessions[sessionId]
+			// if present {
+			// 	// First, update the session information within the agent structure
+			// 	agent.Sessions[index].State = sessionUpdate.State
 
-				if session.State == restapi.SessionClosed {
-					agent.VramAvailable += session.VramRequired
-				} else {
-					sessionIds = append(sessionIds, sessionId)
-					sessions = append(sessions, session.Session)
-				}
+			// 	// Next, update the session object itself
+			// 	obj, err = txn.First("sessions", "id", sessionId)
+			// 	if err != nil {
+			// 		txn.Abort()
+			// 		return err
+			// 	}
+			// 	session := utilities.Require[Session](obj)
+			// 	session.State = sessionUpdate.State
+			// 	session.LastUpdated = now
 
-				err = txn.Insert("sessions", session)
-				if err != nil {
-					txn.Abort()
-					return err
-				}
-			} else {
-				sessionIds = append(sessionIds, sessionId)
-				sessions = append(sessions, agent.Sessions[index])
-			}
+			// 	if session.State == restapi.SessionClosed {
+			// 		agent.VramAvailable += session.VramRequired
+			// 	} else {
+			// 		sessionIds = append(sessionIds, sessionId)
+			// 		sessions = append(sessions, session.Session)
+			// 	}
+
+			// 	err = txn.Insert("sessions", session)
+			// 	if err != nil {
+			// 		txn.Abort()
+			// 		return err
+			// 	}
+			// } else {
+			sessionIds = append(sessionIds, sessionId)
+			sessions = append(sessions, agent.Sessions[index])
+			// }
 		}
 
 		for index, gpuMetrics := range update.Gpus {
@@ -412,7 +415,7 @@ func (driver *storageDriver) AssignSession(sessionId string, agentId string, gpu
 	}
 	session := utilities.Require[Session](obj)
 	session.State = restapi.SessionAssigned
-	session.ExitStatus = restapi.ExitStatusUnknown
+	// session.ExitStatus = restapi.ExitStatusUnknown
 	session.AgentId = agentId
 	session.Address = agent.Address
 	session.Gpus = gpus
@@ -450,7 +453,7 @@ func (driver *storageDriver) CancelSession(sessionId string) error {
 	session := utilities.Require[Session](obj)
 	if session.AgentId == "" {
 		session.State = restapi.SessionClosed
-		session.ExitStatus = restapi.ExitStatusCanceled
+		// session.ExitStatus = restapi.ExitStatusCanceled
 	} else {
 		session.State = restapi.SessionCanceling
 	}

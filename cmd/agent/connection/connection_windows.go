@@ -1,7 +1,7 @@
 /*
  *  Copyright (c) 2023 Juice Technologies, Inc. All Rights Reserved.
  */
-package session
+package connection
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ import (
 	"reflect"
 	"syscall"
 
-	"github.com/Juice-Labs/Juice-Labs/cmd/agent/session/windows"
+	"github.com/Juice-Labs/Juice-Labs/cmd/agent/connection/windows"
 )
 
 func setupIpc() (*os.File, *os.File, error) {
@@ -28,7 +28,7 @@ func inheritFiles(cmd *exec.Cmd, files ...*os.File) {
 	}
 }
 
-func (session *Session) forwardSocket(rawConn syscall.RawConn) error {
+func (session *Connection) forwardSocket(rawConn syscall.RawConn) error {
 	conn := reflect.Indirect(reflect.ValueOf(rawConn))
 	netFD := reflect.Indirect(conn.FieldByName("fd"))
 	pfd := netFD.FieldByName("pfd")

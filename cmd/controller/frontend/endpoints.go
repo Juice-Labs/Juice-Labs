@@ -35,6 +35,7 @@ func (frontend *Frontend) initializeEndpoints(server *server.Server) {
 	server.AddCreateEndpoint(frontend.getAgentsEp)
 	server.AddCreateEndpoint(frontend.updateAgentEp)
 	server.AddCreateEndpoint(frontend.requestSessionEp)
+	server.AddCreateEndpoint(frontend.cancelSessionEp)
 	server.AddCreateEndpoint(frontend.getSessionEp)
 }
 
@@ -192,5 +193,26 @@ func (frontend *Frontend) getSessionEp(group task.Group, router *mux.Router) err
 				logger.Error(err)
 			}
 		}))).Methods("GET")
+	return nil
+}
+
+func (frontend *Frontend) cancelSessionEp(group task.Group, router *mux.Router) error {
+	// TODO: Validate write:sessions claim
+	router.Handle("/v1/session/{id}", middleware.EnsureValidToken()(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			id := mux.Vars(r)["id"]
+
+			err := frontend.cancelSession(id)
+			if err != nil {
+				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+				logger.Error(err)
+				return
+			}
+
+			err = pkgnet.Respond(w, http.StatusOK, fmt.Sprintf("Session %s cancelled", id))
+			if err != nil {
+				logger.Error(err)
+			}
+		}))).Methods("DELETE")
 	return nil
 }
