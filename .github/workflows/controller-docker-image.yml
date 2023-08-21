@@ -1,12 +1,10 @@
 name: Controller Docker Image
 
 on:
-  pull_request_target:
+  pull_request:
     types:
     - opened
     - synchronize
-    branches:
-    - master
     paths:
     - cmd/controller/**
     - docker/controller/**
@@ -52,7 +50,7 @@ jobs:
           file: docker/controller/Dockerfile
           push: true
           tags: juicelabs/controller:latest,juicelabs/controller:${{ steps.version.outputs.version }}
-      - if: ${{ github.event_name == 'pull_request_target' }}
+      - if: ${{ github.event_name == 'pull_request' }}
         name: Controller Image
         uses: docker/build-push-action@v3
         with:
@@ -61,4 +59,4 @@ jobs:
             JUICE_VERSION=${{ steps.version.outputs.version }}
           file: docker/controller/Dockerfile
           push: true
-          tags: juicelabs/controller-test:latest,juicelabs/controller-test:${{ steps.version.outputs.version }}
+          tags: juicelabs/controller-test:${{ steps.version.outputs.version }}
