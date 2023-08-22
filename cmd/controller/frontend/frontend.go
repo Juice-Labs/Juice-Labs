@@ -156,8 +156,8 @@ func (frontend *Frontend) getAgentById(id string) (restapi.Agent, error) {
 
 func (frontend *Frontend) updateAgent(ctx context.Context, update restapi.AgentUpdate) error {
 	err := frontend.storage.UpdateAgent(update)
-	if err == nil && len(update.Sessions) > 0 {
-		for sessionId, session := range update.Sessions {
+	if err == nil && len(update.SessionsUpdate) > 0 {
+		for sessionId, session := range update.SessionsUpdate {
 			frontend.webhookMessages <- restapi.WebhookMessage{
 				Agent:   update.Id,
 				Session: sessionId,
