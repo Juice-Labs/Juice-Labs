@@ -510,7 +510,10 @@ func (driver *storageDriver) GetAgents() (storage.Iterator[restapi.Agent], error
 
 	var agents []restapi.Agent
 	for obj := iterator.Next(); obj != nil; obj = iterator.Next() {
-		agents = append(agents, utilities.Require[Agent](obj).Agent)
+		agent := utilities.Require[Agent](obj)
+		if agent.State == restapi.AgentActive {
+			agents = append(agents, agent.Agent)
+		}
 	}
 
 	return storage.NewDefaultIterator(agents), nil

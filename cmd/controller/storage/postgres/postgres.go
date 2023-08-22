@@ -735,7 +735,7 @@ func (driver *storageDriver) GetQueuedSessionById(id string) (storage.QueuedSess
 }
 
 func (driver *storageDriver) GetAgents() (storage.Iterator[restapi.Agent], error) {
-	statement, err := driver.db.PrepareContext(driver.ctx, selectAgentsIterator(20))
+	statement, err := driver.db.PrepareContext(driver.ctx, selectAgentsIteratorWhere("state = 'active'", 20))
 	if err != nil {
 		return nil, err
 	}
