@@ -626,3 +626,34 @@ func (driver *storageDriver) RemoveMissingAgentsIfNotUpdatedFor(duration time.Du
 
 	return nil
 }
+
+func (driver *storageDriver) DeletePool(id string) error {
+	// TODO
+	return nil
+}
+
+func (driver *storageDriver) GetPool(id string) (restapi.Pool, error) {
+	// TODO
+	return restapi.Pool{}, nil
+}
+
+func (driver *storageDriver) CreatePool(name string) (restapi.Pool, error) {
+	// TODO
+	return restapi.Pool{}, nil
+}
+
+func (driver *storageDriver) AddPermission(poolId string, userId string, permission restapi.Permission) error {
+	// todo
+	return nil
+}
+
+func (driver *storageDriver) RemovePermission(poolId string, userId string, permission restapi.Permission) error {
+	// TODO
+	return nil
+
+}
+
+func (driver *storageDriver) GetPermissions(userId string) (restapi.UserPermissions, error) {
+	// TODO
+	return restapi.UserPermissions{}, nil
+}

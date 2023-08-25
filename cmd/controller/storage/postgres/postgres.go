@@ -544,33 +544,6 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 		return errors.Join(err, tx.Rollback())
 	}
 
-	// TODO: Automatically close sessions that are not persistant when the last connection is closed
-	// This should be done by the agent or controller, not the storage implementation
-
-	// Check if any of the sessions are being closed
-	// closedSessions := make([]string, 0, len(update.Sessions))
-	// closedSessionsCount := 0
-	// for key, value := range update.Sessions {
-	// 	if value.State == restapi.SessionClosed {
-	// 		closedSessions = append(closedSessions, key)
-	// 		closedSessionsCount++
-	// 	}
-	// }
-
-	// if closedSessionsCount > 0 {
-	// 	if update.State != "" {
-	// 		_, err = tx.ExecContext(driver.ctx, `UPDATE agents SET vram_available = (
-	// 				SELECT SUM(vram_required) FROM sessions WHERE id = ANY($1)
-	// 			), state = $2, gpus = $3, updated_at = now() WHERE id = $4`,
-	// 			pq.StringArray(closedSessions), update.State, gpusData, update.Id)
-	// 	} else {
-	// 		_, err = tx.ExecContext(driver.ctx, `UPDATE agents SET vram_available = (
-	// 				SELECT SUM(vram_required) FROM sessions WHERE id = ANY($1)
-	// 			), gpus = $2, updated_at = now() WHERE id = $3`,
-	// 			pq.StringArray(closedSessions), gpusData, update.Id)
-	// 	}
-	// }
-
 	for id, sessionUpdate := range update.SessionsUpdate {
 
 		_, err = tx.ExecContext(driver.ctx, "UPDATE sessions SET state = $1 WHERE id = $2", sessionUpdate.State, id)
@@ -712,7 +685,7 @@ func (driver *storageDriver) GetSessionById(id string) (restapi.Session, error) 
 	if err != nil {
 		return restapi.Session{}, err
 	}
-	connectionRows, err := driver.db.QueryContext(driver.ctx, fmt.Sprint("SELECT id, pid, process_name, exit_code FROM connections WHERE session_id = $1"), id)
+	connectionRows, err := driver.db.QueryContext(driver.ctx, "SELECT id, pid, process_name, exit_code FROM connections WHERE session_id = $1", id)
 	if err != nil {
 		return restapi.Session{}, err
 	}
@@ -769,4 +742,127 @@ func (driver *storageDriver) SetAgentsMissingIfNotUpdatedFor(duration time.Durat
 func (driver *storageDriver) RemoveMissingAgentsIfNotUpdatedFor(duration time.Duration) error {
 	_, err := driver.db.ExecContext(driver.ctx, "DELETE FROM agents WHERE state = 'missing' AND updated_at <= now()-make_interval(secs=>$1)", duration.Seconds())
 	return err
+}
+
+func (driver *storageDriver) DeletePool(id string) error {
+	_, err := driver.db.ExecContext(driver.ctx, "DELETE FROM pools WHERE id = $1", id)
+	return err
+}
+
+func (driver *storageDriver) GetPool(id string) (restapi.Pool, error) {
+	row := driver.db.QueryRowContext(driver.ctx, "SELECT id, pool_name FROM pools WHERE id = $1", id)
+	var pool restapi.Pool
+	err := row.Scan(&pool.Id, &pool.Name)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			err = storage.ErrNotFound
+		}
+		return restapi.Pool{}, err
+	}
+	return pool, nil
+}
+
+func (driver *storageDriver) CreatePool(name string) (restapi.Pool, error) {
+	tx, err := driver.db.BeginTx(driver.ctx, nil)
+	if err != nil {
+		return restapi.Pool{}, err
+	}
+
+	var pool restapi.Pool
+	err = tx.QueryRowContext(driver.ctx, "INSERT INTO pools (pool_name) VALUES ($1) RETURNING id", name).Scan(&pool.Id)
+	if err != nil {
+		return restapi.Pool{}, errors.Join(err, tx.Rollback())
+	}
+
+	pool.Name = name
+	err = tx.Commit()
+	if err != nil {
+		return restapi.Pool{}, err
+	}
+	return pool, nil
+}
+
+func (driver *storageDriver) AddPermission(poolId string, userId string, permission restapi.Permission) error {
+	tx, err := driver.db.BeginTx(driver.ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.ExecContext(driver.ctx, "INSERT INTO permissions (user_id, pool_id, permission) VALUES ($1, $2, $3)", userId, poolId, permission)
+	if err != nil {
+		return errors.Join(err, tx.Rollback())
+	}
+
+	return tx.Commit()
+}
+
+func (driver *storageDriver) RemovePermission(poolId string, userId string, permission restapi.Permission) error {
+	tx, err := driver.db.BeginTx(driver.ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	result, err := tx.ExecContext(driver.ctx, "DELETE FROM permissions WHERE user_id = $1 AND pool_id = $2 AND permission = $3", userId, poolId, permission)
+	if err != nil {
+		return errors.Join(err, tx.Rollback())
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return errors.Join(err, tx.Rollback())
+	}
+	if rowsAffected == 0 {
+		return errors.New("No permission found")
+	}
+
+	return tx.Commit()
+
+}
+
+type PermissionRow struct {
+	PoolId       string
+	Permission   restapi.Permission
+	PoolName     string
+	SessionCount int
+	AgentCount   int
+}
+
+func (driver *storageDriver) GetPermissions(userId string) (restapi.UserPermissions, error) {
+	var result restapi.UserPermissions
+
+	rows, err := driver.db.QueryContext(driver.ctx, `
+	SELECT permissions.pool_id, permissions.permission, pools.pool_name, COUNT(sessions.id) AS session_count, COUNT(agents.id) AS agent_count
+	FROM permissions 
+	JOIN pools ON pools.id = permissions.pool_id
+	LEFT JOIN agents ON agents.pool_id = pools.id
+	LEFT JOIN sessions ON sessions.agent_id = agents.id
+	WHERE user_id = $1
+	GROUP BY permissions.pool_id, permissions.permission, pools.pool_name`, userId)
+
+	if err != nil {
+		return restapi.UserPermissions{}, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var row PermissionRow
+		err := rows.Scan(&row.PoolId, &row.Permission, &row.PoolName, &row.SessionCount, &row.AgentCount)
+		if err != nil {
+			return restapi.UserPermissions{}, err
+		}
+		if result.Permissions == nil {
+			result.Permissions = make(map[restapi.Permission][]restapi.Pool)
+		}
+		if result.Permissions[row.Permission] == nil {
+			result.Permissions[row.Permission] = []restapi.Pool{}
+		}
+		result.Permissions[row.Permission] = append(result.Permissions[row.Permission], restapi.Pool{
+			Id:           row.PoolId,
+			Name:         row.PoolName,
+			SessionCount: row.SessionCount,
+			AgentCount:   row.AgentCount,
+		})
+	}
+
+	return result, nil
+
 }

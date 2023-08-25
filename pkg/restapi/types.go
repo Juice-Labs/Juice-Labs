@@ -18,6 +18,14 @@ const (
 	AgentMissing  = "missing"
 )
 
+type Permission string
+
+const (
+	PermissionCreateSession Permission = "create_session"
+	PermissionRegisterAgent Permission = "register_agent"
+	PermissionAdmin         Permission = "admin"
+)
+
 type GpuRequirements struct {
 	VramRequired uint64 `json:"vramRequired"`
 	PciBus       string `json:"pciBus"`
@@ -125,4 +133,25 @@ type WebhookMessage struct {
 	Agent   string `json:"agent"`
 	Session string `json:"session"`
 	State   string `json:"state"`
+}
+
+type CreatePoolParams struct {
+	Name string `json:"name"`
+}
+
+type PermissionParams struct {
+	Permission Permission `json:"permission"`
+	UserId     string     `json:"userId"`
+	PoolId     string     `json:"poolId"`
+}
+
+type Pool struct {
+	Id           string `json:"id"`
+	Name         string `json:"name"`
+	SessionCount int    `json:"sessionCount"`
+	AgentCount   int    `json:"agentCount"`
+}
+
+type UserPermissions struct {
+	Permissions map[Permission][]Pool `json:"permissions"`
 }

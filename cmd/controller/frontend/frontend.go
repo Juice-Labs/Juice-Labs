@@ -183,3 +183,26 @@ func (frontend *Frontend) getSessionById(id string) (restapi.Session, error) {
 func (frontend *Frontend) cancelSession(id string) error {
 	return frontend.storage.CancelSession(id)
 }
+
+func (frontend *Frontend) deletePool(id string) error {
+	return frontend.storage.DeletePool(id)
+}
+func (frontend *Frontend) getPool(id string) (restapi.Pool, error) {
+	return frontend.storage.GetPool(id)
+}
+
+func (frontend *Frontend) createPool(name string) (restapi.Pool, error) {
+	return frontend.storage.CreatePool(name)
+}
+
+func (frontend *Frontend) addPermission(poolId string, userId string, permission restapi.Permission) error {
+	return frontend.storage.AddPermission(poolId, userId, permission)
+}
+
+func (frontend *Frontend) removePermission(poolId string, userId string, permission restapi.Permission) error {
+	return frontend.storage.RemovePermission(poolId, userId, permission)
+}
+
+func (frontend *Frontend) getPermissions(userId string) (restapi.UserPermissions, error) {
+	return frontend.storage.GetPermissions(userId)
+}

@@ -95,6 +95,13 @@ type Storage interface {
 
 	SetAgentsMissingIfNotUpdatedFor(duration time.Duration) error
 	RemoveMissingAgentsIfNotUpdatedFor(duration time.Duration) error
+
+	CreatePool(name string) (restapi.Pool, error)
+	GetPool(id string) (restapi.Pool, error)
+	DeletePool(id string) error
+	RemovePermission(poolId string, userId string, permission restapi.Permission) error
+	AddPermission(poolId string, userId string, permission restapi.Permission) error
+	GetPermissions(userId string) (restapi.UserPermissions, error)
 }
 
 var (
