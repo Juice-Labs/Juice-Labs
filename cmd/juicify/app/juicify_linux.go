@@ -7,11 +7,31 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"unsafe"
 
 	"github.com/NVIDIA/go-nvml/pkg/dl"
 
+	"github.com/Juice-Labs/Juice-Labs/pkg/errors"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
+
+// #cgo LDFLAGS: -ldl
+// #include "version_linux.h"
+import "C"
+
+func getVersion() (string, error) {
+	libPath := filepath.Join(*juicePath, "libjuiceclient.so")
+	libPathBytes := make([]byte, len(libPath)+1)
+	copy(libPathBytes, libPath)
+
+	var err *C.char
+	version := C.GetJuiceVersion((*C.char)(unsafe.Pointer(&libPathBytes[0])), (**C.char)(unsafe.Pointer(&err)))
+	if err != nil {
+		return "", errors.Newf("dlerror => %s", C.GoString(err))
+	}
+
+	return C.GoString(version), nil
+}
 
 func check(name string) error {
 	lib := dl.New(name, dl.RTLD_NOW)
@@ -29,14 +49,12 @@ func validateHost() error {
 		"libvulkan.so.1",
 	}
 
+	var err error
 	for _, name := range names {
-		err := check(name)
-		if err != nil {
-			return err
-		}
+		err = errors.Join(err, check(name))
 	}
 
-	return nil
+	return err
 }
 
 func createCommand(args []string) *exec.Cmd {

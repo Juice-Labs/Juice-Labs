@@ -4,7 +4,6 @@
 package app
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"net/http"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
+	"github.com/Juice-Labs/Juice-Labs/pkg/errors"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
