@@ -28,7 +28,7 @@ func (frontend *Frontend) initializeEndpoints(server *server.Server) {
 		return nil
 	})
 
-	server.AddCreateEndpoint(frontend.getStatusFormer)
+	server.AddCreateEndpoint(frontend.getStatusFormerEp)
 	server.AddCreateEndpoint(frontend.getStatusEp)
 	server.AddCreateEndpoint(frontend.registerAgentEp)
 	server.AddCreateEndpoint(frontend.getAgentEp)
