@@ -72,7 +72,7 @@ func (api Client) do(ctx context.Context, method string, path string, contentTyp
 
 	if err == nil {
 		return response, nil
-	} else if err != ErrInvalidScheme {
+	} else if !errors.Is(err, ErrInvalidScheme) {
 		return nil, err
 	}
 

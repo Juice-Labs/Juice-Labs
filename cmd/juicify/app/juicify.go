@@ -21,13 +21,14 @@ import (
 )
 
 type Configuration struct {
-	Id string `json:"id"`
-	Servers []string `json:"servers"`
-	AccessToken string `json:"accessToken,omitempty"`
+	Id           string                      `json:"id"`
+	Servers      []string                    `json:"servers"`
+	AccessToken  string                      `json:"accessToken,omitempty"`
+	Requirements restapi.SessionRequirements `json:"requirements,omitempty"`
 }
 
 var (
-	address        = flag.String("address", "", "The IP address or hostname and port of the server to connect to")
+	address     = flag.String("address", "", "The IP address or hostname and port of the server to connect to")
 	accessToken = flag.String("access-token", "", "The access token to use when connecting to the controller")
 
 	test           = flag.Bool("test", false, "Deprecated: Use --test-connection instead")
@@ -44,10 +45,22 @@ var (
 	errInvalidConfiguration = errors.New("invalid configuration")
 )
 
+func validateConfiguration(config *Configuration) error {
+	if config.Id != "" {
+		return errInvalidConfiguration.Wrap(errors.New("id must not be specified"))
+	} else if len(config.Servers) == 0 {
+		return errInvalidConfiguration.Wrap(errors.New("servers must be specified"))
+	} else if len(config.Requirements.Gpus) == 0 {
+		config.Requirements.Gpus = append(config.Requirements.Gpus, restapi.GpuRequirements{})
+	}
+
+	return nil
+}
+
 func requestSession(group task.Group, client *http.Client, config *Configuration) error {
 	api := restapi.Client{
 		Client:      client,
-		Address:     config.Controller,
+		Address:     config.Servers[0],
 		AccessToken: config.AccessToken,
 	}
 
@@ -108,13 +121,10 @@ func requestSession(group task.Group, client *http.Client, config *Configuration
 	}
 
 	config.Id = session.Id
-	config.Servers = []string{session.Address}
 
-	return nil
-}
-
-func verifySession(group task.Group, client *http.Client, config Configuration) error {
-	// TODO: Verify the connection to the agents
+	if session.Address != "" {
+		config.Servers = []string{session.Address}
+	}
 
 	return nil
 }
@@ -185,10 +195,10 @@ func Run(group task.Group) error {
 
 	server := *address
 	if server != "" {
-	// SplitHostPort() rejects addresses that don't have a port or a
-	// trailing ":".  Add a trailing ":" to have SplitHostPort() parse
-	// the port as 0 and fill in the default port later on to accept
-	// hostnames or IP addresses without ports.
+		// SplitHostPort() rejects addresses that don't have a port or a
+		// trailing ":".  Add a trailing ":" to have SplitHostPort() parse
+		// the port as 0 and fill in the default port later on to accept
+		// hostnames or IP addresses without ports.
 		if !strings.Contains(server, ":") {
 			server = server + ":"
 		}
@@ -207,23 +217,25 @@ func Run(group task.Group) error {
 		config.AccessToken = *accessToken
 	}
 
-	client := &http.Client{}
-
-	api := restapi.Client{
-		Client:      &http.Client{},
-		Address:     server,
-		AccessToken: *accessToken,
-	}
-
-	status, err := api.StatusWithContext(group.Ctx())
+	err = validateConfiguration(&config)
 	if err != nil {
 		return err
 	}
 
-	logger.Infof("Connected to %s, v%s", server, status.Version)
+	client := &http.Client{}
 
 	if *testConnection {
-		return nil
+		api := restapi.Client{
+			Client:      client,
+			Address:     server,
+			AccessToken: *accessToken,
+		}
+
+		status, err := api.StatusWithContext(group.Ctx())
+
+		logger.Infof("Connected to %s, v%s", server, status.Version)
+
+		return err
 	}
 
 	if err == nil {
@@ -235,10 +247,6 @@ func Run(group task.Group) error {
 
 			return nil
 		}
-	}
-
-	if err == nil {
-		err = verifySession(group, client, config)
 	}
 
 	var cmd *exec.Cmd
