@@ -33,6 +33,14 @@ type Server struct {
 	immutableCreateEndpoints []CreateEndpointFn
 }
 
+func createDefaultHealthEndpoint(group task.Group, router *mux.Router) error {
+	router.Methods("GET").Path("/health").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	return nil
+}
+
 func NewServer(address string, tlsConfig *tls.Config) (*Server, error) {
 	url := url.URL{
 		Host: address,
@@ -49,10 +57,11 @@ func NewServer(address string, tlsConfig *tls.Config) (*Server, error) {
 	}
 
 	return &Server{
-		url:             url,
-		port:            port,
-		tlsConfig:       tlsConfig,
-		createEndpoints: map[string]CreateEndpointFn{},
+		url:                      url,
+		port:                     port,
+		tlsConfig:                tlsConfig,
+		createEndpoints:          map[string]CreateEndpointFn{},
+		immutableCreateEndpoints: []CreateEndpointFn{createDefaultHealthEndpoint},
 	}, nil
 }
 
