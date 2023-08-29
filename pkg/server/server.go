@@ -6,8 +6,6 @@ package server
 import (
 	"context"
 	"crypto/tls"
-	"errors"
-	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -16,8 +14,14 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
 
+	"github.com/Juice-Labs/Juice-Labs/pkg/errors"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
+)
+
+var (
+	ErrInvalidPort    = errors.New("server: address does not contain a valid port")
+	ErrEndpointFailed = errors.New("server: endpoint creation failed")
 )
 
 type CreateEndpointFn = func(group task.Group, router *mux.Router) error
@@ -45,7 +49,7 @@ func NewServer(address string, tlsConfig *tls.Config) (*Server, error) {
 
 	port, err := strconv.Atoi(portStr)
 	if err != nil {
-		return nil, fmt.Errorf("NewServer: address does not contain a valid port")
+		return nil, ErrInvalidPort
 	}
 
 	return &Server{
@@ -85,7 +89,7 @@ func (server *Server) Run(group task.Group) error {
 	}
 
 	if err != nil {
-		return fmt.Errorf("Server.Run: endpoint creation failed with %s", err)
+		return ErrEndpointFailed.Wrap(err)
 	}
 
 	// Enable CORS

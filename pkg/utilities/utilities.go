@@ -4,16 +4,20 @@
 package utilities
 
 import (
-	"fmt"
 	"reflect"
 
+	"github.com/Juice-Labs/Juice-Labs/pkg/errors"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
+)
+
+var (
+	ErrInvalidCast = errors.New("utilities: invalid cast")
 )
 
 func Cast[T any](value any) (T, error) {
 	converted, ok := value.(T)
 	if !ok {
-		return converted, fmt.Errorf("invalid cast type '%s' to type '%s'", reflect.TypeOf(value), reflect.TypeOf(converted))
+		return converted, ErrInvalidCast.Wrap(errors.Newf("invalid cast from type '%s' to type '%s'", reflect.TypeOf(value), reflect.TypeOf(converted)))
 	}
 
 	return converted, nil
