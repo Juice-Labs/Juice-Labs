@@ -5,6 +5,7 @@ package logger
 
 import (
 	"flag"
+	"fmt"
 	"strings"
 
 	"go.uber.org/zap"
@@ -14,6 +15,7 @@ var (
 	quiet       = flag.Bool("quiet", false, "Disables all logging output")
 	logLevelArg = flag.String("log-level", "info", "Sets the maximum level of output [Fatal, Error, Warning, Info (Default), Debug, Trace]")
 	logFile     = flag.String("log-file", "", "")
+	logFormat   = flag.String("log-format", "juice", "Set the format of the logging [juice, console, json]")
 
 	logLevel zap.AtomicLevel
 
@@ -38,7 +40,10 @@ func Configure() error {
 		return err
 	}
 
-	config := zap.NewProductionConfig()
+	zap.RegisterEncoder("juice", NewJuiceEncoder)
+
+	config := zap.NewDevelopmentConfig()
+	config.Encoding = *logFormat
 	config.Level = logLevel
 	if *logFile != "" {
 		config.OutputPaths = []string{
@@ -53,7 +58,7 @@ func Configure() error {
 	} else {
 		logger, err = config.Build(options...)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to initialize logger, %w", err)
 		}
 	}
 
@@ -82,61 +87,41 @@ func Panicf(format string, v ...any) {
 }
 
 func Error(v ...any) {
-	if !*quiet {
-		sugardLogger.Error(v...)
-	}
+	sugardLogger.Error(v...)
 }
 
 func Errorf(format string, v ...any) {
-	if !*quiet {
-		sugardLogger.Errorf(format, v...)
-	}
+	sugardLogger.Errorf(format, v...)
 }
 
 func Warning(v ...any) {
-	if !*quiet {
-		sugardLogger.Warn(v...)
-	}
+	sugardLogger.Warn(v...)
 }
 
 func Warningf(format string, v ...any) {
-	if !*quiet {
-		sugardLogger.Warnf(format, v...)
-	}
+	sugardLogger.Warnf(format, v...)
 }
 
 func Info(v ...any) {
-	if !*quiet {
-		sugardLogger.Info(v...)
-	}
+	sugardLogger.Info(v...)
 }
 
 func Infof(format string, v ...any) {
-	if !*quiet {
-		sugardLogger.Infof(format, v...)
-	}
+	sugardLogger.Infof(format, v...)
 }
 
 func Debug(v ...any) {
-	if !*quiet {
-		sugardLogger.Debug(v...)
-	}
+	sugardLogger.Debug(v...)
 }
 
 func Debugf(format string, v ...any) {
-	if !*quiet {
-		sugardLogger.Debugf(format, v...)
-	}
+	sugardLogger.Debugf(format, v...)
 }
 
 func Trace(v ...any) {
-	if !*quiet {
-		sugardLogger.Debug(v...)
-	}
+	sugardLogger.Debug(v...)
 }
 
 func Tracef(format string, v ...any) {
-	if !*quiet {
-		sugardLogger.Debugf(format, v...)
-	}
+	sugardLogger.Debugf(format, v...)
 }
