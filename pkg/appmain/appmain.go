@@ -47,10 +47,9 @@ func Run(config Config, logic task.TaskFn) {
 	}
 
 	if err = sentry.Initialize(config.SentryConfig); err == nil {
-
+		defer sentry.Close()
 		err = logger.Configure()
 		if err == nil {
-			defer sentry.Close()
 			defer logger.Close()
 			logger.Info(config.Name, ", v", config.Version)
 
