@@ -40,7 +40,11 @@ func NewServer(address string, tlsConfig *tls.Config) (*Server, error) {
 
 	portStr := url.Port()
 	if portStr == "" {
-		return nil, errors.New("NewServer: missing address port")
+		if tlsConfig != nil {
+			portStr = "443"
+		} else {
+			portStr = "80"
+		}
 	}
 
 	port, err := strconv.Atoi(portStr)
