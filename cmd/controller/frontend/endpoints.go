@@ -12,7 +12,6 @@ import (
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
-	"github.com/Juice-Labs/Juice-Labs/pkg/middleware"
 	pkgnet "github.com/Juice-Labs/Juice-Labs/pkg/net"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/server"
@@ -20,191 +19,151 @@ import (
 )
 
 func (frontend *Frontend) initializeEndpoints(server *server.Server) {
-	server.AddCreateEndpoint(frontend.getStatusFormer)
-	server.AddCreateEndpoint(frontend.getStatusEp)
-	server.AddCreateEndpoint(frontend.registerAgentEp)
-	server.AddCreateEndpoint(frontend.getAgentEp)
-	server.AddCreateEndpoint(frontend.getAgentsEp)
-	server.AddCreateEndpoint(frontend.updateAgentEp)
-	server.AddCreateEndpoint(frontend.requestSessionEp)
-	server.AddCreateEndpoint(frontend.cancelSessionEp)
-	server.AddCreateEndpoint(frontend.getSessionEp)
+	server.AddEndpointFunc("GET", "/status", frontend.getStatusFormer)
+	server.AddEndpointFunc("GET", "/v1/status", frontend.getStatusEp)
+	server.AddEndpointFunc("POST", "/v1/register/agent", frontend.registerAgentEp)
+	server.AddEndpointFunc("GET", "/v1/agent/{id}", frontend.getAgentEp)
+	server.AddEndpointFunc("PUT", "/v1/agent/{id}", frontend.updateAgentEp)
+	server.AddEndpointFunc("GET", "/v1/agents", frontend.getAgentsEp)
+	server.AddEndpointFunc("POST", "/v1/request/session", frontend.requestSessionEp)
+	server.AddEndpointFunc("GET", "/v1/session/{id}", frontend.cancelSessionEp)
+	server.AddEndpointFunc("DELETE", "/v1/session/{id}", frontend.getSessionEp)
 }
 
-func (frontend *Frontend) getStatusEp(group task.Group, router *mux.Router) error {
-	router.Methods("GET").Path("/v1/status").HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			err := pkgnet.Respond(w, http.StatusOK, restapi.Status{
-				State:    "Active",
-				Version:  build.Version,
-				Hostname: frontend.hostname,
-			})
+func (frontend *Frontend) getStatusEp(group task.Group, w http.ResponseWriter, r *http.Request) {
+	err := pkgnet.Respond(w, http.StatusOK, restapi.Status{
+		State:    "Active",
+		Version:  build.Version,
+		Hostname: frontend.hostname,
+	})
 
-			if err != nil {
-				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
-				logger.Error(err)
-			}
-		})
-	return nil
+	if err != nil {
+		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+		logger.Error(err)
+	}
 }
 
-func (frontend *Frontend) registerAgentEp(group task.Group, router *mux.Router) error {
-	// TODO: Validate claim: register:agents
-	// https://auth0.com/docs/quickstart/backend/golang/01-authorization
-	router.Handle("/v1/register/agent", middleware.EnsureValidToken()(http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			agent, err := pkgnet.ReadRequestBody[restapi.Agent](r)
-			if err != nil {
-				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
-				logger.Error(err)
-				return
-			}
+func (frontend *Frontend) registerAgentEp(group task.Group, w http.ResponseWriter, r *http.Request) {
+	agent, err := pkgnet.ReadRequestBody[restapi.Agent](r)
+	if err != nil {
+		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+		logger.Error(err)
+		return
+	}
 
-			id, err := frontend.registerAgent(agent)
-			if err != nil {
-				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
-				logger.Error(err)
-				return
-			}
+	id, err := frontend.registerAgent(agent)
+	if err != nil {
+		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+		logger.Error(err)
+		return
+	}
 
-			err = pkgnet.RespondWithString(w, http.StatusOK, id)
-			if err != nil {
-				logger.Error(err)
-			}
-		}))).Methods("POST")
-	return nil
+	err = pkgnet.RespondWithString(w, http.StatusOK, id)
+	if err != nil {
+		logger.Error(err)
+	}
 }
 
-func (frontend *Frontend) getAgentEp(group task.Group, router *mux.Router) error {
-	// TODO: Validate claim: read:agents
-	router.Handle("/v1/agent/{id}", middleware.EnsureValidToken()(http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			id := mux.Vars(r)["id"]
+func (frontend *Frontend) getAgentEp(group task.Group, w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
 
-			agent, err := frontend.getAgentById(id)
-			if err != nil {
-				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
-				logger.Error(err)
-				return
-			}
+	agent, err := frontend.getAgentById(id)
+	if err != nil {
+		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+		logger.Error(err)
+		return
+	}
 
-			pkgnet.Respond(w, http.StatusOK, agent)
-		}))).Methods("GET")
-	return nil
+	pkgnet.Respond(w, http.StatusOK, agent)
 }
 
-func (frontend *Frontend) getAgentsEp(group task.Group, router *mux.Router) error {
-	// TODO: Validate claim: read:agents
-	router.Handle("/v1/agents", middleware.EnsureValidToken()(http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			agents, err := frontend.getAgents()
-			if err != nil {
-				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
-				logger.Error(err)
-				return
-			}
+func (frontend *Frontend) getAgentsEp(group task.Group, w http.ResponseWriter, r *http.Request) {
+	agents, err := frontend.getAgents()
+	if err != nil {
+		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+		logger.Error(err)
+		return
+	}
 
-			pkgnet.Respond(w, http.StatusOK, agents)
-		}))).Methods("GET")
-	return nil
+	pkgnet.Respond(w, http.StatusOK, agents)
 }
 
-func (frontend *Frontend) updateAgentEp(group task.Group, router *mux.Router) error {
-	// TODO: Validate claim: register:agents
-	router.Handle("/v1/agent/{id}", middleware.EnsureValidToken()(http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			id := mux.Vars(r)["id"]
+func (frontend *Frontend) updateAgentEp(group task.Group, w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
 
-			update, err := pkgnet.ReadRequestBody[restapi.AgentUpdate](r)
-			if err != nil {
-				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
-				logger.Error(err)
-				return
-			}
+	update, err := pkgnet.ReadRequestBody[restapi.AgentUpdate](r)
+	if err != nil {
+		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+		logger.Error(err)
+		return
+	}
 
-			if update.Id != id {
-				err = fmt.Errorf("/v1/agent/%s: ids do not match", id)
-				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusBadRequest, err.Error()))
-				logger.Error(err)
-				return
-			}
+	if update.Id != id {
+		err = fmt.Errorf("/v1/agent/%s: ids do not match", id)
+		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusBadRequest, err.Error()))
+		logger.Error(err)
+		return
+	}
 
-			err = frontend.updateAgent(group.Ctx(), update)
-			if err != nil {
-				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
-				logger.Error(err)
-				return
-			}
+	err = frontend.updateAgent(group.Ctx(), update)
+	if err != nil {
+		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+		logger.Error(err)
+		return
+	}
 
-			pkgnet.RespondEmpty(w, http.StatusOK)
-		}))).Methods("PUT")
-	return nil
+	pkgnet.RespondEmpty(w, http.StatusOK)
 }
 
-func (frontend *Frontend) requestSessionEp(group task.Group, router *mux.Router) error {
-	// TODO: Validate claim: create:sessions
-	router.Handle("/v1/request/session", middleware.EnsureValidToken()(http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			sessionRequirements, err := pkgnet.ReadRequestBody[restapi.SessionRequirements](r)
-			if err != nil {
-				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
-				logger.Error(err)
-				return
-			}
+func (frontend *Frontend) requestSessionEp(group task.Group, w http.ResponseWriter, r *http.Request) {
+	sessionRequirements, err := pkgnet.ReadRequestBody[restapi.SessionRequirements](r)
+	if err != nil {
+		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+		logger.Error(err)
+		return
+	}
 
-			id, err := frontend.requestSession(sessionRequirements)
-			if err != nil {
-				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
-				logger.Error(err)
-				return
-			}
+	id, err := frontend.requestSession(sessionRequirements)
+	if err != nil {
+		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+		logger.Error(err)
+		return
+	}
 
-			err = pkgnet.RespondWithString(w, http.StatusOK, id)
-			if err != nil {
-				logger.Error(err)
-			}
-		}))).Methods("POST")
-	return nil
+	err = pkgnet.RespondWithString(w, http.StatusOK, id)
+	if err != nil {
+		logger.Error(err)
+	}
 }
 
-func (frontend *Frontend) getSessionEp(group task.Group, router *mux.Router) error {
-	// TODO: Validate claim: read:sessions
-	router.Handle("/v1/session/{id}", middleware.EnsureValidToken()(http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			id := mux.Vars(r)["id"]
+func (frontend *Frontend) cancelSessionEp(group task.Group, w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
 
-			session, err := frontend.getSessionById(id)
-			if err != nil {
-				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
-				logger.Error(err)
-				return
-			}
+	err := frontend.cancelSession(id)
+	if err != nil {
+		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+		logger.Error(err)
+		return
+	}
 
-			err = pkgnet.Respond(w, http.StatusOK, session)
-			if err != nil {
-				logger.Error(err)
-			}
-		}))).Methods("GET")
-	return nil
+	err = pkgnet.Respond(w, http.StatusOK, fmt.Sprintf("Session %s cancelled", id))
+	if err != nil {
+		logger.Error(err)
+	}
 }
 
-func (frontend *Frontend) cancelSessionEp(group task.Group, router *mux.Router) error {
-	// TODO: Validate write:sessions claim
-	router.Handle("/v1/session/{id}", middleware.EnsureValidToken()(http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			id := mux.Vars(r)["id"]
+func (frontend *Frontend) getSessionEp(group task.Group, w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
 
-			err := frontend.cancelSession(id)
-			if err != nil {
-				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
-				logger.Error(err)
-				return
-			}
+	session, err := frontend.getSessionById(id)
+	if err != nil {
+		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+		logger.Error(err)
+		return
+	}
 
-			err = pkgnet.Respond(w, http.StatusOK, fmt.Sprintf("Session %s cancelled", id))
-			if err != nil {
-				logger.Error(err)
-			}
-		}))).Methods("DELETE")
-	return nil
+	err = pkgnet.Respond(w, http.StatusOK, session)
+	if err != nil {
+		logger.Error(err)
+	}
 }
