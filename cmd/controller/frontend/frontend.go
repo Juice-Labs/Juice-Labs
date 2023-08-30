@@ -137,8 +137,8 @@ func (frontend *Frontend) registerAgent(agent restapi.Agent) (string, error) {
 	return frontend.storage.RegisterAgent(agent)
 }
 
-func (frontend *Frontend) getAgents() ([]restapi.Agent, error) {
-	iterator, err := frontend.storage.GetAgents()
+func (frontend *Frontend) getAgents(poolId string) ([]restapi.Agent, error) {
+	iterator, err := frontend.storage.GetAgents(poolId)
 	if err != nil {
 		return nil, err
 	}

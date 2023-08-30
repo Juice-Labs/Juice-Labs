@@ -106,7 +106,7 @@ func (iterator *tableIterator[T]) Value() T {
 }
 
 const (
-	selectAgents = `SELECT id, state, hostname, address, version, gpus, 
+	selectAgents = `SELECT id, state, hostname, address, version, pool_id, gpus, 
 			( SELECT ARRAY (
 				SELECT ( SELECT row(key, value) FROM key_values WHERE id = agent_labels.key_value_id ) FROM agent_labels WHERE agent_id = agents.id
 			) ) labels, 
@@ -117,7 +117,7 @@ const (
 				SELECT row(id, state, address, version, gpus) FROM sessions tab WHERE tab.agent_id = agents.id AND tab.state != 'closed'
 			) ) sessions
 		FROM agents`
-	selectSessions       = "SELECT id, state, address, version, gpus FROM sessions"
+	selectSessions       = "SELECT id, state, address, version, pool_id, gpus FROM sessions"
 	selectQueuedSessions = "SELECT id, requirements FROM sessions WHERE state = 'queued'"
 
 	orderBy     = " ORDER BY created_at ASC"
@@ -146,7 +146,7 @@ func unmarshalAgent(row sqlRow) (restapi.Agent, error) {
 		Sessions: make([]restapi.Session, 0),
 	}
 
-	err := row.Scan(&agent.Id, &agent.State, &agent.Hostname, &agent.Address, &agent.Version, &gpus, &labels, &taints, &sessions)
+	err := row.Scan(&agent.Id, &agent.State, &agent.Hostname, &agent.Address, &agent.Version, &agent.PoolId, &gpus, &labels, &taints, &sessions)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			err = storage.ErrNotFound
@@ -201,7 +201,7 @@ func unmarshalSession(row sqlRow) (restapi.Session, error) {
 	var address []byte
 	var gpus []byte
 
-	err := row.Scan(&session.Id, &session.State, &address, &session.Version, &gpus)
+	err := row.Scan(&session.Id, &session.State, &address, &session.Version, &session.PoolId, &gpus)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			err = storage.ErrNotFound
@@ -460,11 +460,11 @@ func (driver *storageDriver) RegisterAgent(agent restapi.Agent) (string, error) 
 
 	var id string
 	err = tx.QueryRowContext(driver.ctx, "INSERT INTO agents ("+
-		"state, hostname, address, version, gpus, vram_available, updated_at"+
+		"state, hostname, address, version, pool_id, gpus, vram_available, updated_at"+
 		") VALUES ("+
-		"$1, $2, $3, $4, $5, $6, now()"+
+		"$1, $2, $3, $4, $5, $6, $7, now()"+
 		") RETURNING id",
-		agent.State, agent.Hostname, agent.Address, agent.Version,
+		agent.State, agent.Hostname, agent.Address, agent.Version, agent.PoolId,
 		gpus, storage.TotalVram(agent.Gpus)).Scan(&id)
 	if err != nil {
 		return "", errors.Join(err, tx.Rollback())
@@ -590,11 +590,12 @@ func (driver *storageDriver) RequestSession(sessionRequirements restapi.SessionR
 
 	var id string
 	err = tx.QueryRowContext(driver.ctx, "INSERT INTO sessions ("+
-		"state, version, requirements, vram_required, updated_at"+
+		"state, version, pool_id, requirements, vram_required, updated_at"+
 		") VALUES ("+
-		"$1, $2, $3, $4, $5, now()"+
+		"$1, $2, $3, $4, $5, $6, now()"+
 		") RETURNING id",
-		restapi.SessionQueued, sessionRequirements.Version, requirements, storage.TotalVramRequired(sessionRequirements)).Scan(&id)
+		restapi.SessionQueued, sessionRequirements.Version, sessionRequirements.PoolId,
+		requirements, storage.TotalVramRequired(sessionRequirements)).Scan(&id)
 	if err != nil {
 		return "", errors.Join(err, tx.Rollback())
 	}
@@ -706,8 +707,16 @@ func (driver *storageDriver) GetQueuedSessionById(id string) (storage.QueuedSess
 	return unmarshalQueuedSession(driver.db.QueryRowContext(driver.ctx, selectQueuedSessionsWhere("id = $1"), id))
 }
 
-func (driver *storageDriver) GetAgents() (storage.Iterator[restapi.Agent], error) {
-	statement, err := driver.db.PrepareContext(driver.ctx, selectAgentsIteratorWhere("state = 'active'", 20))
+func (driver *storageDriver) GetAgents(poolId string) (storage.Iterator[restapi.Agent], error) {
+	var statement *sql.Stmt
+	var err error
+
+	if poolId != "" {
+		statement, err = driver.db.PrepareContext(driver.ctx, selectAgentsIteratorWhere("pool_id = $1 AND state = 'active'", 20))
+	} else {
+		statement, err = driver.db.PrepareContext(driver.ctx, selectAgentsIteratorWhere("state = 'active'", 20))
+	}
+
 	if err != nil {
 		return nil, err
 	}

@@ -33,6 +33,7 @@ type GpuRequirements struct {
 
 type SessionRequirements struct {
 	Version string `json:"version"`
+	PoolId  string `json:"poolId"`
 
 	Gpus []GpuRequirements `json:"gpus"`
 
@@ -51,6 +52,7 @@ type Session struct {
 	State   string `json:"state"`
 	Address string `json:"address"`
 	Version string `json:"version"`
+	PoolId  string `json:"poolId"`
 
 	Gpus        []SessionGpu `json:"gpus"`
 	Connections []Connection `json:"connections"`
@@ -102,6 +104,7 @@ type Agent struct {
 	Hostname string `json:"hostname"`
 	Address  string `json:"address"`
 	Version  string `json:"version"`
+	PoolId   string `json:"poolId"`
 
 	Gpus []Gpu `json:"gpus"`
 

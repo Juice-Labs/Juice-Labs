@@ -500,7 +500,7 @@ func (driver *storageDriver) GetQueuedSessionById(id string) (storage.QueuedSess
 	}, nil
 }
 
-func (driver *storageDriver) GetAgents() (storage.Iterator[restapi.Agent], error) {
+func (driver *storageDriver) GetAgents(poolId string) (storage.Iterator[restapi.Agent], error) {
 	txn := driver.db.Txn(false)
 	defer txn.Abort()
 

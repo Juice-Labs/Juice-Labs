@@ -31,6 +31,7 @@ var (
 	address = flag.String("address", "0.0.0.0:43210", "The IP address and port to use for listening for client connections")
 	labels  = flag.String("labels", "", "Comma separated list of key=value pairs")
 	taints  = flag.String("taints", "", "Comma separated list of key=value pairs")
+	poolId  = flag.String("pool-id", "", "The ID of the pool this agent belongs to")
 )
 
 type EventListener interface {
@@ -53,6 +54,7 @@ type Agent struct {
 
 	labels map[string]string
 	taints map[string]string
+	poolId string
 
 	sessions    *utilities.ConcurrentMap[string, *Session]
 	taskManager *task.TaskManager
@@ -110,6 +112,10 @@ func NewAgent(ctx context.Context, tlsConfig *tls.Config) (*Agent, error) {
 		if err != nil {
 			return nil, errors.New("failed to parse --taints").Wrap(err)
 		}
+	}
+
+	if *poolId != "" {
+		agent.poolId = *poolId
 	}
 
 	if agent.JuicePath == "" {

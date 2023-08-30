@@ -14,9 +14,11 @@ import (
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
+	"github.com/Juice-Labs/Juice-Labs/pkg/middleware"
 	pkgnet "github.com/Juice-Labs/Juice-Labs/pkg/net"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/server"
+	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
 
 func (frontend *Frontend) initializeEndpoints(server *server.Server) {
@@ -29,6 +31,8 @@ func (frontend *Frontend) initializeEndpoints(server *server.Server) {
 	server.AddEndpointFunc("POST", "/v1/request/session", frontend.requestSessionEp)
 	server.AddEndpointFunc("GET", "/v1/session/{id}", frontend.getSessionEp)
 	server.AddEndpointFunc("DELETE", "/v1/session/{id}", frontend.cancelSessionEp)
+
+	server.AddCreateEndpoint(frontend.getAgentsForPoolEp)
 
 	server.AddCreateEndpoint(frontend.createPoolEp)
 	server.AddCreateEndpoint(frontend.getPoolEp)
@@ -87,7 +91,7 @@ func (frontend *Frontend) getAgentEp(w http.ResponseWriter, r *http.Request) {
 }
 
 func (frontend *Frontend) getAgentsEp(w http.ResponseWriter, r *http.Request) {
-	agents, err := frontend.getAgents()
+	agents, err := frontend.getAgents("")
 	if err != nil {
 		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 		logger.Error(err)
@@ -95,6 +99,23 @@ func (frontend *Frontend) getAgentsEp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	pkgnet.Respond(w, http.StatusOK, agents)
+}
+
+func (frontend *Frontend) getAgentsForPoolEp(router *mux.Router) error {
+	// TODO: Validate claim: create_session:pool_id
+	router.Handle("/v1/agents", middleware.EnsureValidToken()(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			poolID := r.URL.Query().Get("pool_id")
+			agents, err := frontend.getAgents(poolID)
+			if err != nil {
+				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+				logger.Error(err)
+				return
+			}
+
+			pkgnet.Respond(w, http.StatusOK, agents)
+		}))).Methods("GET").Queries("pool_id", "{pool_id}")
+	return nil
 }
 
 func (frontend *Frontend) updateAgentEp(w http.ResponseWriter, r *http.Request) {
@@ -178,7 +199,7 @@ func (frontend *Frontend) getSessionEp(w http.ResponseWriter, r *http.Request) {
 }
 
 func (frontend *Frontend) createPoolEp(group task.Group, router *mux.Router) error {
-	// Validate org_adming claim
+	// Validate org_adming claim?
 	router.Handle("/v1/pool", middleware.EnsureValidToken()(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			poolParams, err := pkgnet.ReadRequestBody[restapi.CreatePoolParams](r)
