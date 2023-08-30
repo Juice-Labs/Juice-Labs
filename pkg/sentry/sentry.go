@@ -10,28 +10,42 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+var (
+	SentryDsn = ""
+)
+
 type ClientOptions = sentry.ClientOptions
 
 func Initialize(config sentry.ClientOptions) error {
-	err := sentry.Init(config)
+	var err error
 
-	if err == nil {
-		// add a logger hook so sentry gets notified of errors etc
-		logger.AddOption(zap.Hooks(func(entry zapcore.Entry) error {
-			if entry.Level == zapcore.ErrorLevel {
-				sentry.AddBreadcrumb(&sentry.Breadcrumb{
-					Type:      "error",
-					Category:  "error",
-					Level:     sentry.LevelError,
-					Message:   fmt.Sprintf("%s %s", entry.Caller.TrimmedPath(), entry.Message),
-					Timestamp: entry.Time,
-				})
-			}
-			return nil
-		}))
+	// Use package default if one is specified (via build)
+	if config.Dsn == "" {
+		config.Dsn = SentryDsn
+	}
+
+	if config.Dsn != "" {
+		err = sentry.Init(config)
+
+		if err == nil {
+			// add a logger hook so sentry gets notified of errors etc
+			logger.AddOption(zap.Hooks(func(entry zapcore.Entry) error {
+				if entry.Level == zapcore.ErrorLevel {
+					sentry.AddBreadcrumb(&sentry.Breadcrumb{
+						Type:      "error",
+						Category:  "error",
+						Level:     sentry.LevelError,
+						Message:   fmt.Sprintf("%s %s", entry.Caller.TrimmedPath(), entry.Message),
+						Timestamp: entry.Time,
+					})
+				}
+				return nil
+			}))
+		}
 	}
 
 	return err
+
 }
 
 func Close() {

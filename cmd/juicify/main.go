@@ -22,7 +22,6 @@ func main() {
 
 		SentryConfig: sentry.ClientOptions{
 			Release: fmt.Sprintf("%s@%s", name, build.Version),
-			Dsn:     "https://fb7e2006c23d07f7b3ba78067164eba4@o4505739073486848.ingest.sentry.io/4505779685818368",
 		},
 	}
 

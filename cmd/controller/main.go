@@ -94,7 +94,6 @@ func main() {
 
 		SentryConfig: sentry.ClientOptions{
 			Release:          fmt.Sprintf("%s@%s", name, build.Version),
-			Dsn:              "https://bd72f965550ed6269cd8c3604aa0c769@o4505739073486848.ingest.sentry.io/4505763982147584",
 			EnableTracing:    true,
 			TracesSampleRate: 1.0,
 		},
