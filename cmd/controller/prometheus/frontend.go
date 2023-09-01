@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
@@ -70,12 +69,7 @@ func NewFrontend(server *server.Server, storage storage.Storage) *Frontend {
 	}
 	prometheus.MustRegister(frontend)
 
-	server.AddCreateEndpoint(func(group task.Group, router *mux.Router) error {
-		router.Methods("GET").Path("/metrics").Handler(
-			promhttp.Handler())
-
-		return nil
-	})
+	server.AddEndpointHandler("GET", "/metrics", promhttp.Handler())
 
 	return frontend
 }
