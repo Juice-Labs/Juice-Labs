@@ -76,7 +76,7 @@ func requestSession(group task.Group, client *http.Client, config *Configuration
 	if session.State == restapi.SessionQueued {
 		logger.Info("Session queued")
 
-		ticker := time.NewTicker(5 * time.Second)
+		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
 
 		for session.State == restapi.SessionQueued {
