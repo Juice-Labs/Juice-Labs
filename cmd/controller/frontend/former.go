@@ -14,7 +14,6 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	pkgnet "github.com/Juice-Labs/Juice-Labs/pkg/net"
-	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
 
@@ -60,24 +59,8 @@ type StatusFormer struct {
 	Hosts    []AgentData `json:"hosts"`
 }
 
-func (frontend *Frontend) GetActiveAgents() ([]restapi.Agent, error) {
-	iterator, err := frontend.storage.GetAgents()
-	if err != nil {
-		return nil, err
-	}
-
-	agents := make([]restapi.Agent, 0)
-	for iterator.Next() {
-		if iterator.Value().State == restapi.AgentActive {
-			agents = append(agents, iterator.Value())
-		}
-	}
-
-	return agents, nil
-}
-
-func (frontend *Frontend) getStatusFormer(group task.Group, w http.ResponseWriter, r *http.Request) {
-	agents, err := frontend.GetActiveAgents()
+func (frontend *Frontend) getStatusFormerEp(group task.Group, w http.ResponseWriter, r *http.Request) {
+	agents, err := frontend.getAgents()
 	if err == nil {
 		hosts := make([]AgentData, len(agents))
 		for index, agent := range agents {

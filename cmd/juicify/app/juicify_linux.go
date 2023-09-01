@@ -10,6 +10,7 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/dl"
 
+	"github.com/Juice-Labs/Juice-Labs/pkg/errors"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
 
@@ -29,14 +30,12 @@ func validateHost() error {
 		"libvulkan.so.1",
 	}
 
+	var err error
 	for _, name := range names {
-		err := check(name)
-		if err != nil {
-			return err
-		}
+		err = errors.Join(err, check(name))
 	}
 
-	return nil
+	return err
 }
 
 func createCommand(args []string) *exec.Cmd {
