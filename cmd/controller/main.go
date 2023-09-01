@@ -35,12 +35,11 @@ var (
 	keyFile      = flag.String("key-file", "", "")
 	generateCert = flag.Bool("generate-cert", false, "Generates a certificate for https")
 
-	enableFrontend   = flag.Bool("frontend", false, "")
-	enableBackend    = flag.Bool("backend", false, "")
-	enablePrometheus = flag.Bool("prometheus", false, "")
+	enableFrontend = flag.Bool("frontend", false, "")
+	enableBackend  = flag.Bool("backend", false, "")
 
 	address           = flag.String("address", "0.0.0.0:8080", "The IP address and port to use for listening for client connections")
-	prometheusAddress = flag.String("prometheus-address", "0.0.0.0:9090", "The IP address and port to use for listening for Prometheus connections")
+	prometheusAddress = flag.String("prometheus", "", "The IP address and port to use for listening for Prometheus connections")
 
 	psqlConnection         = flag.String("psql-connection", "", "See https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters")
 	psqlConnectionFromFile = flag.String("psql-connection-from-file", "", "See https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters")
@@ -126,36 +125,40 @@ func main() {
 		}
 
 		if err == nil {
-			if *enableFrontend || *enableBackend {
-				mainServer, err = server.NewServer(*address, tlsConfig)
-				if err == nil {
-					if *enableFrontend {
-						logger.Infof("Starting frontend on %s", *address)
+			// Enable both frontend and backend by default
+			if !(*enableFrontend || *enableBackend) {
+				*enableFrontend = true
+				*enableBackend = true
+			}
 
-						frontend, err_ := frontend.NewFrontend(mainServer, storage)
-						err = err_
-						if err == nil {
-							group.Go("Frontend", frontend)
-						}
+			mainServer, err = server.NewServer(*address, tlsConfig)
+			if err == nil {
+				if *enableFrontend {
+					logger.Infof("Starting frontend on %s", *address)
+
+					frontend, err_ := frontend.NewFrontend(mainServer, storage)
+					err = err_
+					if err == nil {
+						group.Go("Frontend", frontend)
 					}
 				}
+			}
 
-				if err == nil {
-					if *enableBackend {
-						logger.Infof("Starting backend on %s", *address)
+			if err == nil {
+				if *enableBackend {
+					logger.Infof("Starting backend on %s", *address)
 
-						group.Go("Backend", backend.NewBackend(storage))
-					}
+					group.Go("Backend", backend.NewBackend(storage))
 				}
+			}
 
-				if err == nil {
-					group.Go("Main Server", mainServer)
-				}
+			if err == nil {
+				group.Go("Main Server", mainServer)
 			}
 		}
 
 		if err == nil {
-			if *enablePrometheus {
+			if *prometheusAddress != "" {
 				prometheusServer, err = server.NewServer(*prometheusAddress, tlsConfig)
 				if err == nil {
 					logger.Infof("Starting prometheus on %s", *prometheusAddress)
