@@ -81,7 +81,7 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 		agent.Id = id
 
 		// When connected to the controller, the agent must not allow requests
-		agent.Server.SetCreateEndpoint(RequestSessionName, nil)
+		agent.Server.RemoveEndpointByName(RequestSessionName)
 
 		agent.gpuMetrics = make([]restapi.GpuMetrics, agent.Gpus.Count())
 		agent.GpuMetricsProvider.AddConsumer(func(gpus []restapi.Gpu) {
