@@ -20,29 +20,27 @@ import (
 )
 
 var (
-	ErrInvalidPort    = errors.New("server: address does not contain a valid port")
-	ErrEndpointFailed = errors.New("server: endpoint creation failed")
+	ErrInvalidPort = errors.New("server: address does not contain a valid port")
 )
 
-type CreateEndpointFn = func(group task.Group, router *mux.Router) error
+type EndpointHandlerFn = func(group task.Group, w http.ResponseWriter, r *http.Request)
+
+type Endpoint struct {
+	Name    string
+	Methods []string
+	Path    string
+	Handler EndpointHandlerFn
+}
 
 type Server struct {
 	url url.URL
 
 	port int
 
+	root      *mux.Router
 	tlsConfig *tls.Config
 
-	createEndpoints          map[string]CreateEndpointFn
-	immutableCreateEndpoints []CreateEndpointFn
-}
-
-func createDefaultHealthEndpoint(group task.Group, router *mux.Router) error {
-	router.Methods("GET").Path("/health").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	return nil
+	endpoints []Endpoint
 }
 
 func NewServer(address string, tlsConfig *tls.Config) (*Server, error) {
@@ -64,47 +62,6 @@ func NewServer(address string, tlsConfig *tls.Config) (*Server, error) {
 		return nil, ErrInvalidPort
 	}
 
-	return &Server{
-		url:                      url,
-		port:                     port,
-		tlsConfig:                tlsConfig,
-		createEndpoints:          map[string]CreateEndpointFn{},
-		immutableCreateEndpoints: []CreateEndpointFn{createDefaultHealthEndpoint},
-	}, nil
-}
-
-func (server *Server) Port() int {
-	return server.port
-}
-
-func (server *Server) AddCreateEndpoint(fn CreateEndpointFn) {
-	server.immutableCreateEndpoints = append(server.immutableCreateEndpoints, fn)
-}
-
-func (server *Server) SetCreateEndpoint(name string, fn CreateEndpointFn) {
-	server.createEndpoints[name] = fn
-}
-
-func (server *Server) Run(group task.Group) error {
-	router := mux.NewRouter().StrictSlash(true)
-
-	var err error
-	for _, createEndpoint := range server.createEndpoints {
-		if createEndpoint != nil {
-			err = errors.Join(err, createEndpoint(group, router))
-		}
-	}
-
-	for _, createEndpoint := range server.immutableCreateEndpoints {
-		if createEndpoint != nil {
-			err = errors.Join(err, createEndpoint(group, router))
-		}
-	}
-
-	if err != nil {
-		return ErrEndpointFailed.Wrap(err)
-	}
-
 	// Enable CORS
 	cors := cors.New(cors.Options{
 		AllowedOrigins: []string{"http://localhost:3000", "https://juiceweb.vercel.app", "http://wails.localhost:34115", "wails://wails", "http://wails.localhost"},
@@ -123,20 +80,87 @@ func (server *Server) Run(group task.Group) error {
 		},
 	})
 
-	loggerRouter := mux.NewRouter().StrictSlash(true)
-	loggerRouter.Use(logger.Middleware)
-	loggerRouter.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cors.ServeHTTP(w, r, func(w http.ResponseWriter, r *http.Request) {
-			router.ServeHTTP(w, r)
-		})
+	root := mux.NewRouter().StrictSlash(true)
+	root.Use(logger.Middleware, cors.Handler)
+
+	server := &Server{
+		url:       url,
+		port:      port,
+		root:      root,
+		tlsConfig: tlsConfig,
+	}
+
+	server.AddEndpointFunc("GET", "/health", func(group task.Group, w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
 	})
+
+	return server, nil
+}
+
+func (server *Server) Port() int {
+	return server.port
+}
+
+func (server *Server) AddEndpointFunc(method string, path string, fn EndpointHandlerFn) {
+	server.AddEndpoint(Endpoint{
+		Methods: []string{method},
+		Path:    path,
+		Handler: fn,
+	})
+}
+
+func (server *Server) AddNamedEndpointFunc(name string, method string, path string, fn EndpointHandlerFn) {
+	server.AddEndpoint(Endpoint{
+		Name:    name,
+		Methods: []string{method},
+		Path:    path,
+		Handler: fn,
+	})
+}
+
+func (server *Server) AddEndpointHandler(method string, path string, handler http.Handler) {
+	server.AddEndpoint(Endpoint{
+		Methods: []string{method},
+		Path:    path,
+		Handler: func(group task.Group, w http.ResponseWriter, r *http.Request) {
+			handler.ServeHTTP(w, r)
+		},
+	})
+}
+
+func (server *Server) AddEndpoint(endpoint Endpoint) {
+	server.endpoints = append(server.endpoints, endpoint)
+}
+
+func (server *Server) RemoveEndpointByName(name string) {
+	if name != "" {
+		for index, endpoint := range server.endpoints {
+			if endpoint.Name == name {
+				if (index + 1) == len(server.endpoints) {
+					server.endpoints = server.endpoints[0:index]
+				} else {
+					server.endpoints = append(server.endpoints[0:index], server.endpoints[index+1:]...)
+				}
+
+				break
+			}
+		}
+	}
+}
+
+func (server *Server) Run(group task.Group) error {
+	for _, endpoint := range server.endpoints {
+		server.root.Methods(endpoint.Methods...).Path(endpoint.Path).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			endpoint.Handler(group, w, r)
+		})
+	}
 
 	httpServer := http.Server{
 		BaseContext: func(_ net.Listener) context.Context {
 			return group.Ctx()
 		},
 		Addr:      server.url.Host,
-		Handler:   loggerRouter,
+		Handler:   server.root,
 		TLSConfig: server.tlsConfig,
 	}
 

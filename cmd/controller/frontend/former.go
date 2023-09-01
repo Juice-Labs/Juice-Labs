@@ -16,7 +16,6 @@ import (
 	pkgnet "github.com/Juice-Labs/Juice-Labs/pkg/net"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
-	"github.com/gorilla/mux"
 )
 
 // Pulled from former Node version
@@ -77,76 +76,72 @@ func (frontend *Frontend) GetActiveAgents() ([]restapi.Agent, error) {
 	return agents, nil
 }
 
-func (frontend *Frontend) getStatusFormer(group task.Group, router *mux.Router) error {
-	router.Methods("GET").Path("/status").HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			agents, err := frontend.GetActiveAgents()
-			if err == nil {
-				hosts := make([]AgentData, len(agents))
-				for index, agent := range agents {
-					ip, portStr, err_ := net.SplitHostPort(agent.Address)
-					if err_ != nil {
-						err = err_
-						break
-					}
+func (frontend *Frontend) getStatusFormer(group task.Group, w http.ResponseWriter, r *http.Request) {
+	agents, err := frontend.GetActiveAgents()
+	if err == nil {
+		hosts := make([]AgentData, len(agents))
+		for index, agent := range agents {
+			ip, portStr, err_ := net.SplitHostPort(agent.Address)
+			if err_ != nil {
+				err = err_
+				break
+			}
 
-					port, err_ := strconv.Atoi(portStr)
-					if err_ != nil {
-						err = err_
-						break
-					}
+			port, err_ := strconv.Atoi(portStr)
+			if err_ != nil {
+				err = err_
+				break
+			}
 
-					gpus := make([]GpuData, len(agent.Gpus))
-					for index, gpu := range agent.Gpus {
-						gpus[index] = GpuData{
-							Vendor:         gpu.Vendor,
-							Model:          gpu.Model,
-							Bus:            "OnBoard",
-							BusAddress:     gpu.PciBus,
-							Vram:           gpu.Vram,
-							VramDynamic:    false,
-							DriverVersion:  gpu.Driver,
-							SubDeviceId:    fmt.Sprint("0x", strconv.FormatInt(int64(gpu.SubDeviceId), 16)),
-							Name:           gpu.Name,
-							PciBus:         gpu.PciBus,
-							MemoryTotal:    gpu.Vram,
-							MemoryUsed:     gpu.Metrics.VramUsed,
-							MemoryFree:     gpu.Vram - gpu.Metrics.VramUsed,
-							TemperatureGpu: gpu.Metrics.TemperatureGpu,
-							PowerDraw:      float32(gpu.Metrics.PowerDraw) / 1000.0,
-							PowerLimit:     float32(gpu.Metrics.PowerLimit) / 1000.0,
-							ClockCore:      gpu.Metrics.ClockCore,
-							ClockMemory:    gpu.Metrics.ClockMemory,
-							Uuid:           gpu.Uuid,
-						}
-					}
-
-					hosts[index] = AgentData{
-						Hostname: agent.Hostname,
-						Port:     port,
-						Id:       agent.Id,
-						Action:   "UPDATE",
-						Nonce:    0,
-						GpuCount: len(agent.Gpus),
-						Gpus:     gpus,
-						Ip:       ip,
-					}
-				}
-
-				if err == nil {
-					err = pkgnet.Respond(w, http.StatusOK, StatusFormer{
-						Status:   "ok",
-						Version:  build.Version,
-						UptimeMs: time.Since(frontend.startTime).Milliseconds(),
-						Hosts:    hosts,
-					})
+			gpus := make([]GpuData, len(agent.Gpus))
+			for index, gpu := range agent.Gpus {
+				gpus[index] = GpuData{
+					Vendor:         gpu.Vendor,
+					Model:          gpu.Model,
+					Bus:            "OnBoard",
+					BusAddress:     gpu.PciBus,
+					Vram:           gpu.Vram,
+					VramDynamic:    false,
+					DriverVersion:  gpu.Driver,
+					SubDeviceId:    fmt.Sprint("0x", strconv.FormatInt(int64(gpu.SubDeviceId), 16)),
+					Name:           gpu.Name,
+					PciBus:         gpu.PciBus,
+					MemoryTotal:    gpu.Vram,
+					MemoryUsed:     gpu.Metrics.VramUsed,
+					MemoryFree:     gpu.Vram - gpu.Metrics.VramUsed,
+					TemperatureGpu: gpu.Metrics.TemperatureGpu,
+					PowerDraw:      float32(gpu.Metrics.PowerDraw) / 1000.0,
+					PowerLimit:     float32(gpu.Metrics.PowerLimit) / 1000.0,
+					ClockCore:      gpu.Metrics.ClockCore,
+					ClockMemory:    gpu.Metrics.ClockMemory,
+					Uuid:           gpu.Uuid,
 				}
 			}
 
-			if err != nil {
-				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
-				logger.Error(err)
+			hosts[index] = AgentData{
+				Hostname: agent.Hostname,
+				Port:     port,
+				Id:       agent.Id,
+				Action:   "UPDATE",
+				Nonce:    0,
+				GpuCount: len(agent.Gpus),
+				Gpus:     gpus,
+				Ip:       ip,
 			}
-		})
-	return nil
+		}
+
+		if err == nil {
+			err = pkgnet.Respond(w, http.StatusOK, StatusFormer{
+				Status:   "ok",
+				Version:  build.Version,
+				UptimeMs: time.Since(frontend.startTime).Milliseconds(),
+				Hosts:    hosts,
+			})
+		}
+	}
+
+	if err != nil {
+		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+		logger.Error(err)
+	}
 }
