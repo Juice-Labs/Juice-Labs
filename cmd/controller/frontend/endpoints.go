@@ -36,6 +36,8 @@ func (frontend *Frontend) initializeEndpoints(server *server.Server) {
 
 	server.AddCreateEndpoint(frontend.createPoolEp)
 	server.AddCreateEndpoint(frontend.getPoolEp)
+	server.AddCreateEndpoint(frontend.getPoolPermissionsEp)
+
 	server.AddCreateEndpoint(frontend.deletePoolEp)
 
 	server.AddCreateEndpoint(frontend.getPermissionsEp)
@@ -153,6 +155,12 @@ func (frontend *Frontend) requestSessionEp(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	if sessionRequirements.PoolId == "" {
+		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusBadRequest, "Pool ID is required"))
+		logger.Error(err)
+		return
+	}
+
 	id, err := frontend.requestSession(sessionRequirements)
 	if err != nil {
 		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
@@ -251,6 +259,27 @@ func (frontend *Frontend) createPoolEp(group task.Group, router *mux.Router) err
 func (frontend *Frontend) getPoolEp(group task.Group, router *mux.Router) error {
 	// Validate org_adming claim
 	router.Handle("/v1/pool/{id}", middleware.EnsureValidToken()(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			id := mux.Vars(r)["id"]
+
+			pool, err := frontend.getPool(id)
+			if err != nil {
+				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+				logger.Error(err)
+				return
+			}
+
+			err = pkgnet.Respond(w, http.StatusOK, pool)
+			if err != nil {
+				logger.Error(err)
+			}
+		}))).Methods("GET")
+	return nil
+}
+
+func (frontend *Frontend) getPoolPermissionsEp(group task.Group, router *mux.Router) error {
+	// Validate org_adming/pool_admin claim
+	router.Handle("/v1/pool/{id}/permissions", middleware.EnsureValidToken()(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			id := mux.Vars(r)["id"]
 

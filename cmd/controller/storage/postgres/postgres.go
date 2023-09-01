@@ -712,7 +712,7 @@ func (driver *storageDriver) GetAgents(poolId string) (storage.Iterator[restapi.
 	var err error
 
 	if poolId != "" {
-		statement, err = driver.db.PrepareContext(driver.ctx, selectAgentsIteratorWhere("pool_id = $1 AND state = 'active'", 20))
+		statement, err = driver.db.PrepareContext(driver.ctx, selectAgentsIteratorWhere(fmt.Sprintf("pool_id = '%s' AND state = 'active'", poolId), 20))
 	} else {
 		statement, err = driver.db.PrepareContext(driver.ctx, selectAgentsIteratorWhere("state = 'active'", 20))
 	}
