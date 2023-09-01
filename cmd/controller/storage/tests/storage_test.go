@@ -6,16 +6,29 @@ package tests
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"math/rand"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
+	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage/gorm"
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage/memdb"
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage/postgres"
+	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 )
+
+func openGorm(t *testing.T) storage.Storage {
+	logger.Configure()
+	db, err := gorm.OpenStorage(context.Background(), "sqlite", "test.db")
+	if err != nil {
+		t.Log(err)
+		t.FailNow()
+	}
+	return db
+}
 
 func openMemdb(t *testing.T) storage.Storage {
 	db, err := memdb.OpenStorage(context.Background())
@@ -213,10 +226,16 @@ func TestAgents(t *testing.T) {
 		_, err := db.GetAgentById(agent.Id)
 		if err == nil {
 			t.Error("expected storage.ErrNotFound, instead did not receive an error")
-		} else if err != storage.ErrNotFound {
+		} else if !errors.Is(err, storage.ErrNotFound) {
 			t.Errorf("expected storage.ErrNotFound, instead received %s", err)
 		}
 	}
+
+	t.Run("gorm", func(t *testing.T) {
+		db := openGorm(t)
+		defer db.Close()
+		run(t, db)
+	})
 
 	t.Run("memdb", func(t *testing.T) {
 		db := openMemdb(t)
@@ -243,6 +262,12 @@ func TestSessions(t *testing.T) {
 
 		checkQueuedSession(t, db, queuedSession)
 	}
+
+	t.Run("gorm", func(t *testing.T) {
+		db := openGorm(t)
+		defer db.Close()
+		run(t, db)
+	})
 
 	t.Run("memdb", func(t *testing.T) {
 		db := openMemdb(t)
@@ -320,6 +345,12 @@ func TestAssigningSessions(t *testing.T) {
 		checkSession(t, db, session)
 	}
 
+	t.Run("gorm", func(t *testing.T) {
+		db := openGorm(t)
+		defer db.Close()
+		run(t, db)
+	})
+
 	t.Run("memdb", func(t *testing.T) {
 		db := openMemdb(t)
 		defer db.Close()
@@ -359,6 +390,12 @@ func TestGetQueuedSessionsIterator(t *testing.T) {
 			t.Error("sessions not queued")
 		}
 	}
+
+	t.Run("gorm", func(t *testing.T) {
+		db := openGorm(t)
+		defer db.Close()
+		run(t, db)
+	})
 
 	t.Run("memdb", func(t *testing.T) {
 		db := openMemdb(t)
