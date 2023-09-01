@@ -10,7 +10,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"strings"
 
@@ -20,7 +19,6 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage/memdb"
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage/postgres"
-	"github.com/gorilla/mux"
 
 	"github.com/joho/godotenv"
 
@@ -131,16 +129,6 @@ func main() {
 			if *enableFrontend || *enableBackend {
 				mainServer, err = server.NewServer(*address, tlsConfig)
 				if err == nil {
-					mainServer.AddCreateEndpoint(func(group task.Group, router *mux.Router) error {
-						router.Methods("GET").Path("/health").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-							w.WriteHeader(http.StatusOK)
-						})
-
-						return nil
-					})
-				}
-
-				if err == nil {
 					if *enableFrontend {
 						logger.Infof("Starting frontend on %s", *address)
 
@@ -170,14 +158,6 @@ func main() {
 			if *enablePrometheus {
 				prometheusServer, err = server.NewServer(*prometheusAddress, tlsConfig)
 				if err == nil {
-					prometheusServer.AddCreateEndpoint(func(group task.Group, router *mux.Router) error {
-						router.Methods("GET").Path("/health").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-							w.WriteHeader(http.StatusOK)
-						})
-
-						return nil
-					})
-
 					logger.Infof("Starting prometheus on %s", *prometheusAddress)
 
 					group.Go("Prometheus", prometheus.NewFrontend(prometheusServer, storage))
