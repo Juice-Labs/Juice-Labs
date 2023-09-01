@@ -19,7 +19,7 @@ import (
 )
 
 func (frontend *Frontend) initializeEndpoints(server *server.Server) {
-	server.AddEndpointFunc("GET", "/status", frontend.getStatusFormer)
+	server.AddEndpointFunc("GET", "/status", frontend.getStatusFormerEp)
 	server.AddEndpointFunc("GET", "/v1/status", frontend.getStatusEp)
 	server.AddEndpointFunc("POST", "/v1/register/agent", frontend.registerAgentEp)
 	server.AddEndpointFunc("GET", "/v1/agent/{id}", frontend.getAgentEp)

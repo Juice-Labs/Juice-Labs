@@ -6,12 +6,31 @@ package app
 import (
 	"os/exec"
 	"path/filepath"
+	"unsafe"
 
 	// See https://github.com/Juice-Labs/juice/issues/1765.
 	// "github.com/kolesnikovae/go-winjob"
 
+	"github.com/Juice-Labs/Juice-Labs/pkg/errors"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
+
+// #include "version_windows.h"
+import "C"
+
+func getVersion() (string, error) {
+	libPath := filepath.Join(*juicePath, "juiceclient.dll")
+	libPathBytes := make([]byte, len(libPath)+1)
+	copy(libPathBytes, libPath)
+
+	var err int32
+	version := C.GetJuiceVersion((*C.char)(unsafe.Pointer(&libPathBytes[0])), (*C.int)(unsafe.Pointer(&err)))
+	if err != 0 {
+		return "", errors.Newf("GetLastError => %d", err)
+	}
+
+	return C.GoString(version), nil
+}
 
 func validateHost() error {
 	return nil

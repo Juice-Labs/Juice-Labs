@@ -7,19 +7,28 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
+
+	"github.com/Juice-Labs/Juice-Labs/pkg/errors"
+)
+
+var (
+	ErrUnableToConnect = errors.New("client: unable to connect")
+	ErrInvalidScheme   = errors.New("client: invalid scheme")
+	ErrInvalidInput    = errors.New("client: invalid input")
+	ErrInvalidResponse = errors.New("client: invalid response")
 )
 
 type Client struct {
 	Client      *http.Client
 	Address     string
 	AccessToken string
-	httpScheme  bool
 }
 
-func (api Client) doUrl(ctx context.Context, method string, url *url.URL, contentType string, body io.Reader) (*http.Response, error) {
-	request, err := http.NewRequestWithContext(ctx, method, url.String(), body)
+func (api Client) doUrl(ctx context.Context, method string, urlString string, contentType string, body io.Reader) (*http.Response, error) {
+	request, err := http.NewRequestWithContext(ctx, method, urlString, body)
 	if err != nil {
 		return nil, err
 	}
@@ -32,7 +41,22 @@ func (api Client) doUrl(ctx context.Context, method string, url *url.URL, conten
 		request.Header.Add("Authorization", fmt.Sprintf("Bearer %s", api.AccessToken))
 	}
 
-	return api.Client.Do(request)
+	response, err := api.Client.Do(request)
+	if err != nil {
+		if opErr, ok := err.(*net.OpError); ok {
+			if opErr.Op == "dial" {
+				return nil, ErrUnableToConnect.Wrap(err)
+			}
+		}
+		if urlErr, ok := err.(*url.Error); ok {
+			if urlErr.Err.Error() == "http: server gave HTTP response to HTTPS client" {
+				return nil, ErrInvalidScheme.Wrap(err)
+			}
+		}
+		return nil, err
+	}
+
+	return response, nil
 }
 
 func (api Client) do(ctx context.Context, method string, path string, contentType string, body io.Reader) (*http.Response, error) {
@@ -44,15 +68,17 @@ func (api Client) do(ctx context.Context, method string, path string, contentTyp
 	pathUrl.Scheme = "https"
 	pathUrl.Host = api.Address
 
-	response, err := api.doUrl(ctx, method, pathUrl, contentType, body)
+	response, err := api.doUrl(ctx, method, pathUrl.String(), contentType, body)
 
 	if err == nil {
-		return response, err
+		return response, nil
+	} else if !errors.Is(err, ErrInvalidScheme) {
+		return nil, err
 	}
 
 	pathUrl.Scheme = "http"
 
-	return api.doUrl(ctx, method, pathUrl, contentType, body)
+	return api.doUrl(ctx, method, pathUrl.String(), contentType, body)
 }
 
 func (api Client) Get(ctx context.Context, path string) (*http.Response, error) {
@@ -61,6 +87,10 @@ func (api Client) Get(ctx context.Context, path string) (*http.Response, error) 
 
 func (api Client) Post(ctx context.Context, path string) (*http.Response, error) {
 	return api.do(ctx, "POST", path, "", nil)
+}
+
+func (api Client) Delete(ctx context.Context, path string) (*http.Response, error) {
+	return api.do(ctx, "DELETE", path, "", nil)
 }
 
 func (api Client) PostWithJson(ctx context.Context, path string, body io.Reader) (*http.Response, error) {
@@ -82,7 +112,12 @@ func (api Client) StatusWithContext(ctx context.Context) (Status, error) {
 	}
 	defer response.Body.Close()
 
-	return parseJsonResponse[Status](response)
+	result, err := parseJsonResponse[Status](response)
+	if err != nil {
+		return Status{}, ErrInvalidResponse.Wrap(err)
+	}
+
+	return result, nil
 }
 
 func (api Client) GetSession(id string) (Session, error) {
@@ -96,7 +131,12 @@ func (api Client) GetSessionWithContext(ctx context.Context, id string) (Session
 	}
 	defer response.Body.Close()
 
-	return parseJsonResponse[Session](response)
+	result, err := parseJsonResponse[Session](response)
+	if err != nil {
+		return Session{}, ErrInvalidResponse.Wrap(err)
+	}
+
+	return result, nil
 }
 
 func (api Client) UpdateSession(session Session) error {
@@ -106,7 +146,7 @@ func (api Client) UpdateSession(session Session) error {
 func (api Client) UpdateSessionWithContext(ctx context.Context, session Session) error {
 	body, err := jsonReaderFromObject(session)
 	if err != nil {
-		return err
+		return ErrInvalidInput.Wrap(err)
 	}
 
 	response, err := api.PutWithJson(ctx, fmt.Sprint("/v1/session/", session.Id), body)
@@ -125,7 +165,7 @@ func (api Client) RequestSession(requirements SessionRequirements) (string, erro
 func (api Client) RequestSessionWithContext(ctx context.Context, requirements SessionRequirements) (string, error) {
 	body, err := jsonReaderFromObject(requirements)
 	if err != nil {
-		return "", err
+		return "", ErrInvalidInput.Wrap(err)
 	}
 
 	response, err := api.PostWithJson(ctx, "/v1/request/session", body)
@@ -135,6 +175,20 @@ func (api Client) RequestSessionWithContext(ctx context.Context, requirements Se
 	defer response.Body.Close()
 
 	return parseStringResponse(response)
+}
+
+func (api Client) CancelSession(id string) error {
+	return api.CancelSessionWithContext(context.Background(), id)
+}
+
+func (api Client) CancelSessionWithContext(ctx context.Context, id string) error {
+	response, err := api.Delete(ctx, fmt.Sprint("/v1/session/", id))
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+
+	return nil
 }
 
 func (api Client) ReleaseSession(id string) error {
@@ -162,7 +216,12 @@ func (api Client) GetAgentWithContext(ctx context.Context, id string) (Agent, er
 	}
 	defer response.Body.Close()
 
-	return parseJsonResponse[Agent](response)
+	result, err := parseJsonResponse[Agent](response)
+	if err != nil {
+		return Agent{}, ErrInvalidResponse.Wrap(err)
+	}
+
+	return result, nil
 }
 
 func (api Client) UpdateAgent(update AgentUpdate) error {
@@ -172,7 +231,7 @@ func (api Client) UpdateAgent(update AgentUpdate) error {
 func (api Client) UpdateAgentWithContext(ctx context.Context, update AgentUpdate) error {
 	body, err := jsonReaderFromObject(update)
 	if err != nil {
-		return err
+		return ErrInvalidInput.Wrap(err)
 	}
 
 	response, err := api.PutWithJson(ctx, fmt.Sprint("/v1/agent/", update.Id), body)
@@ -191,7 +250,7 @@ func (api Client) RegisterAgent(agent Agent) (string, error) {
 func (api Client) RegisterAgentWithContext(ctx context.Context, agent Agent) (string, error) {
 	body, err := jsonReaderFromObject(agent)
 	if err != nil {
-		return "", err
+		return "", ErrInvalidInput.Wrap(err)
 	}
 
 	response, err := api.PostWithJson(ctx, "/v1/register/agent", body)
