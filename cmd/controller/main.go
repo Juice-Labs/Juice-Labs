@@ -17,8 +17,7 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/frontend"
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/prometheus"
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
-	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage/memdb"
-	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage/postgres"
+	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage/gorm"
 
 	"github.com/joho/godotenv"
 
@@ -44,6 +43,8 @@ var (
 
 	psqlConnection         = flag.String("psql-connection", "", "See https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters")
 	psqlConnectionFromFile = flag.String("psql-connection-from-file", "", "See https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters")
+
+	sqliteConnection = flag.String("sqlite-connection", "controller.db", "Create/Use the specified SQLite database for persistant storage")
 
 	mainServer       *server.Server
 	prometheusServer *server.Server
@@ -80,10 +81,10 @@ func openStorage(ctx context.Context) (storage.Storage, error) {
 			connection = psqlConnectionFromEnv
 		}
 
-		return postgres.OpenStorage(ctx, connection)
+		return gorm.OpenStorage(ctx, "postgres", connection)
 	}
 
-	return memdb.OpenStorage(ctx)
+	return gorm.OpenStorage(ctx, "sqlite", *sqliteConnection)
 }
 
 func main() {
