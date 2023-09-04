@@ -55,30 +55,30 @@ func restAgentFromAgent(dbAgent models.Agent) (restapi.Agent, error) {
 		return restapi.Agent{}, err
 	}
 
-	// for _, dbSession := range dbAgent.Sessions {
-	// 	session := restapi.Session{
-	// 		Id:         dbSession.UUID.String(),
-	// 		State:      dbSession.State.String(),
-	// 		Address:    dbSession.Address,
-	// 		Version:    dbSession.Version,
-	// 		Persistent: dbSession.Persistent,
-	// 	}
+	for _, dbSession := range dbAgent.Sessions {
+		session := restapi.Session{
+			Id:         dbSession.UUID.String(),
+			State:      dbSession.State.String(),
+			Address:    dbSession.Address,
+			Version:    dbSession.Version,
+			Persistent: dbSession.Persistent,
+		}
 
-	// 	if err := json.Unmarshal(dbSession.GPUs, &session.Gpus); err != nil {
-	// 		continue
-	// 	}
+		if err := json.Unmarshal(dbSession.GPUs, &session.Gpus); err != nil {
+			continue
+		}
 
-	// 	for _, dbConnection := range dbSession.Connections {
-	// 		session.Connections = append(session.Connections, restapi.Connection{
-	// 			Id:          dbConnection.UUID.String(),
-	// 			ExitStatus:  dbConnection.ExitStatus.String(),
-	// 			Pid:         int64(dbConnection.Pid),
-	// 			ProcessName: dbConnection.ProcessName,
-	// 		})
-	// 	}
+		for _, dbConnection := range dbSession.Connections {
+			session.Connections = append(session.Connections, restapi.Connection{
+				Id:          dbConnection.UUID.String(),
+				ExitStatus:  dbConnection.ExitStatus.String(),
+				Pid:         int64(dbConnection.Pid),
+				ProcessName: dbConnection.ProcessName,
+			})
+		}
 
-	// 	agent.Sessions = append(agent.Sessions, session)
-	// }
+		agent.Sessions = append(agent.Sessions, session)
+	}
 
 	return agent, nil
 }
