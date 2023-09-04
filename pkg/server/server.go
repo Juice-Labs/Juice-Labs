@@ -150,6 +150,7 @@ func (server *Server) RemoveEndpointByName(name string) {
 
 func (server *Server) Run(group task.Group) error {
 	for _, endpoint := range server.endpoints {
+		endpoint := endpoint // Creates a new variable in this for loop for the following closure to capture it correctly
 		server.root.Methods(endpoint.Methods...).Path(endpoint.Path).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			endpoint.Handler(group, w, r)
 		})
