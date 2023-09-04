@@ -61,8 +61,8 @@ type Session struct {
 	gorm.Model
 
 	UUID         uuid.UUID `gorm:"type:uuid;notnull;unique"`
-	AgentID      uint
-	Agent        Agent
+	AgentID      *uint
+	Agent        *Agent
 	State        SessionState
 	Address      string
 	Version      string

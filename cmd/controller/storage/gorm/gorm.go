@@ -296,6 +296,7 @@ func (g *gormDriver) RequestSession(sessionRequirements restapi.SessionRequireme
 
 		dbSession = &models.Session{
 			UUID:         uuid.NewV4(),
+			Agent:        nil,
 			Version:      sessionRequirements.Version,
 			State:        models.SessionStateQueued,
 			Requirements: requirements,
@@ -344,7 +345,7 @@ func (g *gormDriver) AssignSession(sessionId string, agentId string, gpus []rest
 		}
 
 		dbSession.GPUs = gpusData
-		dbSession.Agent = dbAgent
+		dbSession.Agent = &dbAgent
 		// TODO why?
 		dbSession.Address = dbAgent.Address
 		dbSession.State = models.SessionStateAssigned
@@ -365,12 +366,12 @@ func (g *gormDriver) CancelSession(sessionId string) error {
 			UUID: uuid.FromStringOrNil(sessionId),
 		}
 
-		result := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where(&dbSession, "UUID").First(&dbSession)
+		result := tx.Preload("Agent").Clauses(clause.Locking{Strength: "UPDATE"}).Where(&dbSession, "UUID").First(&dbSession)
 		if result.Error != nil {
 			return result.Error
 		}
 
-		if dbSession.AgentID == 0 {
+		if dbSession.Agent == nil {
 			dbSession.State = models.SessionStateClosed
 		} else {
 			dbSession.State = models.SessionStateCanceling
