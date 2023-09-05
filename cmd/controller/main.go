@@ -93,6 +93,7 @@ func main() {
 		Version: build.Version,
 
 		SentryConfig: sentry.ClientOptions{
+			Dsn:              os.Getenv("JUICE_CONTROLLER_SENTRY_DSN"),
 			Release:          fmt.Sprintf("%s@%s", name, build.Version),
 			EnableTracing:    true,
 			TracesSampleRate: 1.0,

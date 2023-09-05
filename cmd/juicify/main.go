@@ -5,6 +5,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
 	"github.com/Juice-Labs/Juice-Labs/cmd/juicify/app"
@@ -21,6 +22,7 @@ func main() {
 		Version: build.Version,
 
 		SentryConfig: sentry.ClientOptions{
+			Dsn:     os.Getenv("JUICE_JUICIFY_SENTRY_DSN"),
 			Release: fmt.Sprintf("%s@%s", name, build.Version),
 		},
 	}

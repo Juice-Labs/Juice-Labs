@@ -2,6 +2,7 @@ package sentry
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
@@ -19,9 +20,12 @@ type ClientOptions = sentry.ClientOptions
 func Initialize(config sentry.ClientOptions) error {
 	var err error
 
-	// Use package default if one is specified (via build)
+	// Use config DSN if available, falling back to SENTRY_DSN, or package level (build time) DSN
 	if config.Dsn == "" {
-		config.Dsn = SentryDsn
+		config.Dsn = os.Getenv("SENTRY_DSN")
+		if config.Dsn == "" {
+			config.Dsn = SentryDsn
+		}
 	}
 
 	if config.Dsn != "" {
