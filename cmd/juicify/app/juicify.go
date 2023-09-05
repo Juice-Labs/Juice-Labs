@@ -40,6 +40,7 @@ var (
 
 	juicePath = flag.String("juice-path", "", "Path to the juice executables if different than current executable path")
 
+	errInvalidSessionState  = errors.New("session state is invalid")
 	errCancelled            = errors.New("cancelled")
 	errQueueTimeout         = errors.New("queued GPU request timed out")
 	errInvalidConfiguration = errors.New("invalid configuration")
@@ -57,25 +58,14 @@ func validateConfiguration(config *Configuration) error {
 	return nil
 }
 
-func requestSession(group task.Group, client *http.Client, config *Configuration) error {
-	api := restapi.Client{
-		Client:      client,
-		Address:     config.Servers[0],
-		AccessToken: config.AccessToken,
-	}
-
-	id, err := api.RequestSessionWithContext(group.Ctx(), config.Requirements)
-	if err != nil {
-		return err
-	}
-
+func waitForSession(api restapi.Client, group task.Group, id string) (restapi.Session, error) {
 	session, err := api.GetSessionWithContext(group.Ctx(), id)
 	if err != nil {
-		return err
+		return restapi.Session{}, err
 	}
 
-	if session.State == restapi.SessionQueued {
-		logger.Info("Session queued")
+	if session.State != restapi.SessionActive {
+		logger.Infof("Waiting for session %s", id)
 
 		timeoutChannel := make(chan struct{})
 		defer close(timeoutChannel)
@@ -99,7 +89,11 @@ func requestSession(group task.Group, client *http.Client, config *Configuration
 		ticker := time.NewTicker(5 * time.Second)
 		defer ticker.Stop()
 
-		for session.State == restapi.SessionQueued {
+		for session.State != restapi.SessionActive {
+			if session.State == restapi.SessionCanceling || session.State == restapi.SessionClosed {
+				return restapi.Session{}, errors.Newf("session state is %s", session.State).Wrap(errInvalidSessionState)
+			}
+
 			select {
 			case <-group.Ctx().Done():
 				err = errCancelled
@@ -112,12 +106,33 @@ func requestSession(group task.Group, client *http.Client, config *Configuration
 			}
 
 			if err != nil {
-				logger.Info("Cancelling session")
-
-				api.CancelSession(id)
-				return err
+				return restapi.Session{}, err
 			}
 		}
+	}
+
+	return session, nil
+}
+
+func requestSession(group task.Group, client *http.Client, config *Configuration) error {
+	api := restapi.Client{
+		Client:      client,
+		Address:     config.Servers[0],
+		AccessToken: config.AccessToken,
+	}
+
+	id, err := api.RequestSessionWithContext(group.Ctx(), config.Requirements)
+	if err != nil {
+		return err
+	}
+
+	session, err := waitForSession(api, group, id)
+	if err != nil {
+		if !errors.Is(err, errInvalidSessionState) {
+			err = errors.Join(err, api.CancelSession(id))
+		}
+
+		return err
 	}
 
 	config.Id = session.Id

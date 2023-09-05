@@ -66,67 +66,69 @@ func NewFrontend(server *server.Server, storage storage.Storage) (*Frontend, err
 }
 
 func (frontend *Frontend) Run(group task.Group) error {
-	var messages []restapi.WebhookMessage
+	if frontend.webhookMessages != nil {
+		var messages []restapi.WebhookMessage
 
-	messagesCond := sync.NewCond(&sync.Mutex{})
+		messagesCond := sync.NewCond(&sync.Mutex{})
 
-	group.GoFn("Webhook Copying", func(group task.Group) error {
-		for {
-			select {
-			case <-group.Ctx().Done():
-				messagesCond.Signal()
-				return nil
-
-			case msg := <-frontend.webhookMessages:
-				messagesCond.L.Lock()
-				messages = append(messages, msg)
-				messagesCond.L.Unlock()
-				messagesCond.Signal()
-			}
-		}
-	})
-
-	group.GoFn("Webhook Calling", func(g task.Group) error {
-		for {
-			for len(messages) > 0 {
+		group.GoFn("Webhook Copying", func(group task.Group) error {
+			for {
 				select {
 				case <-group.Ctx().Done():
+					messagesCond.Signal()
 					return nil
 
-				default:
+				case msg := <-frontend.webhookMessages:
 					messagesCond.L.Lock()
-					msg := messages[0]
-					messages = messages[1:]
+					messages = append(messages, msg)
 					messagesCond.L.Unlock()
+					messagesCond.Signal()
+				}
+			}
+		})
 
-					body, err := restapi.JsonReaderFromObject(msg)
-					if err == nil {
-						response, err_ := frontend.webhookClient.PostWithJson(group.Ctx(), *webhook, body)
-						if response != nil {
-							err = errors.Join(err_, response.Body.Close())
+		group.GoFn("Webhook Calling", func(g task.Group) error {
+			for {
+				for len(messages) > 0 {
+					select {
+					case <-group.Ctx().Done():
+						return nil
+
+					default:
+						messagesCond.L.Lock()
+						msg := messages[0]
+						messages = messages[1:]
+						messagesCond.L.Unlock()
+
+						body, err := restapi.JsonReaderFromObject(msg)
+						if err == nil {
+							response, err_ := frontend.webhookClient.PostWithJson(group.Ctx(), *webhook, body)
+							if response != nil {
+								err = errors.Join(err_, response.Body.Close())
+							}
+						}
+
+						if err != nil {
+							logger.Error(err)
 						}
 					}
+				}
 
-					if err != nil {
-						logger.Error(err)
+				messagesCond.L.Lock()
+				for len(messages) == 0 {
+					select {
+					case <-group.Ctx().Done():
+						return nil
+
+					default:
 					}
+
+					messagesCond.Wait()
 				}
+				messagesCond.L.Unlock()
 			}
-
-			messagesCond.L.Lock()
-			for len(messages) == 0 {
-				select {
-				case <-group.Ctx().Done():
-					return nil
-
-				default:
-				}
-
-				messagesCond.Wait()
-			}
-			messagesCond.L.Unlock()
-		}
-	})
+		})
+	}
 
 	return nil
 }
@@ -157,11 +159,13 @@ func (frontend *Frontend) getAgentById(id string) (restapi.Agent, error) {
 func (frontend *Frontend) updateAgent(ctx context.Context, update restapi.AgentUpdate) error {
 	err := frontend.storage.UpdateAgent(update)
 	if err == nil && len(update.SessionsUpdate) > 0 {
-		for sessionId, session := range update.SessionsUpdate {
-			frontend.webhookMessages <- restapi.WebhookMessage{
-				Agent:   update.Id,
-				Session: sessionId,
-				State:   session.State,
+		if frontend.webhookMessages != nil {
+			for sessionId, session := range update.SessionsUpdate {
+				frontend.webhookMessages <- restapi.WebhookMessage{
+					Agent:   update.Id,
+					Session: sessionId,
+					State:   session.State,
+				}
 			}
 		}
 	}

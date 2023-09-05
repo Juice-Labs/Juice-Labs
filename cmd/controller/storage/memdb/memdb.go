@@ -305,37 +305,37 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 			// TODO: Handle closing sessions
 			// This should be handled by the controller or agent
 
-			// sessionUpdate, present := update.Sessions[sessionId]
-			// if present {
-			// 	// First, update the session information within the agent structure
-			// 	agent.Sessions[index].State = sessionUpdate.State
+			sessionUpdate, present := update.SessionsUpdate[sessionId]
+			if present {
+				// First, update the session information within the agent structure
+				agent.Sessions[index].State = sessionUpdate.State
 
-			// 	// Next, update the session object itself
-			// 	obj, err = txn.First("sessions", "id", sessionId)
-			// 	if err != nil {
-			// 		txn.Abort()
-			// 		return err
-			// 	}
-			// 	session := utilities.Require[Session](obj)
-			// 	session.State = sessionUpdate.State
-			// 	session.LastUpdated = now
+				// Next, update the session object itself
+				obj, err = txn.First("sessions", "id", sessionId)
+				if err != nil {
+					txn.Abort()
+					return err
+				}
+				session := utilities.Require[Session](obj)
+				session.State = sessionUpdate.State
+				session.LastUpdated = now
 
-			// 	if session.State == restapi.SessionClosed {
-			// 		agent.VramAvailable += session.VramRequired
-			// 	} else {
-			// 		sessionIds = append(sessionIds, sessionId)
-			// 		sessions = append(sessions, session.Session)
-			// 	}
+				if session.State == restapi.SessionClosed {
+					agent.VramAvailable += session.VramRequired
+				} else {
+					sessionIds = append(sessionIds, sessionId)
+					sessions = append(sessions, session.Session)
+				}
 
-			// 	err = txn.Insert("sessions", session)
-			// 	if err != nil {
-			// 		txn.Abort()
-			// 		return err
-			// 	}
-			// } else {
-			sessionIds = append(sessionIds, sessionId)
-			sessions = append(sessions, agent.Sessions[index])
-			// }
+				err = txn.Insert("sessions", session)
+				if err != nil {
+					txn.Abort()
+					return err
+				}
+			} else {
+				sessionIds = append(sessionIds, sessionId)
+				sessions = append(sessions, agent.Sessions[index])
+			}
 		}
 
 		for index, gpuMetrics := range update.Gpus {
