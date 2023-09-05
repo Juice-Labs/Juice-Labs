@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math/rand"
 	"reflect"
 	"testing"
@@ -20,9 +21,21 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 )
 
-func openGorm(t *testing.T) storage.Storage {
+func openGorm(t *testing.T, driver string) storage.Storage {
 	logger.Configure()
-	db, err := gorm.OpenStorage(context.Background(), "sqlite", "test.db")
+
+	var db storage.Storage
+	var err error
+
+	switch driver {
+	case "sqlite":
+		db, err = gorm.OpenStorage(context.Background(), "sqlite", "test.db")
+	case "postgres":
+		db, err = gorm.OpenStorage(context.Background(), "postgres", "user=postgres password=password dbname=postgres sslmode=disable")
+	default:
+		err = fmt.Errorf("invalid GORM driver specified, %s", driver)
+	}
+
 	if err != nil {
 		t.Log(err)
 		t.FailNow()
@@ -231,8 +244,14 @@ func TestAgents(t *testing.T) {
 		}
 	}
 
-	t.Run("gorm", func(t *testing.T) {
-		db := openGorm(t)
+	t.Run("gorm sqlite", func(t *testing.T) {
+		db := openGorm(t, "sqlite")
+		defer db.Close()
+		run(t, db)
+	})
+
+	t.Run("gorm postgres", func(t *testing.T) {
+		db := openGorm(t, "postgres")
 		defer db.Close()
 		run(t, db)
 	})
@@ -263,8 +282,14 @@ func TestSessions(t *testing.T) {
 		checkQueuedSession(t, db, queuedSession)
 	}
 
-	t.Run("gorm", func(t *testing.T) {
-		db := openGorm(t)
+	t.Run("gorm sqlite", func(t *testing.T) {
+		db := openGorm(t, "sqlite")
+		defer db.Close()
+		run(t, db)
+	})
+
+	t.Run("gorm postgres", func(t *testing.T) {
+		db := openGorm(t, "postgres")
 		defer db.Close()
 		run(t, db)
 	})
@@ -345,8 +370,14 @@ func TestAssigningSessions(t *testing.T) {
 		checkSession(t, db, session)
 	}
 
-	t.Run("gorm", func(t *testing.T) {
-		db := openGorm(t)
+	t.Run("gorm sqlite", func(t *testing.T) {
+		db := openGorm(t, "sqlite")
+		defer db.Close()
+		run(t, db)
+	})
+
+	t.Run("gorm postgres", func(t *testing.T) {
+		db := openGorm(t, "postgres")
 		defer db.Close()
 		run(t, db)
 	})
@@ -391,8 +422,14 @@ func TestGetQueuedSessionsIterator(t *testing.T) {
 		}
 	}
 
-	t.Run("gorm", func(t *testing.T) {
-		db := openGorm(t)
+	t.Run("gorm sqlite", func(t *testing.T) {
+		db := openGorm(t, "sqlite")
+		defer db.Close()
+		run(t, db)
+	})
+
+	t.Run("gorm postgres", func(t *testing.T) {
+		db := openGorm(t, "postgres")
 		defer db.Close()
 		run(t, db)
 	})
