@@ -150,9 +150,12 @@ func (server *Server) RemoveEndpointByName(name string) {
 
 func (server *Server) Run(group task.Group) error {
 	for _, endpoint := range server.endpoints {
-		endpoint := endpoint // Creates a new variable in this for loop for the following closure to capture it correctly
-		server.root.Methods(endpoint.Methods...).Path(endpoint.Path).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			endpoint.Handler(group, w, r)
+		// https://go.dev/doc/faq#closures_and_goroutines
+		// To capture endpoint correctly, create a local variable instead of using the for loop variable.
+		captureEndpoint := endpoint
+
+		server.root.Methods(captureEndpoint.Methods...).Path(captureEndpoint.Path).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			captureEndpoint.Handler(group, w, r)
 		})
 	}
 

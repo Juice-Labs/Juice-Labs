@@ -183,6 +183,8 @@ func (agent *Agent) addSession(session *Session) *Reference[Session] {
 }
 
 func (agent *Agent) Run(group task.Group) error {
+	logger.Infof("Starting agent on %s", *address)
+
 	group.Go("Agent GpuMetricsProvider", agent.GpuMetricsProvider)
 	group.Go("Agent Server", agent.Server)
 	return nil

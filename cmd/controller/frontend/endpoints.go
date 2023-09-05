@@ -26,8 +26,8 @@ func (frontend *Frontend) initializeEndpoints(server *server.Server) {
 	server.AddEndpointFunc("PUT", "/v1/agent/{id}", frontend.updateAgentEp)
 	server.AddEndpointFunc("GET", "/v1/agents", frontend.getAgentsEp)
 	server.AddEndpointFunc("POST", "/v1/request/session", frontend.requestSessionEp)
-	server.AddEndpointFunc("GET", "/v1/session/{id}", frontend.cancelSessionEp)
-	server.AddEndpointFunc("DELETE", "/v1/session/{id}", frontend.getSessionEp)
+	server.AddEndpointFunc("GET", "/v1/session/{id}", frontend.getSessionEp)
+	server.AddEndpointFunc("DELETE", "/v1/session/{id}", frontend.cancelSessionEp)
 }
 
 func (frontend *Frontend) getStatusEp(group task.Group, w http.ResponseWriter, r *http.Request) {
