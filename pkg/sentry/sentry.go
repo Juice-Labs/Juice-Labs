@@ -48,6 +48,10 @@ func Initialize(config sentry.ClientOptions) error {
 
 }
 
+func Enabled() bool {
+	return sentry.CurrentHub().Client() != nil
+}
+
 func Close() {
 	if err := recover(); err != nil {
 		sentry.CurrentHub().Recover(err)
