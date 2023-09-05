@@ -98,6 +98,7 @@ type Storage interface {
 
 	CreatePool(name string) (restapi.Pool, error)
 	GetPool(id string) (restapi.Pool, error)
+	GetPoolPermissions(id string) (restapi.PoolPermissions, error)
 	DeletePool(id string) error
 	RemovePermission(poolId string, userId string, permission restapi.Permission) error
 	AddPermission(poolId string, userId string, permission restapi.Permission) error

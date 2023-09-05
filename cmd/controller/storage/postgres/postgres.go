@@ -114,7 +114,7 @@ const (
 				SELECT ( SELECT row(key, value) FROM key_values WHERE id = agent_taints.key_value_id ) FROM agent_taints WHERE agent_id = agents.id
 			) ) taints, 
 			( SELECT ARRAY (
-				SELECT row(id, state, address, version, gpus) FROM sessions tab WHERE tab.agent_id = agents.id AND tab.state != 'closed'
+				SELECT row(id, state, address, version, pool_id, gpus) FROM sessions tab WHERE tab.agent_id = agents.id AND tab.state != 'closed'
 			) ) sessions
 		FROM agents`
 	selectSessions       = "SELECT id, state, address, version, pool_id, gpus FROM sessions"
@@ -827,19 +827,21 @@ func (driver *storageDriver) RemovePermission(poolId string, userId string, perm
 
 }
 
-type PermissionRow struct {
+type UserPermissionRow struct {
 	PoolId       string
 	Permission   restapi.Permission
 	PoolName     string
 	SessionCount int
 	AgentCount   int
+	UserCount    int
 }
 
 func (driver *storageDriver) GetPermissions(userId string) (restapi.UserPermissions, error) {
 	var result restapi.UserPermissions
 
 	rows, err := driver.db.QueryContext(driver.ctx, `
-	SELECT permissions.pool_id, permissions.permission, pools.pool_name, COUNT(sessions.id) AS session_count, COUNT(agents.id) AS agent_count
+	SELECT permissions.pool_id, permissions.permission, pools.pool_name, COUNT(sessions.id) AS session_count, COUNT(agents.id) AS agent_count, 
+		(SELECT COUNT(DISTINCT p.user_id) FROM permissions p WHERE p.pool_id = permissions.pool_id) as user_count
 	FROM permissions 
 	JOIN pools ON pools.id = permissions.pool_id
 	LEFT JOIN agents ON agents.pool_id = pools.id
@@ -853,8 +855,8 @@ func (driver *storageDriver) GetPermissions(userId string) (restapi.UserPermissi
 	defer rows.Close()
 
 	for rows.Next() {
-		var row PermissionRow
-		err := rows.Scan(&row.PoolId, &row.Permission, &row.PoolName, &row.SessionCount, &row.AgentCount)
+		var row UserPermissionRow
+		err := rows.Scan(&row.PoolId, &row.Permission, &row.PoolName, &row.SessionCount, &row.AgentCount, &row.UserCount)
 		if err != nil {
 			return restapi.UserPermissions{}, err
 		}
@@ -869,7 +871,46 @@ func (driver *storageDriver) GetPermissions(userId string) (restapi.UserPermissi
 			Name:         row.PoolName,
 			SessionCount: row.SessionCount,
 			AgentCount:   row.AgentCount,
+			UserCount:    row.UserCount,
 		})
+	}
+
+	return result, nil
+
+}
+
+type PoolPermissionRow struct {
+	PoolId     string
+	Permission restapi.Permission
+	UserId     string
+}
+
+func (driver *storageDriver) GetPoolPermissions(poolId string) (restapi.PoolPermissions, error) {
+	var result restapi.PoolPermissions
+
+	rows, err := driver.db.QueryContext(driver.ctx, `
+	SELECT permissions.pool_id, permissions.permission, permissions.user_id
+	FROM permissions 
+	WHERE permissions.pool_id = $1`, poolId)
+
+	if err != nil {
+		return restapi.PoolPermissions{}, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var row PoolPermissionRow
+		err := rows.Scan(&row.PoolId, &row.Permission, &row.UserId)
+		if err != nil {
+			return restapi.PoolPermissions{}, err
+		}
+		if result.UserIds == nil {
+			result.UserIds = make(map[string][]restapi.Permission)
+		}
+		if result.UserIds[row.UserId] == nil {
+			result.UserIds[row.UserId] = []restapi.Permission{}
+		}
+		result.UserIds[row.UserId] = append(result.UserIds[row.UserId], row.Permission)
 	}
 
 	return result, nil

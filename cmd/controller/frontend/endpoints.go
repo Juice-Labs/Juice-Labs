@@ -241,7 +241,22 @@ func (frontend *Frontend) createPoolEp(group task.Group, router *mux.Router) err
 				return
 			}
 
+			// Add all permissions for this user
 			err = frontend.addPermission(pool.Id, userId, restapi.PermissionAdmin)
+			if err != nil {
+				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+				logger.Error(err)
+				return
+			}
+
+			err = frontend.addPermission(pool.Id, userId, restapi.PermissionCreateSession)
+			if err != nil {
+				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+				logger.Error(err)
+				return
+			}
+
+			err = frontend.addPermission(pool.Id, userId, restapi.PermissionRegisterAgent)
 			if err != nil {
 				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 				logger.Error(err)
@@ -283,14 +298,14 @@ func (frontend *Frontend) getPoolPermissionsEp(group task.Group, router *mux.Rou
 		func(w http.ResponseWriter, r *http.Request) {
 			id := mux.Vars(r)["id"]
 
-			pool, err := frontend.getPool(id)
+			permissions, err := frontend.getPoolPermissions(id)
 			if err != nil {
 				err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 				logger.Error(err)
 				return
 			}
 
-			err = pkgnet.Respond(w, http.StatusOK, pool)
+			err = pkgnet.Respond(w, http.StatusOK, permissions)
 			if err != nil {
 				logger.Error(err)
 			}

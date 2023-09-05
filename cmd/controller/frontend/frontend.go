@@ -191,6 +191,10 @@ func (frontend *Frontend) getPool(id string) (restapi.Pool, error) {
 	return frontend.storage.GetPool(id)
 }
 
+func (frontend *Frontend) getPoolPermissions(id string) (restapi.PoolPermissions, error) {
+	return frontend.storage.GetPoolPermissions(id)
+}
+
 func (frontend *Frontend) createPool(name string) (restapi.Pool, error) {
 	return frontend.storage.CreatePool(name)
 }

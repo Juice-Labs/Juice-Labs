@@ -153,8 +153,13 @@ type Pool struct {
 	Name         string `json:"name"`
 	SessionCount int    `json:"sessionCount"`
 	AgentCount   int    `json:"agentCount"`
+	UserCount    int    `json:"userCount"`
 }
 
 type UserPermissions struct {
 	Permissions map[Permission][]Pool `json:"permissions"`
+}
+
+type PoolPermissions struct {
+	UserIds map[string][]Permission `json:"userIds"`
 }
