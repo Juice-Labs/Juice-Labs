@@ -5,9 +5,7 @@ package app
 
 import (
 	"crypto/tls"
-	"errors"
 	"flag"
-	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -18,6 +16,7 @@ import (
 	orderedmap "github.com/wk8/go-ordered-map/v2"
 
 	cmdgpu "github.com/Juice-Labs/Juice-Labs/cmd/agent/gpu"
+	"github.com/Juice-Labs/Juice-Labs/pkg/errors"
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
@@ -32,6 +31,11 @@ var (
 	labels  = flag.String("labels", "", "Comma separated list of key=value pairs")
 	taints  = flag.String("taints", "", "Comma separated list of key=value pairs")
 )
+
+type EventListener interface {
+	SessionStateChanged(id string, state string)
+	ConnectionChanged(sessionId string, connection restapi.Connection)
+}
 
 type Agent struct {
 	Id string
@@ -60,7 +64,7 @@ func NewAgent(tlsConfig *tls.Config) (*Agent, error) {
 
 	server, err := server.NewServer(*address, tlsConfig)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("failed to create server").Wrap(err)
 	}
 
 	agent := &Agent{
@@ -77,14 +81,14 @@ func NewAgent(tlsConfig *tls.Config) (*Agent, error) {
 		for _, tag := range strings.Split(*labels, ",") {
 			keyValue := strings.Split(tag, "=")
 			if len(keyValue) != 2 {
-				err = errors.Join(err, fmt.Errorf("tag '%s' must be in the format key=value", tag))
+				err = errors.Join(err, errors.Newf("tag '%s' must be in the format key=value", tag))
 			} else {
 				agent.labels[strings.TrimSpace(keyValue[0])] = strings.TrimSpace(keyValue[1])
 			}
 		}
 
 		if err != nil {
-			return nil, fmt.Errorf("Agent.NewAgent: failed to parse --labels with %s", err)
+			return nil, errors.New("failed to parse --labels").Wrap(err)
 		}
 	}
 
@@ -93,14 +97,14 @@ func NewAgent(tlsConfig *tls.Config) (*Agent, error) {
 		for _, taint := range strings.Split(*taints, ",") {
 			keyValue := strings.Split(taint, "=")
 			if len(keyValue) != 2 {
-				err = errors.Join(err, fmt.Errorf("taint '%s' must be in the format key=value", taint))
+				err = errors.Join(err, errors.Newf("taint '%s' must be in the format key=value", taint))
 			} else {
 				agent.taints[strings.TrimSpace(keyValue[0])] = strings.TrimSpace(keyValue[1])
 			}
 		}
 
 		if err != nil {
-			return nil, fmt.Errorf("Agent.NewAgent: failed to parse --taints with %s", err)
+			return nil, errors.New("failed to parse --taints").Wrap(err)
 		}
 	}
 
@@ -115,7 +119,7 @@ func NewAgent(tlsConfig *tls.Config) (*Agent, error) {
 
 	hostname, err := os.Hostname()
 	if err != nil {
-		return nil, err
+		return nil, errors.New("failed to retrieve system hostname").Wrap(err)
 	}
 
 	agent.Hostname = hostname
@@ -124,7 +128,7 @@ func NewAgent(tlsConfig *tls.Config) (*Agent, error) {
 
 	agent.Gpus, err = cmdgpu.DetectGpus(rendererWinPath)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("failed to detect GPUs").Wrap(err)
 	}
 
 	logger.Info("GPUs")
@@ -139,6 +143,14 @@ func NewAgent(tlsConfig *tls.Config) (*Agent, error) {
 	return agent, nil
 }
 
+func (agent *Agent) Run(group task.Group) error {
+	logger.Infof("Starting agent on %s", *address)
+
+	group.Go("Agent GpuMetricsProvider", agent.GpuMetricsProvider)
+	group.Go("Agent Server", agent.Server)
+	return nil
+}
+
 func (agent *Agent) getSession(id string) (*Reference[Session], error) {
 	agent.sessionsMutex.Lock()
 	defer agent.sessionsMutex.Unlock()
@@ -151,69 +163,51 @@ func (agent *Agent) getSession(id string) (*Reference[Session], error) {
 		}
 	}
 
-	return nil, fmt.Errorf("no session found with id %s", id)
+	return nil, errors.Newf("no session found with id %s", id)
 }
 
-func (agent *Agent) addSession(session *Session) *Reference[Session] {
-	logger.Tracef("Starting Session %s", session.Id())
+func (agent *Agent) addSession(id string, juicePath string, version string, gpus *gpu.SelectedGpuSet, persistent bool) error {
+	logger.Tracef("Starting Session %s", id)
+
+	session := newSession(id, juicePath, version, gpus, agent, persistent)
 
 	reference := NewReference(session, func() {
 		// We decrement this reference inside deleteSession
-		sessionId := session.Id()
-		logger.Tracef("Closing Session %s", sessionId)
-		err := session.Close()
-		if err != nil {
-			logger.Errorf("session %s experienced a failure during closing, %v", sessionId, err)
-		}
+		logger.Tracef("closing Session %s", session.id)
+
+		session.Close()
 
 		agent.sessionsMutex.Lock()
-		defer agent.sessionsMutex.Unlock()
+		agent.sessions.Delete(session.id)
+		agent.sessionsMutex.Unlock()
 
-		agent.sessions.Delete(sessionId)
-		logger.Tracef("Closed Session %s", sessionId)
+		logger.Tracef("closed Session %s", session.id)
 	})
 
 	agent.sessionsMutex.Lock()
 	agent.sessions.Set(session.Id(), reference)
 	agent.sessionsMutex.Unlock()
 
-	agent.SessionStateChanged(session.id, session.state)
+	agent.SessionStateChanged(session.Id(), session.State())
 
-	return reference
-}
-
-func (agent *Agent) Run(group task.Group) error {
-	logger.Infof("Starting agent on %s", *address)
-
-	group.Go("Agent GpuMetricsProvider", agent.GpuMetricsProvider)
-	group.Go("Agent Server", agent.Server)
-	return nil
-}
-
-func (agent *Agent) setSession(group task.Group, id string, juicePath string, version string, gpus *gpu.SelectedGpuSet, persistent bool) error {
-	agent.addSession(NewSession(id, juicePath, version, gpus, agent, persistent))
 	return nil
 }
 
 func (agent *Agent) cancelSession(id string) error {
 	sessionRef, err := agent.getSession(id)
-	if err != nil {
-		return err
+	if err == nil {
+		err = sessionRef.Object.Cancel()
+		sessionRef.Release()
 	}
-
-	err = sessionRef.Object.Cancel()
-	sessionRef.Release()
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 func (agent *Agent) deleteSession(id string) {
 	agent.sessionsMutex.Lock()
-	// Release underlying reference
 	reference, found := agent.sessions.Get(id)
 	agent.sessionsMutex.Unlock()
+
+	// Release underlying reference
 	if found {
 		reference.Release()
 	}
@@ -221,110 +215,30 @@ func (agent *Agent) deleteSession(id string) {
 
 func (agent *Agent) connect(group task.Group, connectionData restapi.ConnectionData, sessionId string, c net.Conn) error {
 	sessionRef, err := agent.getSession(sessionId)
-	if err != nil {
-		return err
+	if err == nil {
+		err = sessionRef.Object.Connect(group, connectionData, c, agent)
+		sessionRef.Release()
 	}
-	defer sessionRef.Release()
-
-	return sessionRef.Object.Connect(group, connectionData, c, agent)
+	return err
 }
 
 func (agent *Agent) requestSession(group task.Group, sessionRequirements restapi.SessionRequirements) (string, error) {
 	selectedGpus, err := agent.Gpus.Find(sessionRequirements.Gpus)
 	if err != nil {
-		return "", fmt.Errorf("Agent.startSession: unable to find a matching set of GPUs")
+		return "", errors.New("unable to find a matching set of GPUs").Wrap(err)
 	}
 
 	id := uuid.NewString()
-	return id, agent.setSession(group, id, agent.JuicePath, sessionRequirements.Version, selectedGpus, sessionRequirements.Persistent)
+	return id, agent.addSession(id, agent.JuicePath, sessionRequirements.Version, selectedGpus, sessionRequirements.Persistent)
 }
 
 func (agent *Agent) registerSession(group task.Group, apiSession restapi.Session) error {
 	selectedGpus, err := agent.Gpus.Select(apiSession.Gpus)
 	if err != nil {
-		return fmt.Errorf("Agent.registerSession: unable to select a matching set of GPUs")
+		return errors.New("unable to select a matching set of GPUs").Wrap(err)
 	}
 
-	return agent.setSession(group, apiSession.Id, agent.JuicePath, apiSession.Version, selectedGpus, apiSession.Persistent)
-}
-
-func (agent *Agent) ConnectionTerminated(id string, sessionId string, exitStatus string) {
-	logger.Tracef("connection %s changed exitStatus to %s", id, exitStatus)
-	sessionRef, err := agent.getSession(sessionId)
-	if err != nil {
-		logger.Errorf("session not found %s with error %s", sessionId, err)
-		return
-	}
-	defer sessionRef.Release()
-
-	session := sessionRef.Object
-
-	if session.ActiveConnections().Len() == 0 {
-		if session.State() == restapi.SessionCanceling {
-			agent.deleteSession(session.Id())
-		}
-	}
-
-	agent.NotifySessionUpdates(sessionId)
-}
-
-func (agent *Agent) SessionStateChanged(sessionId string, state string) {
-	logger.Tracef("session %s changed state to %s", sessionId, state)
-	if state == restapi.SessionCanceling {
-		sessionRef, err := agent.getSession(sessionId)
-		if err != nil {
-			logger.Errorf("session not found %s with error %s", sessionId, err)
-			return
-		}
-		defer sessionRef.Release()
-		// If session has no connections, go ahead and close it
-		if sessionRef.Object.ActiveConnections().Len() == 0 {
-			agent.deleteSession(sessionId)
-		}
-	}
-
-	if state == restapi.SessionClosed {
-		// Closed sessions can't be accessed anymore
-		agent.NotifySessionClosed(sessionId)
-	} else {
-		agent.NotifySessionUpdates(sessionId)
-	}
-}
-
-func (agent *Agent) NotifySessionUpdates(sessionId string) {
-	sessionRef, err := agent.getSession(sessionId)
-	if err != nil {
-		logger.Errorf("session not found %s with error %s", sessionId, err)
-		return
-	}
-	defer sessionRef.Release()
-
-	if agent.sessionUpdates != nil {
-		connectionUpdates := make([]connectionUpdate, 0, sessionRef.Object.connections.Len())
-		for pair := sessionRef.Object.connections.Oldest(); pair != nil; pair = pair.Next() {
-			connection := pair.Value.Object
-			connectionUpdates = append(connectionUpdates, connectionUpdate{
-				Id:          connection.Id(),
-				ExitStatus:  connection.ExitStatus(),
-				Pid:         connection.Pid(),
-				ProcessName: connection.ProcessName(),
-			})
-		}
-		agent.sessionUpdates <- sessionUpdate{
-			Id:          sessionId,
-			State:       sessionRef.Object.state,
-			Connections: connectionUpdates,
-		}
-	}
-}
-
-func (agent *Agent) NotifySessionClosed(sessionId string) {
-	if agent.sessionUpdates != nil {
-		agent.sessionUpdates <- sessionUpdate{
-			Id:    sessionId,
-			State: restapi.SessionClosed,
-		}
-	}
+	return agent.addSession(apiSession.Id, agent.JuicePath, apiSession.Version, selectedGpus, apiSession.Persistent)
 }
 
 func (agent *Agent) getGpuMetrics() []restapi.GpuMetrics {
@@ -333,4 +247,30 @@ func (agent *Agent) getGpuMetrics() []restapi.GpuMetrics {
 
 	// Make a copy
 	return append(make([]restapi.GpuMetrics, 0, len(agent.gpuMetrics)), agent.gpuMetrics...)
+}
+
+func (agent *Agent) SessionStateChanged(id string, state string) {
+	logger.Tracef("session %s changed state to %s", id, state)
+
+	if state == restapi.SessionClosed {
+		agent.deleteSession(id)
+	}
+
+	if agent.sessionUpdates != nil {
+		agent.sessionUpdates <- sessionUpdate{
+			Id:    id,
+			State: state,
+		}
+	}
+}
+
+func (agent *Agent) ConnectionChanged(sessionId string, connection restapi.Connection) {
+	logger.Tracef("session %s closed connection %s", sessionId, connection.Id)
+
+	if agent.connectionUpdates != nil {
+		agent.connectionUpdates <- connectionUpdate{
+			SessionId:  sessionId,
+			Connection: connection,
+		}
+	}
 }

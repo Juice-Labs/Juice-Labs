@@ -24,22 +24,22 @@ var (
 	expose = flag.String("expose", "", "The IP address and port to expose through the controller for clients to see. The value is not checked for correctness.")
 )
 
-type connectionUpdate struct {
-	Id          string
-	ExitStatus  string
-	Pid         int64
-	ProcessName string
-}
 type sessionUpdate struct {
-	Id          string
-	State       string
-	Connections []connectionUpdate
+	Id    string
+	State string
+}
+
+type connectionUpdate struct {
+	restapi.Connection
+
+	SessionId string
 }
 
 type controllerData struct {
 	api restapi.Client
 
-	sessionUpdates chan sessionUpdate
+	sessionUpdates    chan sessionUpdate
+	connectionUpdates chan connectionUpdate
 
 	gpuMetricsMutex sync.Mutex
 	gpuMetrics      []restapi.GpuMetrics
@@ -59,6 +59,7 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 
 		// Default queue depth of 32 to limit the amount of potential blocking between updates
 		agent.sessionUpdates = make(chan sessionUpdate, 32)
+		agent.connectionUpdates = make(chan connectionUpdate, 32)
 
 		if *expose == "" {
 			return errors.New("--expose must be set when connecting to a controller")
@@ -140,20 +141,13 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 					for {
 						select {
 						case update := <-agent.sessionUpdates:
-							connectionUpdates := make([]restapi.Connection, len(update.Connections))
-							for index, connection := range update.Connections {
-								connectionUpdates[index] = restapi.Connection{
-									Id:          connection.Id,
-									ExitStatus:  connection.ExitStatus,
-									Pid:         connection.Pid,
-									ProcessName: connection.ProcessName,
-								}
-							}
+							session := sessionUpdates[update.Id]
+							session.State = update.State
+							sessionUpdates[update.Id] = session
 
-							sessionUpdates[update.Id] = restapi.SessionUpdate{
-								State:       update.State,
-								Connections: connectionUpdates,
-							}
+						case update := <-agent.connectionUpdates:
+							session := sessionUpdates[update.SessionId]
+							session.Connections[update.Id] = update.Connection
 
 						default:
 							break CopySessions

@@ -1,7 +1,7 @@
 /*
  *  Copyright (c) 2023 Juice Technologies, Inc. All Rights Reserved.
  */
-package connection
+package app
 
 import (
 	"os"

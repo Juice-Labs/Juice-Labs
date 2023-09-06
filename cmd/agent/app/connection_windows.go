@@ -1,7 +1,7 @@
 /*
  *  Copyright (c) 2023 Juice Technologies, Inc. All Rights Reserved.
  */
-package connection
+package app
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ import (
 	"reflect"
 	"syscall"
 
-	"github.com/Juice-Labs/Juice-Labs/cmd/agent/connection/windows"
+	"github.com/Juice-Labs/Juice-Labs/cmd/agent/app/windows"
 )
 
 func setupIpc() (*os.File, *os.File, error) {
