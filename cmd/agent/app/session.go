@@ -169,26 +169,41 @@ func (session *Session) addConnection(group task.Group, connectionData restapi.C
 		return nil, errors.Newf("session %s connection %s failed starting", session.Id(), connection.Id()).Wrap(err)
 	}
 
+	if !reference.Acquire() {
+		panic("acquire failed")
+	}
+
 	return reference, nil
+}
+
+func (session *Session) getConnection(id string) (*Reference[Connection], error) {
+	session.Lock()
+	defer session.Unlock()
+
+	reference, found := session.connections.Get(id)
+	if found {
+		// If Acquire returns false, it is in the middle of being cleaned up
+		if reference.Acquire() {
+			return reference, nil
+		}
+	}
+
+	return nil, errors.Newf("no connection found with id %s", id)
 }
 
 func (session *Session) Connect(group task.Group, connectionData restapi.ConnectionData, c net.Conn, agent *Agent) error {
 	logger.Tracef("Connecting to connection: %s", connectionData.Id)
 
-	session.Lock()
-	reference, ok := session.connections.Get(connectionData.Id)
-	session.Unlock()
-
-	var err error
-	if ok {
-		defer reference.Release()
-	} else {
-		reference, err = session.addConnection(group, connectionData)
-	}
-
+	reference, err := session.getConnection(connectionData.Id)
 	if err != nil {
-		return err
+		reference, err = session.addConnection(group, connectionData)
+		if err != nil {
+			return err
+		}
 	}
 
-	return reference.Object.Connect(c)
+	err = reference.Object.Connect(c)
+
+	reference.Release()
+	return err
 }

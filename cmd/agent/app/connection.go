@@ -183,8 +183,6 @@ func (connection *Connection) Connect(c net.Conn) error {
 	connection.Lock()
 	defer connection.Unlock()
 
-	defer c.Close()
-
 	var err error
 	if connection.cmd != nil {
 		tcpConn := &net.TCPConn{}
@@ -209,6 +207,7 @@ func (connection *Connection) Connect(c net.Conn) error {
 
 					// Close our socket handle
 					err = errors.Join(err, c.Close())
+					c = nil
 
 					// And finally, inform the server that our side is closed
 					_, err_ := connection.writePipe.Write(data)
@@ -222,7 +221,9 @@ func (connection *Connection) Connect(c net.Conn) error {
 		}
 	}
 
-	err = errors.Join(err, c.Close())
+	if c != nil {
+		err = errors.Join(err, c.Close())
+	}
 
 	if err != nil {
 		err = errors.New("failed to connect to Renderer_Win").Wrap(err)

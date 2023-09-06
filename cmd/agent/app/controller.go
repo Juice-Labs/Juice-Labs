@@ -141,12 +141,20 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 					for {
 						select {
 						case update := <-agent.sessionUpdates:
-							session := sessionUpdates[update.Id]
+							session, found := sessionUpdates[update.Id]
+							if !found {
+								session.Connections = map[string]restapi.Connection{}
+							}
+
 							session.State = update.State
 							sessionUpdates[update.Id] = session
 
 						case update := <-agent.connectionUpdates:
-							session := sessionUpdates[update.SessionId]
+							session, found := sessionUpdates[update.SessionId]
+							if !found {
+								session.Connections = map[string]restapi.Connection{}
+							}
+
 							session.Connections[update.Id] = update.Connection
 
 						default:
