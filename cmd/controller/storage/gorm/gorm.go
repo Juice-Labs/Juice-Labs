@@ -198,7 +198,7 @@ func (g *gormDriver) GetAgentById(id string) (restapi.Agent, error) {
 		UUID: uuid.FromStringOrNil(id),
 	}
 
-	result := g.db.Preload("Labels").Preload("Taints").Preload("Sessions").Where(&dbAgent, "UUID").First(&dbAgent)
+	result := g.db.Preload("Labels").Preload("Taints").Preload("Sessions", "state NOT IN (?)", models.SessionStateClosed).Where(&dbAgent, "UUID").First(&dbAgent)
 
 	if err := result.Error; err != nil {
 
@@ -251,7 +251,13 @@ func (g *gormDriver) UpdateAgent(update restapi.AgentUpdate) error {
 				return mapError(result.Error)
 			}
 
-			dbSession.State = models.SessionStateFromString(sessionUpdate.State)
+			state := models.SessionStateFromString(sessionUpdate.State)
+			if state != dbSession.State {
+				if dbSession.State == models.SessionStateClosed {
+					dbAgent.VramAvailable += dbSession.VramRequired
+				}
+				dbSession.State = state
+			}
 
 			for _, connectionUpdate := range sessionUpdate.Connections {
 				dbConnection := models.Connection{
@@ -515,8 +521,8 @@ func (g *gormDriver) SetAgentsMissingIfNotUpdatedFor(duration time.Duration) err
 }
 
 func (g *gormDriver) RemoveMissingAgentsIfNotUpdatedFor(duration time.Duration) error {
-	// TODO soft-delete maybe?
-	result := g.db.Unscoped().
+	// Soft-deletes agent
+	result := g.db.
 		Where("state = ?", models.AgentStateMissing).
 		Where("updated_at <= ?", time.Now().Add(-duration)).
 		Delete(&models.Agent{})

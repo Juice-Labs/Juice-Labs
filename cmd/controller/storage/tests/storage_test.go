@@ -29,9 +29,9 @@ func openGorm(t *testing.T, driver string) storage.Storage {
 
 	switch driver {
 	case "sqlite":
-		db, err = gorm.OpenStorage(context.Background(), "sqlite", "test.db")
+		db, err = gorm.OpenStorage(context.Background(), "sqlite", "file::memory:?cache=shared")
 	case "postgres":
-		db, err = gorm.OpenStorage(context.Background(), "postgres", "user=postgres password=password dbname=postgres sslmode=disable")
+		db, err = gorm.OpenStorage(context.Background(), "postgres", "host=192.168.1.141 user=postgres password=password dbname=postgres sslmode=disable")
 	default:
 		err = fmt.Errorf("invalid GORM driver specified, %s", driver)
 	}
