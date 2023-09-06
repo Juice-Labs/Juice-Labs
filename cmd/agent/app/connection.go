@@ -190,7 +190,7 @@ func (connection *Connection) Connect(c net.Conn) error {
 		tcpConn := &net.TCPConn{}
 
 		var tlsConn *tls.Conn
-		tlsConn, err := utilities.Cast[*tls.Conn](c)
+		tlsConn, err = utilities.Cast[*tls.Conn](c)
 		if err == nil {
 			tcpConn, err = utilities.Cast[*net.TCPConn](tlsConn.NetConn())
 		} else {
@@ -199,7 +199,7 @@ func (connection *Connection) Connect(c net.Conn) error {
 
 		if err == nil {
 			var rawConn syscall.RawConn
-			rawConn, err := tcpConn.SyscallConn()
+			rawConn, err = tcpConn.SyscallConn()
 			if err == nil {
 				err = connection.forwardSocket(rawConn)
 				if err == nil {
