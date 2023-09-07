@@ -109,6 +109,8 @@ func waitForSession(api restapi.Client, group task.Group, id string) (restapi.Se
 				return restapi.Session{}, err
 			}
 		}
+
+		logger.Infof("Session %s ready", id)
 	}
 
 	return session, nil
@@ -120,6 +122,8 @@ func requestSession(group task.Group, client *http.Client, config *Configuration
 		Address:     config.Servers[0],
 		AccessToken: config.AccessToken,
 	}
+
+	config.Requirements.Persistent = true
 
 	id, err := api.RequestSessionWithContext(group.Ctx(), config.Requirements)
 	if err != nil {

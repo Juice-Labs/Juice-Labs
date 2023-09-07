@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/Juice-Labs/Juice-Labs/pkg/errors"
+	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 	"github.com/Juice-Labs/Juice-Labs/pkg/utilities"
@@ -94,12 +95,12 @@ func (connection *Connection) Start(group task.Group, exitCode chan int) error {
 								connection.writePipe.Close(),
 							)
 							if err != nil {
-								err = errors.Newf("connection %s failed to wait", connection.Id).Wrap(err)
+								logger.Errorf("connection %s failed to wait caused by %v", connection.Id, err)
 							}
 
 							exitCode <- connection.cmd.ProcessState.ExitCode()
 
-							return err
+							return nil
 						})
 					}
 				}

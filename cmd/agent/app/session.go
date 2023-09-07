@@ -24,7 +24,6 @@ type Session struct {
 	juicePath string
 	gpus      *gpu.SelectedGpuSet
 
-	done        chan struct{}
 	connections *utilities.ConcurrentMap[string, *Connection]
 	taskManager *task.TaskManager
 
@@ -38,7 +37,6 @@ func newSession(ctx context.Context, id string, version string, persistent bool,
 		Persistent:    persistent,
 		juicePath:     juicePath,
 		gpus:          gpus,
-		done:          make(chan struct{}),
 		connections:   utilities.NewConcurrentMap[string, *Connection](),
 		taskManager:   task.NewTaskManager(ctx),
 		eventListener: eventListener,
@@ -65,35 +63,19 @@ func (session *Session) Session() restapi.Session {
 }
 
 func (session *Session) Run(group task.Group) error {
-	session.taskManager.GoFn(fmt.Sprintf("session %s close", session.Id), func(g task.Group) error {
-		if !session.Persistent {
-			select {
-			case <-session.taskManager.Ctx().Done():
-				// Wait for all the connections to be destroyed
-				<-session.done
-				break
+	group.GoFn(fmt.Sprintf("session %s close", session.Id), func(g task.Group) error {
+		<-session.taskManager.Ctx().Done()
 
-			case <-session.done:
-				break
-			}
-		} else {
-			// If it is persistent, wait until cancel is called
-			<-session.taskManager.Ctx().Done()
-
-			// Wait for all the connections to be destroyed
-			<-session.done
-		}
+		err := session.taskManager.Wait()
 
 		session.gpus.Release()
 
-		close(session.done)
-
 		session.eventListener.SessionClosed(session.Id)
 
-		return nil
+		return err
 	})
 
-	return session.taskManager.Wait()
+	return nil
 }
 
 func (session *Session) Cancel() {
@@ -121,6 +103,9 @@ func (session *Session) addConnection(connectionData restapi.ConnectionData) (*C
 		close(exitCodeCh)
 
 		session.connections.Delete(connection.Id)
+		if !session.Persistent && session.connections.Empty() {
+			session.Cancel()
+		}
 
 		session.eventListener.ConnectionClosed(session.Id, connection.ConnectionData, exitCode)
 
