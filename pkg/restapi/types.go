@@ -12,13 +12,6 @@ const (
 )
 
 const (
-	ExitStatusUnknown  = "unknown"
-	ExitStatusSuccess  = "success"
-	ExitStatusFailure  = "failure"
-	ExitStatusCanceled = "canceled"
-)
-
-const (
 	AgentClosed   = "closed"
 	AgentActive   = "active"
 	AgentDisabled = "disabled"
@@ -40,12 +33,6 @@ type SessionRequirements struct {
 	Tolerates   map[string]string `json:"tolerates"`
 }
 
-type ConnectionData struct {
-	Id          string `json:"id"`
-	Pid         string `json:"pid"`
-	ProcessName string `json:"processName"`
-}
-
 type SessionGpu struct {
 	Index int `json:"index"`
 
@@ -63,10 +50,16 @@ type Session struct {
 	Connections []Connection `json:"connections"`
 }
 
+type ConnectionData struct {
+	Id          string `json:"id"`
+	Pid         string `json:"pid"`
+	ProcessName string `json:"processName"`
+}
+
 type Connection struct {
 	ConnectionData
 
-	ExitStatus string `json:"exitStatus"`
+	ExitCode int `json:"exitCode"`
 }
 
 type GpuMetrics struct {

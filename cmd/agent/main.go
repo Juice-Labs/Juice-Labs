@@ -55,7 +55,7 @@ func main() {
 		}
 
 		if err == nil {
-			agent, err := app.NewAgent(tlsConfig)
+			agent, err := app.NewAgent(group.Ctx(), tlsConfig)
 			if err == nil {
 				consumer, err_ := playnite.NewGpuMetricsConsumer(agent)
 				err = err_

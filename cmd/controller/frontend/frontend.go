@@ -4,7 +4,6 @@
 package frontend
 
 import (
-	"context"
 	"errors"
 	"flag"
 	"net/http"
@@ -156,7 +155,7 @@ func (frontend *Frontend) getAgentById(id string) (restapi.Agent, error) {
 	return frontend.storage.GetAgentById(id)
 }
 
-func (frontend *Frontend) updateAgent(ctx context.Context, update restapi.AgentUpdate) error {
+func (frontend *Frontend) updateAgent(update restapi.AgentUpdate) error {
 	err := frontend.storage.UpdateAgent(update)
 	if err == nil && len(update.SessionsUpdate) > 0 {
 		if frontend.webhookMessages != nil {

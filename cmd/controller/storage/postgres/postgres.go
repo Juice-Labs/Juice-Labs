@@ -580,11 +580,11 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 
 		for _, connectionUpdate := range sessionUpdate.Connections {
 			_, err = tx.ExecContext(driver.ctx, `
-			INSERT INTO connections (id, session_id, pid, process_name, exit_status)
+			INSERT INTO connections (id, session_id, pid, process_name, exit_code)
 			VALUES ($1, $2, $3, $4, $5)
 			ON CONFLICT (id) 
-			DO UPDATE SET exit_status = $5`,
-				connectionUpdate.Id, id, connectionUpdate.Pid, connectionUpdate.ProcessName, connectionUpdate.ExitStatus)
+			DO UPDATE SET exit_code = $5`,
+				connectionUpdate.Id, id, connectionUpdate.Pid, connectionUpdate.ProcessName, connectionUpdate.ExitCode)
 			if err != nil {
 				return errors.Join(err, tx.Rollback())
 			}
@@ -713,13 +713,13 @@ func (driver *storageDriver) GetSessionById(id string) (restapi.Session, error) 
 	if err != nil {
 		return restapi.Session{}, err
 	}
-	connectionRows, err := driver.db.QueryContext(driver.ctx, fmt.Sprint("SELECT id, pid, process_name, exit_status FROM connections WHERE session_id = $1"), id)
+	connectionRows, err := driver.db.QueryContext(driver.ctx, fmt.Sprint("SELECT id, pid, process_name, exit_code FROM connections WHERE session_id = $1"), id)
 	if err != nil {
 		return restapi.Session{}, err
 	}
 	for connectionRows.Next() {
 		var connection restapi.Connection
-		err = connectionRows.Scan(&connection.Id, &connection.Pid, &connection.ProcessName, &connection.ExitStatus)
+		err = connectionRows.Scan(&connection.Id, &connection.Pid, &connection.ProcessName, &connection.ExitCode)
 		if err != nil {
 			return restapi.Session{}, err
 		}

@@ -12,7 +12,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sync"
 	"syscall"
 	"time"
 
@@ -23,13 +22,10 @@ import (
 )
 
 type Connection struct {
-	sync.Mutex
+	restapi.ConnectionData
 
-	connectionData restapi.ConnectionData
-
-	juicePath  string
-	pciBus     string
-	exitStatus string
+	juicePath string
+	pciBus    string
 
 	cmd       *exec.Cmd
 	readPipe  *os.File
@@ -38,61 +34,16 @@ type Connection struct {
 
 func newConnection(connectionData restapi.ConnectionData, juicePath string, pciBus string) *Connection {
 	return &Connection{
-		connectionData: connectionData,
+		ConnectionData: connectionData,
 		juicePath:      juicePath,
 		pciBus:         pciBus,
-		exitStatus:     restapi.ExitStatusUnknown,
 	}
 }
 
-func (connection *Connection) Id() string {
-	return connection.connectionData.Id
-}
-
-func (connection *Connection) ExitStatus() string {
-	connection.Lock()
-	defer connection.Unlock()
-
-	return connection.exitStatus
-}
-
-func (connection *Connection) Connection() restapi.Connection {
-	return restapi.Connection{
-		ConnectionData: connection.connectionData,
-		ExitStatus:     connection.ExitStatus(),
-	}
-}
-
-func (connection *Connection) setExitStatus(exitStatus string) {
-	connection.Lock()
-
-	if connection.exitStatus != restapi.ExitStatusUnknown {
-		panic("connection exit status set multiple times")
-	}
-
-	connection.exitStatus = exitStatus
-	connection.Unlock()
-}
-
-func (connection *Connection) Close() error {
-	connection.Lock()
-
+func (connection *Connection) Start(group task.Group, exitCode chan int) error {
 	if connection.cmd != nil {
-		return connection.cmd.Cancel()
+		panic("must call Start() exactly once")
 	}
-
-	err := errors.Join(
-		connection.readPipe.Close(),
-		connection.writePipe.Close(),
-	)
-
-	connection.Unlock()
-
-	return err
-}
-
-func (connection *Connection) Start(group task.Group) error {
-	connection.Lock()
 
 	ch1Read, ch1Write, err := setupIpc()
 	if err == nil {
@@ -115,14 +66,14 @@ func (connection *Connection) Start(group task.Group) error {
 				now := time.Now()
 
 				// NOTE: time.Format is really weird. The string below equates to YYYYMMDD-HHMMSS_
-				logName := fmt.Sprintf("%s_%s_%s.log", connection.connectionData.ProcessName, now.Format("20060102-150405_"), connection.connectionData.Id)
+				logName := fmt.Sprintf("%s_%s_%s.log", connection.ProcessName, now.Format("20060102-150405"), connection.Id)
 
 				if err == nil {
 					connection.cmd = exec.CommandContext(group.Ctx(),
 						filepath.Join(connection.juicePath, "Renderer_Win"),
 						append(
 							[]string{
-								"--id", connection.connectionData.Id,
+								"--id", connection.Id,
 								"--log_file", filepath.Join(logsPath, logName),
 								"--ipc_write", fmt.Sprint(ch1Write.Fd()),
 								"--ipc_read", fmt.Sprint(ch2Read.Fd()),
@@ -135,98 +86,71 @@ func (connection *Connection) Start(group task.Group) error {
 					inheritFiles(connection.cmd, ch1Write, ch2Read)
 
 					err = connection.cmd.Start()
+					if err == nil {
+						group.GoFn(fmt.Sprintf("connection %s", connection.Id), func(g task.Group) error {
+							err := errors.Join(
+								connection.cmd.Wait(),
+								connection.readPipe.Close(),
+								connection.writePipe.Close(),
+							)
+							if err != nil {
+								err = errors.Newf("connection %s failed to wait", connection.Id).Wrap(err)
+							}
+
+							exitCode <- connection.cmd.ProcessState.ExitCode()
+
+							return err
+						})
+					}
 				}
 			}
 		}
 	}
 
-	connection.Unlock()
-
 	if err != nil {
-		err = errors.New("failed to start Renderer_Win").Wrap(err)
+		err = errors.Join(err,
+			connection.readPipe.Close(),
+			connection.writePipe.Close())
 
-		connection.setExitStatus(restapi.ExitStatusFailure)
+		err = errors.Newf("connection %s failed to start", connection.Id).Wrap(err)
 	}
 
 	return err
-}
-
-func (connection *Connection) Wait() error {
-	err := connection.cmd.Wait()
-	if err != nil {
-		connection.setExitStatus(restapi.ExitStatusFailure)
-
-		err = errors.Newf("connection %s failed", connection.connectionData.Id).Wrap(err)
-	} else {
-		connection.setExitStatus(restapi.ExitStatusSuccess)
-	}
-
-	return err
-}
-
-func (connection *Connection) Cancel() error {
-	connection.Lock()
-	defer connection.Unlock()
-
-	if connection.exitStatus == restapi.ExitStatusUnknown {
-		connection.setExitStatus(restapi.ExitStatusCanceled)
-
-		if connection.cmd != nil {
-			return connection.cmd.Cancel()
-		}
-	}
-
-	return nil
 }
 
 func (connection *Connection) Connect(c net.Conn) error {
-	connection.Lock()
-	defer connection.Unlock()
+	if connection.cmd == nil {
+		panic("must call Start() successfully first")
+	}
 
-	var err error
-	if connection.cmd != nil {
-		tcpConn := &net.TCPConn{}
+	tcpConn := &net.TCPConn{}
+	tlsConn, err := utilities.Cast[*tls.Conn](c)
+	if err == nil {
+		tcpConn, err = utilities.Cast[*net.TCPConn](tlsConn.NetConn())
+	} else {
+		tcpConn, err = utilities.Cast[*net.TCPConn](c)
+	}
 
-		var tlsConn *tls.Conn
-		tlsConn, err = utilities.Cast[*tls.Conn](c)
+	if err == nil {
+		var rawConn syscall.RawConn
+		rawConn, err = tcpConn.SyscallConn()
 		if err == nil {
-			tcpConn, err = utilities.Cast[*net.TCPConn](tlsConn.NetConn())
-		} else {
-			tcpConn, err = utilities.Cast[*net.TCPConn](c)
-		}
-
-		if err == nil {
-			var rawConn syscall.RawConn
-			rawConn, err = tcpConn.SyscallConn()
+			err = connection.forwardSocket(rawConn)
 			if err == nil {
-				err = connection.forwardSocket(rawConn)
-				if err == nil {
-					// Wait for the server to indicate it has created the socket
-					data := make([]byte, 1)
-					_, err = connection.readPipe.Read(data)
+				// Wait for the server to indicate it is ready
+				data := make([]byte, 1)
+				_, err = connection.readPipe.Read(data)
 
-					// Close our socket handle
-					err = errors.Join(err, c.Close())
-					c = nil
-
-					// And finally, inform the server that our side is closed
-					_, err_ := connection.writePipe.Write(data)
-					err = errors.Join(err, err_)
-				}
+				// And finally, inform the server to continue
+				_, err_ := connection.writePipe.Write(data)
+				err = errors.Join(err, err_)
 			}
 		}
-
-		if err != nil {
-			err = errors.Join(err, connection.Cancel())
-		}
 	}
 
-	if c != nil {
-		err = errors.Join(err, c.Close())
-	}
-
+	err = errors.Join(err, c.Close())
 	if err != nil {
-		err = errors.New("failed to connect to Renderer_Win").Wrap(err)
+		err = errors.Newf("connection %s failed to connect", connection.Id).Wrap(err)
 	}
 
 	return err

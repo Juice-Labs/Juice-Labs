@@ -23,13 +23,11 @@ var (
 	ErrInvalidPort = errors.New("server: address does not contain a valid port")
 )
 
-type EndpointHandlerFn = func(group task.Group, w http.ResponseWriter, r *http.Request)
-
 type Endpoint struct {
 	Name    string
 	Methods []string
 	Path    string
-	Handler EndpointHandlerFn
+	Handler http.Handler
 }
 
 type Server struct {
@@ -90,7 +88,7 @@ func NewServer(address string, tlsConfig *tls.Config) (*Server, error) {
 		tlsConfig: tlsConfig,
 	}
 
-	server.AddEndpointFunc("GET", "/health", func(group task.Group, w http.ResponseWriter, r *http.Request) {
+	server.AddEndpointFunc("GET", "/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -101,7 +99,7 @@ func (server *Server) Port() int {
 	return server.port
 }
 
-func (server *Server) AddEndpointFunc(method string, path string, fn EndpointHandlerFn) {
+func (server *Server) AddEndpointFunc(method string, path string, fn http.HandlerFunc) {
 	server.AddEndpoint(Endpoint{
 		Methods: []string{method},
 		Path:    path,
@@ -109,7 +107,7 @@ func (server *Server) AddEndpointFunc(method string, path string, fn EndpointHan
 	})
 }
 
-func (server *Server) AddNamedEndpointFunc(name string, method string, path string, fn EndpointHandlerFn) {
+func (server *Server) AddNamedEndpointFunc(name string, method string, path string, fn http.HandlerFunc) {
 	server.AddEndpoint(Endpoint{
 		Name:    name,
 		Methods: []string{method},
@@ -122,9 +120,7 @@ func (server *Server) AddEndpointHandler(method string, path string, handler htt
 	server.AddEndpoint(Endpoint{
 		Methods: []string{method},
 		Path:    path,
-		Handler: func(group task.Group, w http.ResponseWriter, r *http.Request) {
-			handler.ServeHTTP(w, r)
-		},
+		Handler: handler,
 	})
 }
 
@@ -150,13 +146,7 @@ func (server *Server) RemoveEndpointByName(name string) {
 
 func (server *Server) Run(group task.Group) error {
 	for _, endpoint := range server.endpoints {
-		// https://go.dev/doc/faq#closures_and_goroutines
-		// To capture endpoint correctly, create a local variable instead of using the for loop variable.
-		captureEndpoint := endpoint
-
-		server.root.Methods(captureEndpoint.Methods...).Path(captureEndpoint.Path).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			captureEndpoint.Handler(group, w, r)
-		})
+		server.root.Methods(endpoint.Methods...).Path(endpoint.Path).Handler(endpoint.Handler)
 	}
 
 	httpServer := http.Server{

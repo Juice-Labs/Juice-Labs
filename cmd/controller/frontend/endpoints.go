@@ -15,7 +15,6 @@ import (
 	pkgnet "github.com/Juice-Labs/Juice-Labs/pkg/net"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/server"
-	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
 
 func (frontend *Frontend) initializeEndpoints(server *server.Server) {
@@ -30,7 +29,7 @@ func (frontend *Frontend) initializeEndpoints(server *server.Server) {
 	server.AddEndpointFunc("DELETE", "/v1/session/{id}", frontend.cancelSessionEp)
 }
 
-func (frontend *Frontend) getStatusEp(group task.Group, w http.ResponseWriter, r *http.Request) {
+func (frontend *Frontend) getStatusEp(w http.ResponseWriter, r *http.Request) {
 	err := pkgnet.Respond(w, http.StatusOK, restapi.Status{
 		State:    "Active",
 		Version:  build.Version,
@@ -43,7 +42,7 @@ func (frontend *Frontend) getStatusEp(group task.Group, w http.ResponseWriter, r
 	}
 }
 
-func (frontend *Frontend) registerAgentEp(group task.Group, w http.ResponseWriter, r *http.Request) {
+func (frontend *Frontend) registerAgentEp(w http.ResponseWriter, r *http.Request) {
 	agent, err := pkgnet.ReadRequestBody[restapi.Agent](r)
 	if err != nil {
 		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
@@ -64,7 +63,7 @@ func (frontend *Frontend) registerAgentEp(group task.Group, w http.ResponseWrite
 	}
 }
 
-func (frontend *Frontend) getAgentEp(group task.Group, w http.ResponseWriter, r *http.Request) {
+func (frontend *Frontend) getAgentEp(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 
 	agent, err := frontend.getAgentById(id)
@@ -77,7 +76,7 @@ func (frontend *Frontend) getAgentEp(group task.Group, w http.ResponseWriter, r 
 	pkgnet.Respond(w, http.StatusOK, agent)
 }
 
-func (frontend *Frontend) getAgentsEp(group task.Group, w http.ResponseWriter, r *http.Request) {
+func (frontend *Frontend) getAgentsEp(w http.ResponseWriter, r *http.Request) {
 	agents, err := frontend.getAgents()
 	if err != nil {
 		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
@@ -88,7 +87,7 @@ func (frontend *Frontend) getAgentsEp(group task.Group, w http.ResponseWriter, r
 	pkgnet.Respond(w, http.StatusOK, agents)
 }
 
-func (frontend *Frontend) updateAgentEp(group task.Group, w http.ResponseWriter, r *http.Request) {
+func (frontend *Frontend) updateAgentEp(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 
 	update, err := pkgnet.ReadRequestBody[restapi.AgentUpdate](r)
@@ -105,7 +104,7 @@ func (frontend *Frontend) updateAgentEp(group task.Group, w http.ResponseWriter,
 		return
 	}
 
-	err = frontend.updateAgent(group.Ctx(), update)
+	err = frontend.updateAgent(update)
 	if err != nil {
 		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 		logger.Error(err)
@@ -115,7 +114,7 @@ func (frontend *Frontend) updateAgentEp(group task.Group, w http.ResponseWriter,
 	pkgnet.RespondEmpty(w, http.StatusOK)
 }
 
-func (frontend *Frontend) requestSessionEp(group task.Group, w http.ResponseWriter, r *http.Request) {
+func (frontend *Frontend) requestSessionEp(w http.ResponseWriter, r *http.Request) {
 	sessionRequirements, err := pkgnet.ReadRequestBody[restapi.SessionRequirements](r)
 	if err != nil {
 		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
@@ -136,7 +135,7 @@ func (frontend *Frontend) requestSessionEp(group task.Group, w http.ResponseWrit
 	}
 }
 
-func (frontend *Frontend) cancelSessionEp(group task.Group, w http.ResponseWriter, r *http.Request) {
+func (frontend *Frontend) cancelSessionEp(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 
 	err := frontend.cancelSession(id)
@@ -152,7 +151,7 @@ func (frontend *Frontend) cancelSessionEp(group task.Group, w http.ResponseWrite
 	}
 }
 
-func (frontend *Frontend) getSessionEp(group task.Group, w http.ResponseWriter, r *http.Request) {
+func (frontend *Frontend) getSessionEp(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 
 	session, err := frontend.getSessionById(id)

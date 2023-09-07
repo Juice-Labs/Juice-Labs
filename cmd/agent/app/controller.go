@@ -114,22 +114,12 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 					}
 
 					for _, session := range controllerAgent.Sessions {
-						reference, err_ := agent.getSession(session.Id)
-
 						switch session.State {
 						case restapi.SessionAssigned:
-							if reference == nil {
-								err = errors.Join(err, agent.registerSession(group, session))
-							}
+							err = errors.Join(err, agent.registerSession(session))
 
 						case restapi.SessionCanceling:
-							if reference != nil {
-								err = errors.Join(err, err_, agent.cancelSession(session.Id))
-							}
-						}
-
-						if reference != nil {
-							reference.Release()
+							err = errors.Join(err, agent.cancelSession(session.Id))
 						}
 					}
 
@@ -177,4 +167,12 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 	}
 
 	return nil
+}
+
+func (agent *Agent) getGpuMetrics() []restapi.GpuMetrics {
+	agent.gpuMetricsMutex.Lock()
+	defer agent.gpuMetricsMutex.Unlock()
+
+	// Make a copy
+	return append(make([]restapi.GpuMetrics, 0, len(agent.gpuMetrics)), agent.gpuMetrics...)
 }
