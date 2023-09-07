@@ -28,7 +28,7 @@ func NewBackend(storage storage.Storage) *Backend {
 func (backend *Backend) Run(group task.Group) error {
 	err := backend.update(group.Ctx())
 	if err == nil {
-		ticker := time.NewTicker(5 * time.Second)
+		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
 
 		for err == nil {

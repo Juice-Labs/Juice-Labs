@@ -95,7 +95,7 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 		})
 
 		group.GoFn("Controller Update", func(group task.Group) error {
-			ticker := time.NewTicker(5 * time.Second)
+			ticker := time.NewTicker(1 * time.Second)
 			defer ticker.Stop()
 
 			for {

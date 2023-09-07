@@ -86,7 +86,7 @@ func waitForSession(api restapi.Client, group task.Group, id string) (restapi.Se
 			})
 		}
 
-		ticker := time.NewTicker(5 * time.Second)
+		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
 
 		for session.State != restapi.SessionActive {
