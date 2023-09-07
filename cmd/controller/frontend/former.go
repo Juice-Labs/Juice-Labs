@@ -59,7 +59,7 @@ type StatusFormer struct {
 }
 
 func (frontend *Frontend) getStatusFormerEp(w http.ResponseWriter, r *http.Request) {
-	agents, err := frontend.getAgents()
+	agents, err := frontend.getAgents("")
 	if err == nil {
 		hosts := make([]AgentData, len(agents))
 		for index, agent := range agents {

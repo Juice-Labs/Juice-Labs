@@ -25,13 +25,13 @@ const (
 )
 
 func (agent *Agent) initializeEndpoints() {
-	agent.Server.AddEndpointFunc("GET", "/v1/status", agent.getStatusEp)
-	agent.Server.AddNamedEndpointFunc(RequestSessionName, "POST", "/v1/request/session", agent.requestSessionEp)
-	agent.Server.AddEndpointFunc("GET", "/v1/session/{id}", agent.getSessionEp)
-	agent.Server.AddEndpointFunc("DELETE", "/v1/session/{id}", agent.cancelSessionEp)
-	agent.Server.AddEndpointFunc("POST", "/v1/connect/session/{id}", agent.connectSessionEp)
+	agent.Server.AddEndpointFunc("GET", "/v1/status", agent.getStatusEp, false)
+	agent.Server.AddNamedEndpointFunc(RequestSessionName, "POST", "/v1/request/session", agent.requestSessionEp, true)
+	agent.Server.AddEndpointFunc("GET", "/v1/session/{id}", agent.getSessionEp, true)
+	agent.Server.AddEndpointFunc("DELETE", "/v1/session/{id}", agent.cancelSessionEp, true)
+	agent.Server.AddEndpointFunc("POST", "/v1/connect/session/{id}", agent.connectSessionEp, true)
 
-	agent.Server.AddEndpointHandler("GET", "/metrics", promhttp.Handler())
+	agent.Server.AddEndpointHandler("GET", "/metrics", promhttp.Handler(), true)
 }
 
 func (agent *Agent) getStatusEp(w http.ResponseWriter, r *http.Request) {
