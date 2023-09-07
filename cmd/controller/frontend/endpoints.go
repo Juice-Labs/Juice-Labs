@@ -149,9 +149,11 @@ func (frontend *Frontend) requestSessionEp(w http.ResponseWriter, r *http.Reques
 	}
 
 	if sessionRequirements.PoolId == "" {
-		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusBadRequest, "Pool ID is required"))
-		logger.Error(err)
-		return
+		logger.Warning("Creating a session without a pool ID")
+		// TODO: At some point we should force pool IDs to be required
+		// 	err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusBadRequest, "Pool ID is required"))
+		// 	logger.Error(err)
+		// 	return
 	}
 
 	id, err := frontend.requestSession(sessionRequirements)

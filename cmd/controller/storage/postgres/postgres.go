@@ -201,7 +201,10 @@ func unmarshalSession(row sqlRow) (restapi.Session, error) {
 	var address []byte
 	var gpus []byte
 
-	err := row.Scan(&session.Id, &session.State, &address, &session.Version, &session.PoolId, &gpus)
+	var poolId sql.NullString
+
+	err := row.Scan(&session.Id, &session.State, &address, &session.Version, &poolId, &gpus)
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			err = storage.ErrNotFound
@@ -209,6 +212,8 @@ func unmarshalSession(row sqlRow) (restapi.Session, error) {
 
 		return restapi.Session{}, err
 	}
+
+	session.PoolId = poolId.String
 
 	if address == nil {
 		session.Address = ""
@@ -577,6 +582,16 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 	return tx.Commit()
 }
 
+func NewNullString(s string) sql.NullString {
+	if len(s) == 0 {
+		return sql.NullString{}
+	}
+	return sql.NullString{
+		String: s,
+		Valid:  true,
+	}
+}
+
 func (driver *storageDriver) RequestSession(sessionRequirements restapi.SessionRequirements) (string, error) {
 	requirements, err := json.Marshal(sessionRequirements)
 	if err != nil {
@@ -594,7 +609,7 @@ func (driver *storageDriver) RequestSession(sessionRequirements restapi.SessionR
 		") VALUES ("+
 		"$1, $2, $3, $4, $5, $6, now()"+
 		") RETURNING id",
-		restapi.SessionQueued, sessionRequirements.Version, sessionRequirements.PoolId,
+		restapi.SessionQueued, sessionRequirements.Version, NewNullString(sessionRequirements.PoolId),
 		requirements, storage.TotalVramRequired(sessionRequirements)).Scan(&id)
 	if err != nil {
 		return "", errors.Join(err, tx.Rollback())
