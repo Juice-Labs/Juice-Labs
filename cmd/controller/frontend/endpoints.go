@@ -26,12 +26,11 @@ func (frontend *Frontend) initializeEndpoints(server *server.Server) {
 	server.AddEndpointFunc("POST", "/v1/register/agent", frontend.registerAgentEp, true)
 	server.AddEndpointFunc("GET", "/v1/agent/{id}", frontend.getAgentEp, true)
 	server.AddEndpointFunc("PUT", "/v1/agent/{id}", frontend.updateAgentEp, true)
+	server.AddEndpointFuncWithQuery("GET", "/v1/agents", frontend.getAgentsForPoolEp, true, []string{"pool_id", "{pool_id}"})
 	server.AddEndpointFunc("GET", "/v1/agents", frontend.getAgentsEp, true)
 	server.AddEndpointFunc("POST", "/v1/request/session", frontend.requestSessionEp, true)
 	server.AddEndpointFunc("GET", "/v1/session/{id}", frontend.getSessionEp, true)
 	server.AddEndpointFunc("DELETE", "/v1/session/{id}", frontend.cancelSessionEp, true)
-
-	server.AddEndpointFuncWithQuery("GET", "/v1/agents", frontend.getAgentsForPoolEp, true, []string{"pool_id", "{pool_id}"})
 
 	server.AddEndpointFunc("PUT", "/v1/pool", frontend.createPoolEp, true)
 	server.AddEndpointFunc("GET", "/v1/pool/{id}", frontend.getPoolEp, true)

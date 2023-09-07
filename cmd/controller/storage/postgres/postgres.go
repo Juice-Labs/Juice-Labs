@@ -840,12 +840,12 @@ func (driver *storageDriver) GetPermissions(userId string) (restapi.UserPermissi
 	var result restapi.UserPermissions
 
 	rows, err := driver.db.QueryContext(driver.ctx, `
-	SELECT permissions.pool_id, permissions.permission, pools.pool_name, COUNT(sessions.id) AS session_count, COUNT(agents.id) AS agent_count, 
+	SELECT permissions.pool_id, permissions.permission, pools.pool_name, COUNT(sessions.id) AS session_count, COUNT(DISTINCT agents.id) AS agent_count, 
 		(SELECT COUNT(DISTINCT p.user_id) FROM permissions p WHERE p.pool_id = permissions.pool_id) as user_count
 	FROM permissions 
 	JOIN pools ON pools.id = permissions.pool_id
-	LEFT JOIN agents ON agents.pool_id = pools.id
-	LEFT JOIN sessions ON sessions.agent_id = agents.id
+	LEFT JOIN agents ON agents.pool_id = pools.id AND agents.state = 'active'
+	LEFT JOIN sessions ON sessions.agent_id = agents.id AND sessions.state = 'active'
 	WHERE user_id = $1
 	GROUP BY permissions.pool_id, permissions.permission, pools.pool_name`, userId)
 
