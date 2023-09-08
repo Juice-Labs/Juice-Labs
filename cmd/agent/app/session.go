@@ -16,6 +16,10 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/pkg/utilities"
 )
 
+var (
+	ErrClosed = errors.New("session is closed")
+)
+
 type Session struct {
 	Id         string
 	Version    string
@@ -24,6 +28,7 @@ type Session struct {
 	juicePath string
 	gpus      *gpu.SelectedGpuSet
 
+	closed      *utilities.ConcurrentVariable[bool]
 	connections *utilities.ConcurrentMap[string, *Connection]
 	taskManager *task.TaskManager
 
@@ -44,27 +49,39 @@ func newSession(ctx context.Context, id string, version string, persistent bool,
 }
 
 func (session *Session) Session() restapi.Session {
-	connections := make([]restapi.Connection, 0, session.connections.Len())
-	session.connections.Foreach(func(key string, value *Connection) bool {
-		connections = append(connections, restapi.Connection{
-			ConnectionData: value.ConnectionData,
-		})
-		return true
-	})
+	return utilities.WithReturn(session.closed, func(value bool) restapi.Session {
+		connections := make([]restapi.Connection, 0, session.connections.Len())
+		gpus := make([]restapi.SessionGpu, 0)
+		state := restapi.SessionClosed
 
-	return restapi.Session{
-		Id:          session.Id,
-		State:       restapi.SessionActive,
-		Version:     session.Version,
-		Gpus:        session.gpus.GetGpus(),
-		Connections: connections,
-		Persistent:  session.Persistent,
-	}
+		if !value {
+			session.connections.Foreach(func(key string, value *Connection) bool {
+				connections = append(connections, restapi.Connection{
+					ConnectionData: value.ConnectionData,
+				})
+				return true
+			})
+
+			gpus = session.gpus.GetGpus()
+			state = restapi.SessionActive
+		}
+
+		return restapi.Session{
+			Id:          session.Id,
+			State:       state,
+			Version:     session.Version,
+			Gpus:        gpus,
+			Connections: connections,
+			Persistent:  session.Persistent,
+		}
+	})
 }
 
 func (session *Session) Run(group task.Group) error {
 	group.GoFn(fmt.Sprintf("session %s close", session.Id), func(g task.Group) error {
 		<-session.taskManager.Ctx().Done()
+
+		session.closed.Set(true)
 
 		err := session.taskManager.Wait()
 
@@ -79,7 +96,32 @@ func (session *Session) Run(group task.Group) error {
 }
 
 func (session *Session) Cancel() {
-	session.taskManager.Cancel()
+	utilities.With(session.closed, func(value bool) {
+		if !value {
+			session.taskManager.Cancel()
+		}
+	})
+}
+
+func (session *Session) Connect(connectionData restapi.ConnectionData, c net.Conn) error {
+	logger.Tracef("Connecting to connection: %s", connectionData.Id)
+
+	return utilities.WithReturn(session.closed, func(value bool) error {
+		if !value {
+			connection, found := session.connections.Get(connectionData.Id)
+			if !found {
+				var err error
+				connection, err = session.addConnection(connectionData)
+				if err != nil {
+					return errors.Newf("session %s connection %s failed to connect", session.Id, connectionData.Id).Wrap(err)
+				}
+			}
+
+			return connection.Connect(c)
+		}
+
+		return ErrClosed
+	})
 }
 
 func (session *Session) addConnection(connectionData restapi.ConnectionData) (*Connection, error) {
@@ -115,19 +157,4 @@ func (session *Session) addConnection(connectionData restapi.ConnectionData) (*C
 	session.eventListener.ConnectionCreated(session.Id, connection.ConnectionData)
 
 	return connection, nil
-}
-
-func (session *Session) Connect(connectionData restapi.ConnectionData, c net.Conn) error {
-	logger.Tracef("Connecting to connection: %s", connectionData.Id)
-
-	connection, found := session.connections.Get(connectionData.Id)
-	if !found {
-		var err error
-		connection, err = session.addConnection(connectionData)
-		if err != nil {
-			return errors.Newf("session %s connection %s failed to connect", session.Id, connectionData.Id).Wrap(err)
-		}
-	}
-
-	return connection.Connect(c)
 }
