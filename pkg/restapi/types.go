@@ -24,8 +24,7 @@ type GpuRequirements struct {
 }
 
 type SessionRequirements struct {
-	Version    string `json:"version"`
-	Persistent bool   `json:"persistent"`
+	Version string `json:"version"`
 
 	Gpus []GpuRequirements `json:"gpus"`
 
@@ -40,11 +39,10 @@ type SessionGpu struct {
 }
 
 type Session struct {
-	Id         string `json:"id"`
-	State      string `json:"state"`
-	Address    string `json:"address"`
-	Version    string `json:"version"`
-	Persistent bool   `json:"persistent"`
+	Id      string `json:"id"`
+	State   string `json:"state"`
+	Address string `json:"address"`
+	Version string `json:"version"`
 
 	Gpus        []SessionGpu `json:"gpus"`
 	Connections []Connection `json:"connections"`

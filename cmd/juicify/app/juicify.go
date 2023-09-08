@@ -214,7 +214,6 @@ func Run(group task.Group) error {
 	}
 
 	config.Requirements.Version = version
-	config.Requirements.Persistent = false
 
 	server := *address
 	if server != "" {

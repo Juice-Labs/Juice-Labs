@@ -165,10 +165,10 @@ func (agent *Agent) getSession(sessionId string) (*Session, error) {
 	return session, nil
 }
 
-func (agent *Agent) addSession(sessionId string, version string, gpus *gpu.SelectedGpuSet, persistent bool) {
+func (agent *Agent) addSession(sessionId string, version string, gpus *gpu.SelectedGpuSet) {
 	logger.Tracef("Starting Session %s", sessionId)
 
-	session := newSession(agent.taskManager.Ctx(), sessionId, version, persistent, agent.JuicePath, gpus, agent)
+	session := newSession(agent.taskManager.Ctx(), sessionId, version, agent.JuicePath, gpus, agent)
 	agent.sessions.Set(sessionId, session)
 
 	agent.taskManager.Go(fmt.Sprintf("session %s", sessionId), session)
@@ -209,7 +209,7 @@ func (agent *Agent) requestSession(sessionRequirements restapi.SessionRequiremen
 	}
 
 	id := uuid.NewString()
-	agent.addSession(id, sessionRequirements.Version, selectedGpus, sessionRequirements.Persistent)
+	agent.addSession(id, sessionRequirements.Version, selectedGpus)
 	return id, nil
 }
 
@@ -219,7 +219,7 @@ func (agent *Agent) registerSession(session restapi.Session) error {
 		return errors.New("unable to select a matching set of GPUs").Wrap(err)
 	}
 
-	agent.addSession(session.Id, session.Version, selectedGpus, session.Persistent)
+	agent.addSession(session.Id, session.Version, selectedGpus)
 	return nil
 }
 

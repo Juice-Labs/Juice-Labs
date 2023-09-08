@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"time"
 
 	"github.com/Juice-Labs/Juice-Labs/pkg/errors"
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
@@ -22,36 +21,30 @@ var (
 )
 
 type Session struct {
-	Id         string
-	Version    string
-	Persistent bool
+	Id      string
+	Version string
 
 	juicePath string
 	gpus      *gpu.SelectedGpuSet
 
-	closed             *utilities.ConcurrentVariable[bool]
-	connections        *utilities.ConcurrentMap[string, *Connection]
-	connectionsChanged chan struct{}
-	sessionClosing     chan struct{}
+	closed      *utilities.ConcurrentVariable[bool]
+	connections *utilities.ConcurrentMap[string, *Connection]
 
 	taskManager *task.TaskManager
 
 	eventListener EventListener
 }
 
-func newSession(ctx context.Context, id string, version string, persistent bool, juicePath string, gpus *gpu.SelectedGpuSet, eventListener EventListener) *Session {
+func newSession(ctx context.Context, id string, version string, juicePath string, gpus *gpu.SelectedGpuSet, eventListener EventListener) *Session {
 	return &Session{
-		Id:                 id,
-		Version:            version,
-		Persistent:         persistent,
-		juicePath:          juicePath,
-		gpus:               gpus,
-		closed:             utilities.NewConcurrentVariableD[bool](false),
-		connections:        utilities.NewConcurrentMap[string, *Connection](),
-		connectionsChanged: make(chan struct{}),
-		sessionClosing:     make(chan struct{}),
-		taskManager:        task.NewTaskManager(ctx),
-		eventListener:      eventListener,
+		Id:            id,
+		Version:       version,
+		juicePath:     juicePath,
+		gpus:          gpus,
+		closed:        utilities.NewConcurrentVariableD[bool](false),
+		connections:   utilities.NewConcurrentMap[string, *Connection](),
+		taskManager:   task.NewTaskManager(ctx),
+		eventListener: eventListener,
 	}
 }
 
@@ -79,7 +72,6 @@ func (session *Session) Session() restapi.Session {
 			Version:     session.Version,
 			Gpus:        gpus,
 			Connections: connections,
-			Persistent:  session.Persistent,
 		}
 	})
 }
@@ -99,42 +91,12 @@ func (session *Session) Run(group task.Group) error {
 
 		err := session.taskManager.Wait()
 
-		close(session.connectionsChanged)
-		close(session.sessionClosing)
-
 		session.gpus.Release()
 
 		session.eventListener.SessionClosed(session.Id)
 
 		return err
 	})
-
-	if !session.Persistent {
-		group.GoFn(fmt.Sprintf("session %s ticker", session.Id), func(g task.Group) error {
-			ticker := time.NewTicker(30 * time.Second)
-			defer ticker.Stop()
-
-			done := false
-			for !done {
-				select {
-				case <-session.sessionClosing:
-					done = true
-
-				case <-ticker.C:
-					session.Cancel()
-
-				case <-session.connectionsChanged:
-					if session.connections.Empty() {
-						ticker.Reset(30 * time.Second)
-					} else {
-						ticker.Stop()
-					}
-				}
-			}
-
-			return nil
-		})
-	}
 
 	return nil
 }
@@ -187,16 +149,12 @@ func (session *Session) addConnection(connectionData restapi.ConnectionData) (*C
 		close(exitCodeCh)
 
 		session.connections.Delete(connection.Id)
-		session.connectionsChanged <- struct{}{}
-
 		session.eventListener.ConnectionClosed(session.Id, connection.ConnectionData, exitCode)
 
 		return nil
 	})
 
 	session.connections.Set(connection.Id, connection)
-	session.connectionsChanged <- struct{}{}
-
 	session.eventListener.ConnectionCreated(session.Id, connection.ConnectionData)
 
 	return connection, nil

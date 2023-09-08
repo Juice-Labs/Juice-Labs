@@ -376,10 +376,9 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 func (driver *storageDriver) RequestSession(requirements restapi.SessionRequirements) (string, error) {
 	session := Session{
 		Session: restapi.Session{
-			Id:         uuid.NewString(),
-			Version:    requirements.Version,
-			State:      restapi.SessionQueued,
-			Persistent: requirements.Persistent,
+			Id:      uuid.NewString(),
+			Version: requirements.Version,
+			State:   restapi.SessionQueued,
 		},
 		Requirements: requirements,
 		VramRequired: storage.TotalVramRequired(requirements),

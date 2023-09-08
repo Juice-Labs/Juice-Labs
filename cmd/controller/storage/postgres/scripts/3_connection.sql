@@ -3,3 +3,6 @@ alter table connections
     add column exit_code int;
 
 drop type connection_exit_status;
+
+alter table sessions 
+    drop column persistent;
