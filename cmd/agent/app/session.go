@@ -32,6 +32,7 @@ type Session struct {
 	closed             *utilities.ConcurrentVariable[bool]
 	connections        *utilities.ConcurrentMap[string, *Connection]
 	connectionsChanged chan struct{}
+	sessionClosing     chan struct{}
 
 	taskManager *task.TaskManager
 
@@ -48,6 +49,7 @@ func newSession(ctx context.Context, id string, version string, persistent bool,
 		closed:             utilities.NewConcurrentVariableD[bool](false),
 		connections:        utilities.NewConcurrentMap[string, *Connection](),
 		connectionsChanged: make(chan struct{}),
+		sessionClosing:     make(chan struct{}),
 		taskManager:        task.NewTaskManager(ctx),
 		eventListener:      eventListener,
 	}
@@ -95,9 +97,10 @@ func (session *Session) Run(group task.Group) error {
 
 		session.closed.Set(true)
 
-		close(session.connectionsChanged)
-
 		err := session.taskManager.Wait()
+
+		close(session.connectionsChanged)
+		close(session.sessionClosing)
 
 		session.gpus.Release()
 
@@ -107,13 +110,14 @@ func (session *Session) Run(group task.Group) error {
 	})
 
 	if !session.Persistent {
-		session.taskManager.GoFn(fmt.Sprintf("session %s ticker", session.Id), func(g task.Group) error {
+		group.GoFn(fmt.Sprintf("session %s ticker", session.Id), func(g task.Group) error {
 			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
 
 			done := false
 			for !done {
 				select {
-				case <-session.taskManager.Ctx().Done():
+				case <-session.sessionClosing:
 					done = true
 
 				case <-ticker.C:

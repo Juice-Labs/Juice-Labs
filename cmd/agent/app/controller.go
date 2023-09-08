@@ -146,6 +146,7 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 							}
 
 							session.Connections[update.Id] = update.Connection
+							sessionUpdates[update.Id] = session
 
 						default:
 							break CopySessions

@@ -281,15 +281,15 @@ func Run(group task.Group) error {
 					done = true
 
 				case <-ticker.C:
-					session, err := api.StatusWithContext(group.Ctx())
+					session, err := api.GetSessionWithContext(group.Ctx(), config.Id)
 					if err != nil {
 						logger.Errorf("received error while checking the agent, %v", err)
-					} else {
-						if session.State == restapi.SessionClosed {
-							logger.Info("session has been closed, exiting")
 
-							group.Cancel()
-						}
+						group.Cancel()
+					} else if session.State == restapi.SessionClosed {
+						logger.Info("session has been closed, exiting")
+
+						group.Cancel()
 					}
 				}
 			}
