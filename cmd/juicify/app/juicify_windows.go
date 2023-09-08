@@ -8,11 +8,11 @@ import (
 	"path/filepath"
 	"unsafe"
 
-	// See https://github.com/Juice-Labs/juice/issues/1765.
-	// "github.com/kolesnikovae/go-winjob"
+	"github.com/kolesnikovae/go-winjob"
 
 	"github.com/Juice-Labs/Juice-Labs/pkg/errors"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
+	pkgWinjob "github.com/Juice-Labs/Juice-Labs/pkg/winjob"
 )
 
 // #include "version_windows.h"
@@ -49,35 +49,34 @@ func runCommand(group task.Group, cmd *exec.Cmd, config Configuration) error {
 	// Commented out for now to preserve existing behavior from the C++
 	// version of juicify.  See https://github.com/Juice-Labs/juice/issues/1756
 	// and https://github.com/Juice-Labs/juice/issues/1765.
-	//
-	// job, err := winjob.Create("Juicify", winjob.WithKillOnJobClose())
-	// if err != nil {
-	// 	return err
-	// }
-	// defer job.Close()
 
-	// notificationChannel := make(chan winjob.Notification, 1)
-	// subscription, err := winjob.Notify(notificationChannel, job)
-	// if err != nil {
-	// 	return err
-	// }
-	// defer subscription.Close()
+	job, err := pkgWinjob.CreateAnonymous(winjob.WithKillOnJobClose())
+	if err != nil {
+		return err
+	}
+	defer job.Close()
 
-	// err = winjob.StartInJobObject(cmd, job)
-	// if err != nil {
-	// 	return err
-	// }
+	notificationChannel := make(chan winjob.Notification, 1)
+	subscription, err := winjob.Notify(notificationChannel, job)
+	if err != nil {
+		return err
+	}
+	defer subscription.Close()
 
-	// for {
-	// 	select {
-	// 	case <-group.Ctx().Done():
-	// 		return nil
+	err = winjob.StartInJobObject(cmd, job)
+	if err != nil {
+		return err
+	}
 
-	// 	case n := <-notificationChannel:
-	// 		if n.Type == winjob.NotificationActiveProcessZero {
-	// 			return nil
-	// 		}
-	// 	}
-	// }
-	return cmd.Run()
+	for {
+		select {
+		case <-group.Ctx().Done():
+			return nil
+
+		case n := <-notificationChannel:
+			if n.Type == winjob.NotificationActiveProcessZero {
+				return nil
+			}
+		}
+	}
 }
