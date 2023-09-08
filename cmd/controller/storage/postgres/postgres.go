@@ -96,6 +96,9 @@ func (iterator *tableIterator[T]) Next() bool {
 		}
 
 		iterator.iterator = storage.NewDefaultIterator[T](objects)
+		// Call next once to move the new iterator to the first element
+		iterator.iterator.Next()
+
 	}
 
 	return true

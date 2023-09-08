@@ -215,9 +215,13 @@ func (frontend *Frontend) createPoolEp(group task.Group, w http.ResponseWriter, 
 		return
 	}
 
-	// enableValidation := (os.Getenv("ENABLE_TOKEN_VALIDATION") == "true") || *enableTokenValidation
-	// TODO: Skip if token validation is disabled
-	claims, ok := r.Context().Value(jwtmiddleware.ContextKey{}).(*validator.ValidatedClaims)
+	val := r.Context().Value(jwtmiddleware.ContextKey{})
+	if val == nil {
+		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+		logger.Error(err)
+		return
+	}
+	claims, ok := val.(*validator.ValidatedClaims)
 
 	if (!ok) || (claims == nil) {
 		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
