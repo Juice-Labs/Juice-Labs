@@ -48,3 +48,10 @@ func With[V any](variable *ConcurrentVariable[V], callback func(value V)) {
 
 	callback(variable.Value)
 }
+
+func WithRef[V any](variable *ConcurrentVariable[V], callback func(value *V)) {
+	variable.Lock()
+	defer variable.Unlock()
+
+	callback(&variable.Value)
+}

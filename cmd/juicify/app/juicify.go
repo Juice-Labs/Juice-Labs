@@ -58,7 +58,7 @@ func validateConfiguration(config *Configuration) error {
 	return nil
 }
 
-func waitForSession(api restapi.Client, group task.Group, id string) (restapi.Session, error) {
+func waitForSession(group task.Group, api restapi.Client, id string) (restapi.Session, error) {
 	session, err := api.GetSessionWithContext(group.Ctx(), id)
 	if err != nil {
 		return restapi.Session{}, err
@@ -116,19 +116,13 @@ func waitForSession(api restapi.Client, group task.Group, id string) (restapi.Se
 	return session, nil
 }
 
-func requestSession(group task.Group, client *http.Client, config *Configuration) error {
-	api := restapi.Client{
-		Client:      client,
-		Address:     config.Servers[0],
-		AccessToken: config.AccessToken,
-	}
-
+func requestSession(group task.Group, api *restapi.Client, config *Configuration) error {
 	id, err := api.RequestSessionWithContext(group.Ctx(), config.Requirements)
 	if err != nil {
 		return err
 	}
 
-	session, err := waitForSession(api, group, id)
+	session, err := waitForSession(group, *api, id)
 	if err != nil {
 		if !errors.Is(err, errInvalidSessionState) {
 			err = errors.Join(err, api.CancelSession(id))
@@ -141,9 +135,20 @@ func requestSession(group task.Group, client *http.Client, config *Configuration
 
 	if session.Address != "" {
 		config.Servers = []string{session.Address}
+
+		api.Address = config.Servers[0]
 	}
 
 	return nil
+}
+
+func cancelSession(api restapi.Client, config Configuration) error {
+	err := api.CancelSession(config.Id)
+	if err != nil {
+		err = errors.Newf("failed to cancel session %s", config.Id).Wrap(err)
+	}
+
+	return err
 }
 
 func Run(group task.Group) error {
@@ -240,15 +245,13 @@ func Run(group task.Group) error {
 		return err
 	}
 
-	client := &http.Client{}
+	api := restapi.Client{
+		Client:      &http.Client{},
+		Address:     config.Servers[0],
+		AccessToken: config.AccessToken,
+	}
 
 	if *testConnection {
-		api := restapi.Client{
-			Client:      client,
-			Address:     server,
-			AccessToken: *accessToken,
-		}
-
 		status, err := api.StatusWithContext(group.Ctx())
 
 		logger.Infof("Connected to %s, v%s", server, status.Version)
@@ -257,7 +260,7 @@ func Run(group task.Group) error {
 	}
 
 	if err == nil {
-		err = requestSession(group, client, &config)
+		err = requestSession(group, &api, &config)
 		if err != nil {
 			if err != errCancelled {
 				return err
@@ -265,6 +268,34 @@ func Run(group task.Group) error {
 
 			return nil
 		}
+
+		defer cancelSession(api, config)
+
+		group.GoFn("Check session", func(g task.Group) error {
+			ticker := time.NewTicker(10 * time.Second)
+
+			done := false
+			for !done {
+				select {
+				case <-group.Ctx().Done():
+					done = true
+
+				case <-ticker.C:
+					session, err := api.StatusWithContext(group.Ctx())
+					if err != nil {
+						logger.Errorf("received error while checking the agent, %v", err)
+					} else {
+						if session.State == restapi.SessionClosed {
+							logger.Info("session has been closed, exiting")
+
+							group.Cancel()
+						}
+					}
+				}
+			}
+
+			return nil
+		})
 	}
 
 	var cmd *exec.Cmd

@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/Juice-Labs/Juice-Labs/pkg/errors"
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
@@ -28,8 +29,10 @@ type Session struct {
 	juicePath string
 	gpus      *gpu.SelectedGpuSet
 
-	closed      *utilities.ConcurrentVariable[bool]
-	connections *utilities.ConcurrentMap[string, *Connection]
+	closed             *utilities.ConcurrentVariable[bool]
+	connections        *utilities.ConcurrentMap[string, *Connection]
+	connectionsChanged chan struct{}
+
 	taskManager *task.TaskManager
 
 	eventListener EventListener
@@ -37,14 +40,16 @@ type Session struct {
 
 func newSession(ctx context.Context, id string, version string, persistent bool, juicePath string, gpus *gpu.SelectedGpuSet, eventListener EventListener) *Session {
 	return &Session{
-		Id:            id,
-		Version:       version,
-		Persistent:    persistent,
-		juicePath:     juicePath,
-		gpus:          gpus,
-		connections:   utilities.NewConcurrentMap[string, *Connection](),
-		taskManager:   task.NewTaskManager(ctx),
-		eventListener: eventListener,
+		Id:                 id,
+		Version:            version,
+		Persistent:         persistent,
+		juicePath:          juicePath,
+		gpus:               gpus,
+		closed:             utilities.NewConcurrentVariableD[bool](false),
+		connections:        utilities.NewConcurrentMap[string, *Connection](),
+		connectionsChanged: make(chan struct{}),
+		taskManager:        task.NewTaskManager(ctx),
+		eventListener:      eventListener,
 	}
 }
 
@@ -79,9 +84,18 @@ func (session *Session) Session() restapi.Session {
 
 func (session *Session) Run(group task.Group) error {
 	group.GoFn(fmt.Sprintf("session %s close", session.Id), func(g task.Group) error {
-		<-session.taskManager.Ctx().Done()
+		select {
+		case <-group.Ctx().Done():
+			session.Cancel()
+			break
+
+		case <-session.taskManager.Ctx().Done():
+			break
+		}
 
 		session.closed.Set(true)
+
+		close(session.connectionsChanged)
 
 		err := session.taskManager.Wait()
 
@@ -91,6 +105,32 @@ func (session *Session) Run(group task.Group) error {
 
 		return err
 	})
+
+	if !session.Persistent {
+		session.taskManager.GoFn(fmt.Sprintf("session %s ticker", session.Id), func(g task.Group) error {
+			ticker := time.NewTicker(30 * time.Second)
+
+			done := false
+			for !done {
+				select {
+				case <-session.taskManager.Ctx().Done():
+					done = true
+
+				case <-ticker.C:
+					session.Cancel()
+
+				case <-session.connectionsChanged:
+					if session.connections.Empty() {
+						ticker.Reset(30 * time.Second)
+					} else {
+						ticker.Stop()
+					}
+				}
+			}
+
+			return nil
+		})
+	}
 
 	return nil
 }
@@ -135,8 +175,6 @@ func (session *Session) addConnection(connectionData restapi.ConnectionData) (*C
 		return nil, err
 	}
 
-	session.connections.Set(connection.Id, connection)
-
 	session.taskManager.GoFn(fmt.Sprintf("session %s connection %s", session.Id, connection.Id), func(g task.Group) error {
 		exitCode, ok := <-exitCodeCh
 		if !ok {
@@ -145,14 +183,15 @@ func (session *Session) addConnection(connectionData restapi.ConnectionData) (*C
 		close(exitCodeCh)
 
 		session.connections.Delete(connection.Id)
-		if !session.Persistent && session.connections.Empty() {
-			session.Cancel()
-		}
+		session.connectionsChanged <- struct{}{}
 
 		session.eventListener.ConnectionClosed(session.Id, connection.ConnectionData, exitCode)
 
 		return nil
 	})
+
+	session.connections.Set(connection.Id, connection)
+	session.connectionsChanged <- struct{}{}
 
 	session.eventListener.ConnectionCreated(session.Id, connection.ConnectionData)
 
