@@ -27,9 +27,13 @@ func main() {
 		},
 	}
 
-	appmain.Run(config, func(group task.Group) error {
+	err := appmain.Run(config, func(group task.Group) error {
 		err := app.Run(group)
 		group.Cancel()
 		return err
 	})
+
+	if err != nil {
+		os.Exit(appmain.ExitFailure)
+	}
 }

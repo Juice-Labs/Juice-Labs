@@ -41,7 +41,7 @@ func main() {
 		},
 	}
 
-	appmain.Run(config, func(group task.Group) error {
+	err := appmain.Run(config, func(group task.Group) error {
 		var tlsConfig *tls.Config
 
 		var err error
@@ -95,4 +95,8 @@ func main() {
 
 		return nil
 	})
+
+	if err != nil {
+		os.Exit(appmain.ExitFailure)
+	}
 }

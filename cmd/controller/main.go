@@ -100,7 +100,7 @@ func main() {
 		},
 	}
 
-	appmain.Run(config, func(group task.Group) error {
+	err := appmain.Run(config, func(group task.Group) error {
 		var err error
 
 		storage, err := openStorage(group.Ctx())
@@ -189,4 +189,8 @@ func main() {
 
 		return err
 	})
+
+	if err != nil {
+		os.Exit(appmain.ExitFailure)
+	}
 }

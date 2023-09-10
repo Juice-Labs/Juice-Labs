@@ -36,7 +36,7 @@ var (
 	printVersion = flag.Bool("version", false, "Prints the version and exits")
 )
 
-func Run(config Config, logic task.TaskFn) {
+func Run(config Config, logic task.TaskFn) error {
 	flag.Parse()
 
 	var err error
@@ -72,4 +72,6 @@ func Run(config Config, logic task.TaskFn) {
 	if err != nil {
 		logger.Error(err)
 	}
+
+	return err
 }
