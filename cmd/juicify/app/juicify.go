@@ -121,6 +121,8 @@ func requestSession(group task.Group, client *http.Client, config *Configuration
 		AccessToken: config.AccessToken,
 	}
 
+	logger.Infof("Connecting to %s", config.Servers[0])
+
 	id, err := api.RequestSessionWithContext(group.Ctx(), config.Requirements)
 	if err != nil {
 		return err
