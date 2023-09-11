@@ -16,7 +16,10 @@ import (
 
 	"github.com/Juice-Labs/Juice-Labs/pkg/errors"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
+	"github.com/Juice-Labs/Juice-Labs/pkg/sentry"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
+
+	sentryhttp "github.com/getsentry/sentry-go/http"
 )
 
 var (
@@ -82,6 +85,15 @@ func NewServer(address string, tlsConfig *tls.Config) (*Server, error) {
 	})
 
 	root := mux.NewRouter().StrictSlash(true)
+
+	if sentry.Enabled() {
+		sentryHandler := sentryhttp.New(sentryhttp.Options{
+			Repanic: true,
+		})
+
+		root.Use(sentryHandler.Handle)
+	}
+
 	root.Use(logger.Middleware)
 	handler := cors.Handler(root)
 

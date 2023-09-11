@@ -25,15 +25,33 @@ if ($IsWindows)
     $Suffix = ".exe"
 }
 
+function Get-LinkFlags($Component)
+{
+    $SentryDsn = @{
+        agent       = $env:JUICE_AGENT_SENTRY_DSN;
+        controller  = $env:JUICE_CONTROLLER_SENTRY_DSN;
+        juicify     = $env:JUICE_JUICIFY_SENTRY_DSN;
+    }
+
+    $dsn = $SentryDsn[$Component]
+    
+    return @(
+        "-X github.com/Juice-Labs/Juice-Labs/cmd/internal/build.Version=$Version";
+        "-X github.com/Juice-Labs/Juice-Labs/pkg/sentry.SentryDsn=$dsn";
+     ) | Join-String -Separator " "
+}
+
+
+
 if ($BuildDebug)
 {
-    & go build -o $Output/agent$Suffix -ldflags "-X github.com/Juice-Labs/Juice-Labs/cmd/internal/build.Version=$Version" -gcflags=all='-N -l' ./cmd/agent/main.go
-    & go build -o $Output/controller$Suffix -ldflags "-X github.com/Juice-Labs/Juice-Labs/cmd/internal/build.Version=$Version" -gcflags=all='-N -l' ./cmd/controller/main.go
-    & go build -o $Output/juicify$Suffix -ldflags "-X github.com/Juice-Labs/Juice-Labs/cmd/internal/build.Version=$Version" -gcflags=all='-N -l' ./cmd/juicify/main.go
+    & go build -o $Output/agent$Suffix -ldflags (Get-LinkFlags -Component "agent") -gcflags=all='-N -l' ./cmd/agent/main.go
+    & go build -o $Output/controller$Suffix -ldflags (Get-LinkFlags -Component "controller") -gcflags=all='-N -l' ./cmd/controller/main.go
+    & go build -o $Output/juicify$Suffix -ldflags (Get-LinkFlags -Component "juicify") -gcflags=all='-N -l' ./cmd/juicify/main.go
 }
 else
 {
-    & go build -o $Output/agent$Suffix -ldflags "-X github.com/Juice-Labs/Juice-Labs/cmd/internal/build.Version=$Version" ./cmd/agent/main.go
-    & go build -o $Output/controller$Suffix -ldflags "-X github.com/Juice-Labs/Juice-Labs/cmd/internal/build.Version=$Version" ./cmd/controller/main.go
-    & go build -o $Output/juicify$Suffix -ldflags "-X github.com/Juice-Labs/Juice-Labs/cmd/internal/build.Version=$Version" ./cmd/juicify/main.go
+    & go build -o $Output/agent$Suffix -ldflags (Get-LinkFlags -Component "agent") ./cmd/agent/main.go
+    & go build -o $Output/controller$Suffix -ldflags (Get-LinkFlags -Component "controller") ./cmd/controller/main.go
+    & go build -o $Output/juicify$Suffix -ldflags (Get-LinkFlags -Component "juicify") ./cmd/juicify/main.go
 }

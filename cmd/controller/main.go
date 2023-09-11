@@ -26,6 +26,7 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/pkg/appmain"
 	"github.com/Juice-Labs/Juice-Labs/pkg/crypto"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
+	"github.com/Juice-Labs/Juice-Labs/pkg/sentry"
 	"github.com/Juice-Labs/Juice-Labs/pkg/server"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
@@ -86,7 +87,20 @@ func openStorage(ctx context.Context) (storage.Storage, error) {
 }
 
 func main() {
-	appmain.Run("Juice Controller", build.Version, func(group task.Group) error {
+	name := "Juice Controller"
+	config := appmain.Config{
+		Name:    name,
+		Version: build.Version,
+
+		SentryConfig: sentry.ClientOptions{
+			Dsn:              os.Getenv("JUICE_CONTROLLER_SENTRY_DSN"),
+			Release:          fmt.Sprintf("%s@%s", name, build.Version),
+			EnableTracing:    true,
+			TracesSampleRate: 1.0,
+		},
+	}
+
+	err := appmain.Run(config, func(group task.Group) error {
 		var err error
 
 		storage, err := openStorage(group.Ctx())
@@ -175,4 +189,8 @@ func main() {
 
 		return err
 	})
+
+	if err != nil {
+		os.Exit(appmain.ExitFailure)
+	}
 }

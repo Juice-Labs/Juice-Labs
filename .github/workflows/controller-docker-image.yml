@@ -47,6 +47,7 @@ jobs:
           build-args: |
             BASE_CONTAINER=ubuntu:22.04
             JUICE_VERSION=${{ steps.version.outputs.version }}
+            JUICE_SENTRY_DSN=${{ secrets.CONTROLLER_SENTRY_DSN }}
           file: docker/controller/Dockerfile
           push: true
           tags: juicelabs/controller:latest,juicelabs/controller:${{ steps.version.outputs.version }}
