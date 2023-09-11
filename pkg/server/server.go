@@ -36,6 +36,7 @@ type Server struct {
 	port int
 
 	root      *mux.Router
+	handler   http.Handler
 	tlsConfig *tls.Config
 
 	endpoints []Endpoint
@@ -79,12 +80,14 @@ func NewServer(address string, tlsConfig *tls.Config) (*Server, error) {
 	})
 
 	root := mux.NewRouter().StrictSlash(true)
-	root.Use(logger.Middleware, cors.Handler)
+	root.Use(logger.Middleware)
+	handler := cors.Handler(root)
 
 	server := &Server{
 		url:       url,
 		port:      port,
 		root:      root,
+		handler:   handler,
 		tlsConfig: tlsConfig,
 	}
 
@@ -154,7 +157,7 @@ func (server *Server) Run(group task.Group) error {
 			return group.Ctx()
 		},
 		Addr:      server.url.Host,
-		Handler:   server.root,
+		Handler:   server.handler,
 		TLSConfig: server.tlsConfig,
 	}
 
