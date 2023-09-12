@@ -6,6 +6,8 @@ import (
 
 	"go.uber.org/zap/buffer"
 	"go.uber.org/zap/zapcore"
+
+	pool "github.com/Juice-Labs/Juice-Labs/pkg/logger/pool"
 )
 
 // This is copy-pasta basically from zapcore.memory_encoder.go
@@ -87,8 +89,8 @@ type juiceEncoder struct {
 	zapcore.Encoder
 	*zapcore.EncoderConfig
 
-	pool          buffer.Pool
-	memoryEncoder *sliceArrayEncoder
+	pool           buffer.Pool
+	memoryEncoders *pool.Pool[*sliceArrayEncoder]
 }
 
 func NewJuiceEncoder(cfg zapcore.EncoderConfig) (zapcore.Encoder, error) {
@@ -100,7 +102,9 @@ func NewJuiceEncoder(cfg zapcore.EncoderConfig) (zapcore.Encoder, error) {
 		Encoder:       zapcore.NewConsoleEncoder(cfg),
 		EncoderConfig: &cfg,
 		pool:          buffer.NewPool(),
-		memoryEncoder: &sliceArrayEncoder{},
+		memoryEncoders: pool.New(func() *sliceArrayEncoder {
+			return &sliceArrayEncoder{}
+		}),
 	}
 
 	return encoder, nil
@@ -113,7 +117,7 @@ func (c juiceEncoder) Clone() zapcore.Encoder {
 func (c juiceEncoder) EncodeEntry(ent zapcore.Entry, fields []zapcore.Field) (*buffer.Buffer, error) {
 	line := c.pool.Get()
 
-	arr := c.memoryEncoder
+	arr := c.memoryEncoders.Get()
 
 	c.EncodeTime(ent.Time, arr)
 

@@ -110,7 +110,7 @@ func (session *Session) Cancel() {
 }
 
 func (session *Session) Connect(connectionData restapi.ConnectionData, c net.Conn) error {
-	logger.Tracef("Connecting to connection: %s", connectionData.Id)
+	logger.Debugf("Connecting to connection: %s", connectionData.Id)
 
 	return utilities.WithReturn(session.closed, func(value bool) error {
 		if !value {
@@ -131,7 +131,7 @@ func (session *Session) Connect(connectionData restapi.ConnectionData, c net.Con
 }
 
 func (session *Session) addConnection(connectionData restapi.ConnectionData) (*Connection, error) {
-	logger.Tracef("session %s creating connection %s for PID %s and process name %s", session.Id, connectionData.Id, connectionData.Pid, connectionData.ProcessName)
+	logger.Debugf("session %s creating connection %s for PID %s and process name %s", session.Id, connectionData.Id, connectionData.Pid, connectionData.ProcessName)
 
 	exitCodeCh := make(chan int)
 

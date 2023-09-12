@@ -166,7 +166,7 @@ func (agent *Agent) getSession(sessionId string) (*Session, error) {
 }
 
 func (agent *Agent) addSession(sessionId string, version string, gpus *gpu.SelectedGpuSet) {
-	logger.Tracef("Starting Session %s", sessionId)
+	logger.Debugf("Starting Session %s", sessionId)
 
 	session := newSession(agent.taskManager.Ctx(), sessionId, version, agent.JuicePath, gpus, agent)
 	agent.sessions.Set(sessionId, session)
@@ -224,7 +224,7 @@ func (agent *Agent) registerSession(session restapi.Session) error {
 }
 
 func (agent *Agent) SessionActive(id string) {
-	logger.Tracef("session %s active", id)
+	logger.Debugf("session %s active", id)
 
 	if agent.sessionUpdates != nil {
 		agent.sessionUpdates <- sessionUpdate{
@@ -235,7 +235,7 @@ func (agent *Agent) SessionActive(id string) {
 }
 
 func (agent *Agent) SessionClosed(id string) {
-	logger.Tracef("session %s closed", id)
+	logger.Debugf("session %s closed", id)
 
 	agent.sessions.Delete(id)
 
@@ -248,7 +248,7 @@ func (agent *Agent) SessionClosed(id string) {
 }
 
 func (agent *Agent) ConnectionCreated(sessionId string, connection restapi.ConnectionData) {
-	logger.Tracef("session %s created connection %s", sessionId, connection.Id)
+	logger.Debugf("session %s created connection %s", sessionId, connection.Id)
 
 	if agent.connectionUpdates != nil {
 		agent.connectionUpdates <- connectionUpdate{
@@ -261,7 +261,7 @@ func (agent *Agent) ConnectionCreated(sessionId string, connection restapi.Conne
 }
 
 func (agent *Agent) ConnectionClosed(sessionId string, connection restapi.ConnectionData, exitCode int) {
-	logger.Tracef("session %s closed connection %s with exit code %d", sessionId, connection.Id, exitCode)
+	logger.Debugf("session %s closed connection %s with exit code %d", sessionId, connection.Id, exitCode)
 
 	if agent.connectionUpdates != nil {
 		agent.connectionUpdates <- connectionUpdate{

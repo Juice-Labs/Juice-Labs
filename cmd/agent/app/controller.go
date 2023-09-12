@@ -4,6 +4,7 @@
 package app
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"net/http"
@@ -45,14 +46,26 @@ type controllerData struct {
 	gpuMetrics      []restapi.GpuMetrics
 }
 
-func (agent *Agent) ConnectToController(group task.Group) error {
+func (agent *Agent) ConnectToController(group task.Group, tlsConfig *tls.Config) error {
 	if *controllerAddress != "" {
 		accessToken := *accessToken
 		if accessToken == "" {
 			accessToken = os.Getenv("AUTH0_AGENT_TOKEN")
 		}
+
+		var client *http.Client
+		if tlsConfig != nil {
+			client = &http.Client{
+				Transport: &http.Transport{
+					TLSClientConfig: tlsConfig,
+				},
+			}
+		} else {
+			client = &http.Client{}
+		}
+
 		agent.api = restapi.Client{
-			Client:      &http.Client{},
+			Client:      client,
 			Address:     *controllerAddress,
 			AccessToken: accessToken,
 		}
@@ -146,7 +159,7 @@ func (agent *Agent) ConnectToController(group task.Group) error {
 							}
 
 							session.Connections[update.Id] = update.Connection
-							sessionUpdates[update.Id] = session
+							sessionUpdates[update.SessionId] = session
 
 						default:
 							break CopySessions

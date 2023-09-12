@@ -102,7 +102,29 @@ func main() {
 	}
 
 	err := appmain.Run(config, func(group task.Group) error {
-		var err error
+		var tlsConfig *tls.Config
+
+		if *certFile != "" && *keyFile != "" {
+			certificate, err := tls.LoadX509KeyPair(*certFile, *keyFile)
+			if err != nil {
+				return err
+			}
+
+			tlsConfig = &tls.Config{
+				InsecureSkipVerify: true,
+				Certificates:       []tls.Certificate{certificate},
+			}
+		} else if *generateCert {
+			certificate, err := crypto.GenerateCertificate()
+			if err != nil {
+				return err
+			}
+
+			tlsConfig = &tls.Config{
+				InsecureSkipVerify: true,
+				Certificates:       []tls.Certificate{certificate},
+			}
+		}
 
 		storage, err := openStorage(group.Ctx())
 		if err == nil {
@@ -110,29 +132,6 @@ func main() {
 				<-group.Ctx().Done()
 				return storage.Close()
 			})
-		}
-
-		var tlsConfig *tls.Config
-
-		var certificates []tls.Certificate
-		if *certFile != "" && *keyFile != "" {
-			certificate, err_ := tls.LoadX509KeyPair(*certFile, *keyFile)
-			err = err_
-			if err == nil {
-				certificates = append(certificates, certificate)
-			}
-		} else if *generateCert {
-			certificate, err_ := crypto.GenerateCertificate()
-			err = err_
-			if err == nil {
-				certificates = append(certificates, certificate)
-			}
-		}
-
-		if certificates != nil {
-			tlsConfig = &tls.Config{
-				Certificates: certificates,
-			}
 		}
 
 		if err := godotenv.Load(); err != nil {

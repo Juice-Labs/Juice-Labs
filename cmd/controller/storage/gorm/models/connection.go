@@ -54,7 +54,7 @@ type Connection struct {
 	UUID        uuid.UUID `gorm:"type:uuid;notnull;unique"`
 	SessionID   uint      `gorm:"constraint:OnDelete:CASCADE;"`
 	Session     Session
-	ExitStatus  ExitStatus
-	Pid         uint64
+	ExitCode    int
+	Pid         string
 	ProcessName string
 }
