@@ -192,9 +192,9 @@ func (server *Server) Run(group task.Group) error {
 		}
 		if err == http.ErrServerClosed {
 			return nil
-		} else {
-			return err
 		}
+		
+		return err
 	})
 
 	group.GoFn("HTTP Shutdown", func(group task.Group) error {
