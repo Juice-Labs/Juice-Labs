@@ -4,16 +4,36 @@
 package main
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
 	"github.com/Juice-Labs/Juice-Labs/cmd/juicify/app"
 	"github.com/Juice-Labs/Juice-Labs/pkg/appmain"
+	"github.com/Juice-Labs/Juice-Labs/pkg/sentry"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
 
 func main() {
-	appmain.Run("juicify", build.Version, func(group task.Group) error {
+	name := "juicify"
+
+	config := appmain.Config{
+		Name:    name,
+		Version: build.Version,
+
+		SentryConfig: sentry.ClientOptions{
+			Dsn:     os.Getenv("JUICE_JUICIFY_SENTRY_DSN"),
+			Release: fmt.Sprintf("%s@%s", name, build.Version),
+		},
+	}
+
+	err := appmain.Run(config, func(group task.Group) error {
 		err := app.Run(group)
 		group.Cancel()
 		return err
 	})
+
+	if err != nil {
+		os.Exit(appmain.ExitFailure)
+	}
 }

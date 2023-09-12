@@ -17,8 +17,7 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/frontend"
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/prometheus"
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
-	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage/memdb"
-	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage/postgres"
+	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage/gorm"
 
 	"github.com/joho/godotenv"
 
@@ -26,6 +25,7 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/pkg/appmain"
 	"github.com/Juice-Labs/Juice-Labs/pkg/crypto"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
+	"github.com/Juice-Labs/Juice-Labs/pkg/sentry"
 	"github.com/Juice-Labs/Juice-Labs/pkg/server"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
@@ -43,6 +43,8 @@ var (
 
 	psqlConnection         = flag.String("psql-connection", "", "See https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters")
 	psqlConnectionFromFile = flag.String("psql-connection-from-file", "", "See https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters")
+
+	sqliteConnection = flag.String("sqlite-connection", "controller.db", "Create/Use the specified SQLite database for persistant storage")
 
 	mainServer       *server.Server
 	prometheusServer *server.Server
@@ -79,14 +81,27 @@ func openStorage(ctx context.Context) (storage.Storage, error) {
 			connection = psqlConnectionFromEnv
 		}
 
-		return postgres.OpenStorage(ctx, connection)
+		return gorm.OpenStorage(ctx, "postgres", connection)
 	}
 
-	return memdb.OpenStorage(ctx)
+	return gorm.OpenStorage(ctx, "sqlite", *sqliteConnection)
 }
 
 func main() {
-	appmain.Run("Juice Controller", build.Version, func(group task.Group) error {
+	name := "Juice Controller"
+	config := appmain.Config{
+		Name:    name,
+		Version: build.Version,
+
+		SentryConfig: sentry.ClientOptions{
+			Dsn:              os.Getenv("JUICE_CONTROLLER_SENTRY_DSN"),
+			Release:          fmt.Sprintf("%s@%s", name, build.Version),
+			EnableTracing:    true,
+			TracesSampleRate: 1.0,
+		},
+	}
+
+	err := appmain.Run(config, func(group task.Group) error {
 		var err error
 
 		storage, err := openStorage(group.Ctx())
@@ -175,4 +190,8 @@ func main() {
 
 		return err
 	})
+
+	if err != nil {
+		os.Exit(appmain.ExitFailure)
+	}
 }

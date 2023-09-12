@@ -6,199 +6,122 @@ package logger
 import (
 	"flag"
 	"fmt"
-	"io"
-	"log"
-	"os"
 	"strings"
-)
 
-type LogLevel int
-
-const (
-	LevelFatal LogLevel = iota
-	LevelError
-	LevelWarning
-	LevelInfo
-	LevelDebug
-	LevelTrace
+	"go.uber.org/zap"
 )
 
 var (
 	quiet       = flag.Bool("quiet", false, "Disables all logging output")
 	logLevelArg = flag.String("log-level", "info", "Sets the maximum level of output [Fatal, Error, Warning, Info (Default), Debug, Trace]")
 	logFile     = flag.String("log-file", "", "")
+	logFormat   = flag.String("log-format", "juice", "Set the format of the logging [juice, console, json]")
 
-	logLevel = LevelInfo
+	logLevel zap.AtomicLevel
 
-	panicLogger   = log.New(os.Stderr, "Panic: ", log.LstdFlags|log.LUTC|log.Lmsgprefix)
-	fatalLogger   = log.New(os.Stderr, "Fatal: ", log.LstdFlags|log.LUTC|log.Lmsgprefix)
-	errorLogger   = log.New(os.Stderr, "Error: ", log.LstdFlags|log.LUTC|log.Lmsgprefix)
-	warningLogger = log.New(os.Stderr, "Warning: ", log.LstdFlags|log.LUTC|log.Lmsgprefix)
-	infoLogger    = log.New(os.Stdout, "Info: ", log.LstdFlags|log.LUTC|log.Lmsgprefix)
-	debugLogger   = log.New(os.Stdout, "Debug: ", log.LstdFlags|log.LUTC|log.Lmsgprefix)
-	traceLogger   = log.New(os.Stdout, "Trace: ", log.LstdFlags|log.LUTC|log.Lmsgprefix)
+	logger       *zap.Logger        = nil
+	sugardLogger *zap.SugaredLogger = nil
+	options      []zap.Option
 )
 
 func LogLevelAsString() (string, error) {
-	switch logLevel {
-	case LevelFatal:
-		return "Fatal", nil
-	case LevelError:
-		return "Error", nil
-	case LevelWarning:
-		return "Warning", nil
-	case LevelInfo:
-		return "Info", nil
-	case LevelDebug:
-		return "Debug", nil
-	case LevelTrace:
-		return "Trace", nil
-	}
+	return logLevel.String(), nil
+}
 
-	return "", fmt.Errorf("unknown log-level %d", logLevel)
+func AddOption(option zap.Option) {
+	options = append(options, option)
 }
 
 func Configure() error {
-	switch strings.ToLower(strings.TrimSpace(*logLevelArg)) {
-	case "fatal":
-		logLevel = LevelFatal
-	case "error":
-		logLevel = LevelError
-	case "warning":
-		logLevel = LevelWarning
-	case "info":
-		logLevel = LevelInfo
-	case "debug":
-		logLevel = LevelDebug
-	case "trace":
-		logLevel = LevelTrace
-	default:
-		return fmt.Errorf("unknown log-level %s", *logLevelArg)
+	var err error
+
+	logLevel, err = zap.ParseAtomicLevel(strings.ToLower(strings.TrimSpace(*logLevelArg)))
+	if err != nil {
+		return err
 	}
 
-	stdout := os.Stdout
-	stderr := os.Stderr
+	zap.RegisterEncoder("juice", NewJuiceEncoder)
 
+	config := zap.NewDevelopmentConfig()
+	config.Encoding = *logFormat
+	config.Level = logLevel
 	if *logFile != "" {
-		file, err := os.OpenFile(*logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-		if err != nil {
-			return err
+		config.OutputPaths = []string{
+			*logFile,
 		}
+	}
+	// Skip our logger api
+	AddOption(zap.AddCallerSkip(1))
 
-		stdout = file
-		stderr = file
+	if *quiet {
+		logger = zap.NewNop()
+	} else {
+		logger, err = config.Build(options...)
+		if err != nil {
+			return fmt.Errorf("failed to initialize logger, %w", err)
+		}
 	}
 
-	var out io.Writer
-
-	panicLogger = log.New(stderr, "Panic: ", log.LstdFlags|log.LUTC|log.Lmsgprefix)
-	fatalLogger = log.New(stderr, "Fatal: ", log.LstdFlags|log.LUTC|log.Lmsgprefix)
-
-	out = stderr
-	if logLevel < LevelError {
-		out = io.Discard
-	}
-	errorLogger = log.New(out, "Error: ", log.LstdFlags|log.LUTC|log.Lmsgprefix)
-
-	out = stderr
-	if logLevel < LevelWarning {
-		out = io.Discard
-	}
-	warningLogger = log.New(out, "Warning: ", log.LstdFlags|log.LUTC|log.Lmsgprefix)
-
-	out = stdout
-	if logLevel < LevelInfo {
-		out = io.Discard
-	}
-	infoLogger = log.New(out, "Info: ", log.LstdFlags|log.LUTC|log.Lmsgprefix)
-
-	out = stdout
-	if logLevel < LevelDebug {
-		out = io.Discard
-	}
-	debugLogger = log.New(out, "Debug: ", log.LstdFlags|log.LUTC|log.Lmsgprefix)
-
-	out = stdout
-	if logLevel < LevelTrace {
-		out = io.Discard
-	}
-	traceLogger = log.New(out, "Trace: ", log.LstdFlags|log.LUTC|log.Lmsgprefix)
-
+	sugardLogger = logger.Sugar()
 	return nil
 }
 
+func Close() {
+	logger.Sync()
+}
+
 func Fatal(v ...any) {
-	fatalLogger.Fatal(v...)
+	sugardLogger.Panic(v...)
 }
 
 func Fatalf(format string, v ...any) {
-	fatalLogger.Fatalf(format, v...)
+	sugardLogger.Panicf(format, v...)
 }
 
 func Panic(v ...any) {
-	panicLogger.Panic(v...)
+	sugardLogger.Panic(v...)
 }
 
 func Panicf(format string, v ...any) {
-	panicLogger.Panicf(format, v...)
+	sugardLogger.Panicf(format, v...)
 }
 
 func Error(v ...any) {
-	if !*quiet {
-		errorLogger.Print(v...)
-	}
+	sugardLogger.Error(v...)
 }
 
 func Errorf(format string, v ...any) {
-	if !*quiet {
-		errorLogger.Printf(format, v...)
-	}
+	sugardLogger.Errorf(format, v...)
 }
 
 func Warning(v ...any) {
-	if !*quiet {
-		warningLogger.Print(v...)
-	}
+	sugardLogger.Warn(v...)
 }
 
 func Warningf(format string, v ...any) {
-	if !*quiet {
-		warningLogger.Printf(format, v...)
-	}
+	sugardLogger.Warnf(format, v...)
 }
 
 func Info(v ...any) {
-	if !*quiet {
-		infoLogger.Print(v...)
-	}
+	sugardLogger.Info(v...)
 }
 
 func Infof(format string, v ...any) {
-	if !*quiet {
-		infoLogger.Printf(format, v...)
-	}
+	sugardLogger.Infof(format, v...)
 }
 
 func Debug(v ...any) {
-	if !*quiet {
-		debugLogger.Print(v...)
-	}
+	sugardLogger.Debug(v...)
 }
 
 func Debugf(format string, v ...any) {
-	if !*quiet {
-		debugLogger.Printf(format, v...)
-	}
+	sugardLogger.Debugf(format, v...)
 }
 
 func Trace(v ...any) {
-	if !*quiet {
-		traceLogger.Print(v...)
-	}
+	sugardLogger.Debug(v...)
 }
 
 func Tracef(format string, v ...any) {
-	if !*quiet {
-		traceLogger.Printf(format, v...)
-	}
+	sugardLogger.Debugf(format, v...)
 }

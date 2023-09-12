@@ -6,6 +6,8 @@ package main
 import (
 	"crypto/tls"
 	"flag"
+	"fmt"
+	"os"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/app"
 	"github.com/Juice-Labs/Juice-Labs/cmd/agent/playnite"
@@ -14,6 +16,7 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/pkg/appmain"
 	"github.com/Juice-Labs/Juice-Labs/pkg/crypto"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
+	"github.com/Juice-Labs/Juice-Labs/pkg/sentry"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 	"github.com/joho/godotenv"
 )
@@ -25,7 +28,20 @@ var (
 )
 
 func main() {
-	appmain.Run("Juice Agent", build.Version, func(group task.Group) error {
+	name := "Juice Agent"
+	config := appmain.Config{
+		Name:    name,
+		Version: build.Version,
+
+		SentryConfig: sentry.ClientOptions{
+			Dsn:              os.Getenv("JUICE_AGENT_SENTRY_DSN"),
+			Release:          fmt.Sprintf("%s@%s", name, build.Version),
+			EnableTracing:    true,
+			TracesSampleRate: 1.0,
+		},
+	}
+
+	err := appmain.Run(config, func(group task.Group) error {
 		var tlsConfig *tls.Config
 
 		var err error
@@ -79,4 +95,8 @@ func main() {
 
 		return nil
 	})
+
+	if err != nil {
+		os.Exit(appmain.ExitFailure)
+	}
 }
