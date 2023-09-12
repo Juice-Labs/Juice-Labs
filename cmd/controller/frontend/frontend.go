@@ -4,7 +4,6 @@
 package frontend
 
 import (
-	"errors"
 	"flag"
 	"net/http"
 	"os"
@@ -12,10 +11,12 @@ import (
 	"time"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
+	"github.com/Juice-Labs/Juice-Labs/pkg/errors"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/server"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
+	"github.com/Juice-Labs/Juice-Labs/pkg/utilities"
 )
 
 var (
@@ -27,6 +28,8 @@ type Frontend struct {
 	startTime time.Time
 
 	hostname string
+
+	agentHandlers *utilities.ConcurrentMap[string, *AgentHandler]
 
 	webhookClient   restapi.Client
 	webhookMessages chan restapi.WebhookMessage
@@ -182,4 +185,19 @@ func (frontend *Frontend) getSessionById(id string) (restapi.Session, error) {
 
 func (frontend *Frontend) cancelSession(id string) error {
 	return frontend.storage.CancelSession(id)
+}
+
+func (frontend *Frontend) newAgentHandler(id string) *AgentHandler {
+	handler := NewAgentHandler(id)
+	frontend.agentHandlers.Set(id, handler)
+	return handler
+}
+
+func (frontend *Frontend) getAgentHandler(id string) (*AgentHandler, error) {
+	handler, found := frontend.agentHandlers.Get(id)
+	if !found {
+		return nil, errors.Newf("failed to find agent %d", id)
+	}
+
+	return handler, nil
 }

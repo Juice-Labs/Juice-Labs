@@ -144,6 +144,15 @@ func ReadRequestBody[T any](r *http.Request) (T, error) {
 	return ReadBody[T](r.Header, http.StatusOK, r.Body, r.ContentLength)
 }
 
+func ReadRequestBodyAsString(r *http.Request) (string, error) {
+	msg, err := ReadBodyAsBytes(r.Header, http.StatusOK, r.Body, r.ContentLength)
+	if err != nil {
+		return "", err
+	}
+
+	return string(msg), nil
+}
+
 func ReadResponseBody[T any](r *http.Response) (T, error) {
 	return ReadBody[T](r.Header, r.StatusCode, r.Body, r.ContentLength)
 }
