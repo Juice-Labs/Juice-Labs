@@ -4,7 +4,6 @@
 package frontend
 
 import (
-	"errors"
 	"flag"
 	"net/http"
 	"os"
@@ -12,10 +11,12 @@ import (
 	"time"
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
+	"github.com/Juice-Labs/Juice-Labs/pkg/errors"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/server"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
+	"github.com/Juice-Labs/Juice-Labs/pkg/utilities"
 )
 
 var (
@@ -27,6 +28,8 @@ type Frontend struct {
 	startTime time.Time
 
 	hostname string
+
+	agentHandlers *utilities.ConcurrentMap[string, *AgentHandler]
 
 	webhookClient   restapi.Client
 	webhookMessages chan restapi.WebhookMessage
@@ -46,9 +49,10 @@ func NewFrontend(server *server.Server, storage storage.Storage) (*Frontend, err
 	}
 
 	frontend := &Frontend{
-		startTime: time.Now(),
-		hostname:  hostname,
-		storage:   storage,
+		startTime:     time.Now(),
+		hostname:      hostname,
+		agentHandlers: utilities.NewConcurrentMap[string, *AgentHandler](),
+		storage:       storage,
 	}
 
 	if *webhook != "" {
@@ -209,4 +213,19 @@ func (frontend *Frontend) removePermission(poolId string, userId string, permiss
 
 func (frontend *Frontend) getPermissions(userId string) (restapi.UserPermissions, error) {
 	return frontend.storage.GetPermissions(userId)
+}
+
+func (frontend *Frontend) newAgentHandler(id string) *AgentHandler {
+	handler := NewAgentHandler(id)
+	frontend.agentHandlers.Set(id, handler)
+	return handler
+}
+
+func (frontend *Frontend) getAgentHandler(id string) (*AgentHandler, error) {
+	handler, found := frontend.agentHandlers.Get(id)
+	if !found {
+		return nil, errors.Newf("failed to find agent %s", id)
+	}
+
+	return handler, nil
 }

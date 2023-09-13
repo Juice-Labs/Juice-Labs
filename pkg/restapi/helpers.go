@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 func parseBody(body io.Reader, length int64) ([]byte, error) {
@@ -41,7 +42,7 @@ func parseResponse(response *http.Response, contentType string) ([]byte, error) 
 		return nil, fmt.Errorf("error received from server, code %d", response.StatusCode)
 	}
 
-	if response.Header.Get("Content-Type") != contentType {
+	if !strings.HasPrefix(response.Header.Get("Content-Type"), contentType) {
 		return nil, fmt.Errorf("expected Content-Type=%s, received %s", contentType, response.Header.Get("Content-Type"))
 	}
 

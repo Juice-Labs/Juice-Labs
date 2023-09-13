@@ -5,11 +5,14 @@ package restapi
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
+
+	"github.com/gorilla/websocket"
 
 	"github.com/Juice-Labs/Juice-Labs/pkg/errors"
 )
@@ -91,6 +94,10 @@ func (api Client) Post(ctx context.Context, path string) (*http.Response, error)
 
 func (api Client) Delete(ctx context.Context, path string) (*http.Response, error) {
 	return api.do(ctx, "DELETE", path, "", nil)
+}
+
+func (api Client) GetWithJson(ctx context.Context, path string, body io.Reader) (*http.Response, error) {
+	return api.do(ctx, "GET", path, "application/json", body)
 }
 
 func (api Client) PostWithJson(ctx context.Context, path string, body io.Reader) (*http.Response, error) {
@@ -260,4 +267,113 @@ func (api Client) RegisterAgentWithContext(ctx context.Context, agent Agent) (st
 	defer response.Body.Close()
 
 	return parseStringResponse(response)
+}
+
+func (api Client) Connect(ctx context.Context, id string, msg string) (string, error) {
+	return api.ConnectWithContext(ctx, id, msg)
+}
+
+func (api Client) ConnectWithContext(ctx context.Context, id string, msg string) (string, error) {
+	body, err := jsonReaderFromObject(msg)
+	if err != nil {
+		return "", ErrInvalidInput.Wrap(err)
+	}
+
+	response, err := api.GetWithJson(ctx, fmt.Sprintf("/v1/agent/%s/connect", id), body)
+	if err != nil {
+		return "", err
+	}
+	defer response.Body.Close()
+
+	result, err := parseJsonResponse[string](response)
+	if err != nil {
+		return "", ErrInvalidResponse.Wrap(err)
+	}
+
+	return result, nil
+}
+
+type MessageResponse struct {
+	Topic   string
+	Message json.RawMessage
+}
+
+type MessageHandler func(msg []byte) (*MessageResponse, error)
+
+func (api Client) doWebsocket(ctx context.Context, path string) (*websocket.Conn, error) {
+	pathUrl, err := url.Parse(path)
+	if err != nil {
+		return nil, err
+	}
+
+	pathUrl.Scheme = "ws"
+	pathUrl.Host = api.Address
+
+	header := http.Header{}
+
+	if api.AccessToken != "" {
+		header.Add("Authorization", fmt.Sprintf("Bearer %s", api.AccessToken))
+	}
+
+	ws, _, err := websocket.DefaultDialer.DialContext(ctx, pathUrl.String(), header)
+	return ws, err
+}
+
+func (api Client) handleWebsocket(ctx context.Context, ws *websocket.Conn, callback MessageHandler) error {
+	defer ws.Close()
+
+	wsDone := make(chan error)
+	defer close(wsDone)
+
+	go func() {
+		for {
+			_, msg, err := ws.ReadMessage()
+			if err != nil {
+				wsDone <- err
+				break
+			}
+
+			response, err := callback(msg)
+			if err != nil {
+				wsDone <- err
+				break
+			}
+
+			if response != nil {
+				marshaledResponse, err := json.Marshal(response)
+				if err != nil {
+					wsDone <- err
+					break
+				}
+
+				err = ws.WriteMessage(websocket.TextMessage, marshaledResponse)
+				if err != nil {
+					wsDone <- err
+					break
+				}
+			}
+		}
+	}()
+
+	done := false
+	for !done {
+		select {
+		case <-ctx.Done():
+			done = true
+
+		case err := <-wsDone:
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (api Client) ConnectAgentWithWebsocket(ctx context.Context, id string, callback MessageHandler) error {
+	ws, err := api.doWebsocket(ctx, fmt.Sprintf("/v1/agent/%s/connect", id))
+	if err != nil {
+		return err
+	}
+
+	return api.handleWebsocket(ctx, ws, callback)
 }

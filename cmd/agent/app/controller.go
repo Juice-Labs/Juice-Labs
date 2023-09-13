@@ -179,6 +179,10 @@ func (agent *Agent) ConnectToController(group task.Group, tlsConfig *tls.Config)
 				}
 			}
 		})
+
+		group.GoFn("Controller Websocket", func(group task.Group) error {
+			return agent.api.ConnectAgentWithWebsocket(group.Ctx(), agent.Id, agent.processMessages)
+		})
 	}
 
 	return nil
@@ -190,4 +194,8 @@ func (agent *Agent) getGpuMetrics() []restapi.GpuMetrics {
 
 	// Make a copy
 	return append(make([]restapi.GpuMetrics, 0, len(agent.gpuMetrics)), agent.gpuMetrics...)
+}
+
+func (agent *Agent) processMessages(message []byte) (*restapi.MessageResponse, error) {
+	return nil, nil
 }
