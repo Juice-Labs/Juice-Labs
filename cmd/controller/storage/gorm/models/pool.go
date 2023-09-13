@@ -8,7 +8,7 @@ import (
 )
 
 type Pool struct {
-	ID        uuid.UUID `gorm:"type:uuid;primary_key;default:uuid_generate_v4()"`
+	ID        uuid.UUID `gorm:"type:uuid;primary_key;"`
 	PoolName  string    `gorm:"type:varchar(255);not null"`
 	MaxAgents int       `gorm:"default:0"`
 

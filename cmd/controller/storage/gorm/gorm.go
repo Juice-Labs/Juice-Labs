@@ -631,6 +631,7 @@ func (g *gormDriver) GetPool(id string) (restapi.Pool, error) {
 
 func (g *gormDriver) CreatePool(name string) (restapi.Pool, error) {
 	dbPool := models.Pool{
+		ID:       uuid.NewV4(),
 		PoolName: name,
 	}
 
@@ -644,6 +645,7 @@ func (g *gormDriver) CreatePool(name string) (restapi.Pool, error) {
 
 func (g *gormDriver) AddPermission(poolId string, userId string, permission restapi.Permission) error {
 	dbPermission := models.Permission{
+		ID:         uuid.NewV4(),
 		UserID:     userId,
 		PoolID:     uuid.FromStringOrNil(poolId),
 		Permission: models.PermissionTypeFromString(string(permission)),
