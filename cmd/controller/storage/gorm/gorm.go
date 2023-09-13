@@ -262,14 +262,17 @@ func (g *gormDriver) UpdateAgent(update restapi.AgentUpdate) error {
 			}
 
 			for _, connectionUpdate := range sessionUpdate.Connections {
-				dbConnection := models.Connection{
-					UUID:        uuid.FromStringOrNil(connectionUpdate.Id),
-					Session:     dbSession,
-					Pid:         connectionUpdate.Pid,
-					ProcessName: connectionUpdate.ProcessName,
-					ExitCode:    connectionUpdate.ExitCode,
-				}
-				dbSession.Connections = append(dbSession.Connections, dbConnection)
+				var dbConnection models.Connection
+				tx.Where(models.Connection{UUID: uuid.FromStringOrNil(connectionUpdate.Id)}).
+					Assign(models.Connection{
+						SessionID:   dbSession.ID,
+						Pid:         connectionUpdate.Pid,
+						ProcessName: connectionUpdate.ProcessName,
+						ExitCode:    connectionUpdate.ExitCode,
+					}).
+					FirstOrCreate(&dbConnection)
+
+				tx.Updates(dbConnection)
 			}
 
 			tx.Updates(dbSession)
