@@ -92,7 +92,9 @@ func restSessionFromSession(dbSession models.Session) (restapi.Session, error) {
 		State:   dbSession.State.String(),
 		Address: dbSession.Address,
 		Version: dbSession.Version,
-		PoolId:  dbSession.PoolID.String(),
+	}
+	if dbSession.PoolID.Valid {
+		session.PoolId = dbSession.PoolID.UUID.String()
 	}
 
 	if err := json.Unmarshal(dbSession.GPUs, &session.Gpus); err != nil {
@@ -353,10 +355,21 @@ func (g *gormDriver) RequestSession(sessionRequirements restapi.SessionRequireme
 			State:        models.SessionStateQueued,
 			Requirements: requirements,
 			VramRequired: storage.TotalVramRequired(sessionRequirements),
-			PoolID:       uuid.FromStringOrNil(sessionRequirements.PoolId),
 
 			Labels:    labels,
 			Tolerates: tolerates,
+		}
+
+		if sessionRequirements.PoolId != "" {
+			dbSession.PoolID = uuid.NullUUID{
+				UUID:  uuid.FromStringOrNil(sessionRequirements.PoolId),
+				Valid: true,
+			}
+		} else {
+			dbSession.PoolID = uuid.NullUUID{
+				UUID:  uuid.Nil,
+				Valid: false,
+			}
 		}
 
 		tx.Create(dbSession)
