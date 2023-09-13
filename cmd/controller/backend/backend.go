@@ -28,7 +28,7 @@ func NewBackend(storage storage.Storage) *Backend {
 func (backend *Backend) Run(group task.Group) error {
 	err := backend.update(group.Ctx())
 	if err == nil {
-		ticker := time.NewTicker(5 * time.Second)
+		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
 
 		for err == nil {
@@ -65,8 +65,17 @@ func canTolerate(taints, tolerates map[string]string) bool {
 	return isSubset(tolerates, taints)
 }
 
+func matchesPool(poolId string, reqPoolId string) bool {
+	if reqPoolId == "" {
+		return true
+	}
+	return poolId == reqPoolId
+}
+
 func agentMatches(agent restapi.Agent, requirements restapi.SessionRequirements) (*gpu.SelectedGpuSet, error) {
-	if matchesLabels(agent.Labels, requirements.MatchLabels) && canTolerate(agent.Taints, requirements.Tolerates) {
+	if matchesPool(agent.PoolId, requirements.PoolId) &&
+		matchesLabels(agent.Labels, requirements.MatchLabels) &&
+		canTolerate(agent.Taints, requirements.Tolerates) {
 		var err error
 
 		// Need to ensure the agent has the GPU capacity to support this session
@@ -139,7 +148,7 @@ func (backend *Backend) update(ctx context.Context) error {
 					}
 
 					if selectedGpus != nil {
-						logger.Tracef("assigning %s to %s", session.Id, agent.Id)
+						logger.Debugf("assigning %s to %s", session.Id, agent.Id)
 						err = errors.Join(err, backend.storage.AssignSession(session.Id, agent.Id, selectedGpus.GetGpus()))
 						break
 					}

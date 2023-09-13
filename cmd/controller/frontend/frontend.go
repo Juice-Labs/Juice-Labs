@@ -4,7 +4,6 @@
 package frontend
 
 import (
-	"context"
 	"errors"
 	"flag"
 	"net/http"
@@ -138,8 +137,8 @@ func (frontend *Frontend) registerAgent(agent restapi.Agent) (string, error) {
 	return frontend.storage.RegisterAgent(agent)
 }
 
-func (frontend *Frontend) getAgents() ([]restapi.Agent, error) {
-	iterator, err := frontend.storage.GetAgents()
+func (frontend *Frontend) getAgents(poolId string) ([]restapi.Agent, error) {
+	iterator, err := frontend.storage.GetAgents(poolId)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +155,7 @@ func (frontend *Frontend) getAgentById(id string) (restapi.Agent, error) {
 	return frontend.storage.GetAgentById(id)
 }
 
-func (frontend *Frontend) updateAgent(ctx context.Context, update restapi.AgentUpdate) error {
+func (frontend *Frontend) updateAgent(update restapi.AgentUpdate) error {
 	err := frontend.storage.UpdateAgent(update)
 	if err == nil && len(update.SessionsUpdate) > 0 {
 		if frontend.webhookMessages != nil {
@@ -183,4 +182,31 @@ func (frontend *Frontend) getSessionById(id string) (restapi.Session, error) {
 
 func (frontend *Frontend) cancelSession(id string) error {
 	return frontend.storage.CancelSession(id)
+}
+
+func (frontend *Frontend) deletePool(id string) error {
+	return frontend.storage.DeletePool(id)
+}
+func (frontend *Frontend) getPool(id string) (restapi.Pool, error) {
+	return frontend.storage.GetPool(id)
+}
+
+func (frontend *Frontend) getPoolPermissions(id string) (restapi.PoolPermissions, error) {
+	return frontend.storage.GetPoolPermissions(id)
+}
+
+func (frontend *Frontend) createPool(name string) (restapi.Pool, error) {
+	return frontend.storage.CreatePool(name)
+}
+
+func (frontend *Frontend) addPermission(poolId string, userId string, permission restapi.Permission) error {
+	return frontend.storage.AddPermission(poolId, userId, permission)
+}
+
+func (frontend *Frontend) removePermission(poolId string, userId string, permission restapi.Permission) error {
+	return frontend.storage.RemovePermission(poolId, userId, permission)
+}
+
+func (frontend *Frontend) getPermissions(userId string) (restapi.UserPermissions, error) {
+	return frontend.storage.GetPermissions(userId)
 }

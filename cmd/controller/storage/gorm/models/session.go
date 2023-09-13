@@ -75,4 +75,7 @@ type Session struct {
 
 	Labels    []KeyValue `gorm:"many2many:session_labels;constraint:OnDelete:CASCADE;"`
 	Tolerates []KeyValue `gorm:"many2many:session_tolerates;constraint:OnDelete:CASCADE;"`
+
+	PoolID uuid.NullUUID `gorm:"type:uuid;"`
+	Pool   Pool          `gorm:"constraint:OnDelete:CASCADE;"`
 }

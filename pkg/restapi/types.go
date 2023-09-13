@@ -12,17 +12,18 @@ const (
 )
 
 const (
-	ExitStatusUnknown  = "unknown"
-	ExitStatusSuccess  = "success"
-	ExitStatusFailure  = "failure"
-	ExitStatusCanceled = "canceled"
-)
-
-const (
 	AgentClosed   = "closed"
 	AgentActive   = "active"
 	AgentDisabled = "disabled"
 	AgentMissing  = "missing"
+)
+
+type Permission string
+
+const (
+	PermissionCreateSession Permission = "create_session"
+	PermissionRegisterAgent Permission = "register_agent"
+	PermissionAdmin         Permission = "admin"
 )
 
 type GpuRequirements struct {
@@ -31,19 +32,13 @@ type GpuRequirements struct {
 }
 
 type SessionRequirements struct {
-	Version    string `json:"version"`
-	Persistent bool   `json:"persistent"`
+	Version string `json:"version"`
+	PoolId  string `json:"poolId"`
 
 	Gpus []GpuRequirements `json:"gpus"`
 
 	MatchLabels map[string]string `json:"matchLabels"`
 	Tolerates   map[string]string `json:"tolerates"`
-}
-
-type ConnectionData struct {
-	Id          string `json:"id"`
-	Pid         string `json:"pid"`
-	ProcessName string `json:"processName"`
 }
 
 type SessionGpu struct {
@@ -53,21 +48,26 @@ type SessionGpu struct {
 }
 
 type Session struct {
-	Id         string `json:"id"`
-	State      string `json:"state"`
-	Address    string `json:"address"`
-	Version    string `json:"version"`
-	Persistent bool   `json:"persistent"`
+	Id      string `json:"id"`
+	State   string `json:"state"`
+	Address string `json:"address"`
+	Version string `json:"version"`
+	PoolId  string `json:"poolId"`
 
 	Gpus        []SessionGpu `json:"gpus"`
 	Connections []Connection `json:"connections"`
 }
 
-type Connection struct {
+type ConnectionData struct {
 	Id          string `json:"id"`
-	ExitStatus  string `json:"exitStatus"`
-	Pid         int64  `json:"pid"`
+	Pid         string `json:"pid"`
 	ProcessName string `json:"processName"`
+}
+
+type Connection struct {
+	ConnectionData
+
+	ExitCode int `json:"exitCode"`
 }
 
 type GpuMetrics struct {
@@ -104,6 +104,7 @@ type Agent struct {
 	Hostname string `json:"hostname"`
 	Address  string `json:"address"`
 	Version  string `json:"version"`
+	PoolId   string `json:"poolId"`
 
 	Gpus []Gpu `json:"gpus"`
 
@@ -120,8 +121,8 @@ type Status struct {
 }
 
 type SessionUpdate struct {
-	State       string       `json:"State"`
-	Connections []Connection `json:"connections"`
+	State       string                `json:"State"`
+	Connections map[string]Connection `json:"connections"`
 }
 
 type AgentUpdate struct {
@@ -135,4 +136,30 @@ type WebhookMessage struct {
 	Agent   string `json:"agent"`
 	Session string `json:"session"`
 	State   string `json:"state"`
+}
+
+type CreatePoolParams struct {
+	Name string `json:"name"`
+}
+
+type PermissionParams struct {
+	Permission Permission `json:"permission"`
+	UserId     string     `json:"userId"`
+	PoolId     string     `json:"poolId"`
+}
+
+type Pool struct {
+	Id           string `json:"id"`
+	Name         string `json:"name"`
+	SessionCount int    `json:"sessionCount"`
+	AgentCount   int    `json:"agentCount"`
+	UserCount    int    `json:"userCount"`
+}
+
+type UserPermissions struct {
+	Permissions map[Permission][]Pool `json:"permissions"`
+}
+
+type PoolPermissions struct {
+	UserIds map[string][]Permission `json:"userIds"`
 }

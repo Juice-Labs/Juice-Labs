@@ -18,3 +18,4 @@ create table connections (
 
 alter table
     sessions drop column exit_status;
+    

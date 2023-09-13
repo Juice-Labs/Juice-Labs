@@ -14,7 +14,6 @@ import (
 	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	pkgnet "github.com/Juice-Labs/Juice-Labs/pkg/net"
-	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
 
 // Pulled from former Node version
@@ -59,8 +58,8 @@ type StatusFormer struct {
 	Hosts    []AgentData `json:"hosts"`
 }
 
-func (frontend *Frontend) getStatusFormerEp(group task.Group, w http.ResponseWriter, r *http.Request) {
-	agents, err := frontend.getAgents()
+func (frontend *Frontend) getStatusFormerEp(w http.ResponseWriter, r *http.Request) {
+	agents, err := frontend.getAgents("")
 	if err == nil {
 		hosts := make([]AgentData, len(agents))
 		for index, agent := range agents {

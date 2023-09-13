@@ -69,7 +69,7 @@ func NewFrontend(server *server.Server, storage storage.Storage) *Frontend {
 	}
 	prometheus.MustRegister(frontend)
 
-	server.AddEndpointHandler("GET", "/metrics", promhttp.Handler())
+	server.AddEndpointHandler("GET", "/metrics", promhttp.Handler(), true)
 
 	return frontend
 }
@@ -77,7 +77,7 @@ func NewFrontend(server *server.Server, storage storage.Storage) *Frontend {
 func (frontend *Frontend) Run(group task.Group) error {
 	err := frontend.update()
 	if err == nil {
-		ticker := time.NewTicker(5 * time.Second)
+		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
 
 		for err == nil {
