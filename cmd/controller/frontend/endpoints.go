@@ -209,7 +209,7 @@ func (frontend *Frontend) connectAgentEp(w http.ResponseWriter, r *http.Request)
 					return err
 				}
 
-				err = handler.Publish(decodedMessage.topic, decodedMessage.msg)
+				err = handler.Publish(decodedMessage.Topic, decodedMessage.Message)
 				if err != nil {
 					return err
 				}
@@ -262,8 +262,9 @@ func (frontend *Frontend) connectAgentEp(w http.ResponseWriter, r *http.Request)
 		}
 
 		subscribeCtx, cancelCtx := context.WithCancel(r.Context())
+		defer cancelCtx()
 
-		msgCh, err := handler.Subscribe(subscribeCtx, "rendezvous")
+		msgCh, err := handler.Subscribe(subscribeCtx, "response")
 		if err != nil {
 			err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 			logger.Error(err)
@@ -290,10 +291,9 @@ func (frontend *Frontend) connectAgentEp(w http.ResponseWriter, r *http.Request)
 			break
 
 		case msg := <-msgCh:
+			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write(msg)
-
-			cancelCtx()
 		}
 	}
 }

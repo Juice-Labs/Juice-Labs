@@ -96,6 +96,10 @@ func (api Client) Delete(ctx context.Context, path string) (*http.Response, erro
 	return api.do(ctx, "DELETE", path, "", nil)
 }
 
+func (api Client) GetWithJson(ctx context.Context, path string, body io.Reader) (*http.Response, error) {
+	return api.do(ctx, "GET", path, "application/json", body)
+}
+
 func (api Client) PostWithJson(ctx context.Context, path string, body io.Reader) (*http.Response, error) {
 	return api.do(ctx, "POST", path, "application/json", body)
 }
@@ -265,9 +269,33 @@ func (api Client) RegisterAgentWithContext(ctx context.Context, agent Agent) (st
 	return parseStringResponse(response)
 }
 
+func (api Client) Connect(ctx context.Context, id string, msg string) (string, error) {
+	return api.ConnectWithContext(ctx, id, msg)
+}
+
+func (api Client) ConnectWithContext(ctx context.Context, id string, msg string) (string, error) {
+	body, err := jsonReaderFromObject(msg)
+	if err != nil {
+		return "", ErrInvalidInput.Wrap(err)
+	}
+
+	response, err := api.GetWithJson(ctx, fmt.Sprintf("/v1/agent/%s/connect", id), body)
+	if err != nil {
+		return "", err
+	}
+	defer response.Body.Close()
+
+	result, err := parseJsonResponse[string](response)
+	if err != nil {
+		return "", ErrInvalidResponse.Wrap(err)
+	}
+
+	return result, nil
+}
+
 type MessageResponse struct {
-	topic string
-	msg   json.RawMessage
+	Topic   string
+	Message json.RawMessage
 }
 
 type MessageHandler func(msg []byte) (*MessageResponse, error)
@@ -278,7 +306,7 @@ func (api Client) doWebsocket(ctx context.Context, path string) (*websocket.Conn
 		return nil, err
 	}
 
-	pathUrl.Scheme = "wss"
+	pathUrl.Scheme = "ws"
 	pathUrl.Host = api.Address
 
 	header := http.Header{}

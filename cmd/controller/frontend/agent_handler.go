@@ -11,8 +11,8 @@ import (
 )
 
 type Message struct {
-	topic string
-	msg   json.RawMessage
+	Topic   string
+	Message json.RawMessage
 }
 
 type AgentHandler struct {

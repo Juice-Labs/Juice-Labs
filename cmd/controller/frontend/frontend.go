@@ -49,9 +49,10 @@ func NewFrontend(server *server.Server, storage storage.Storage) (*Frontend, err
 	}
 
 	frontend := &Frontend{
-		startTime: time.Now(),
-		hostname:  hostname,
-		storage:   storage,
+		startTime:     time.Now(),
+		hostname:      hostname,
+		agentHandlers: utilities.NewConcurrentMap[string, *AgentHandler](),
+		storage:       storage,
 	}
 
 	if *webhook != "" {
@@ -196,7 +197,7 @@ func (frontend *Frontend) newAgentHandler(id string) *AgentHandler {
 func (frontend *Frontend) getAgentHandler(id string) (*AgentHandler, error) {
 	handler, found := frontend.agentHandlers.Get(id)
 	if !found {
-		return nil, errors.Newf("failed to find agent %d", id)
+		return nil, errors.Newf("failed to find agent %s", id)
 	}
 
 	return handler, nil
