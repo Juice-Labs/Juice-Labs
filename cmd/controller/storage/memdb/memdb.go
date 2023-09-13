@@ -185,39 +185,40 @@ func (driver *storageDriver) AggregateData() (storage.AggregatedData, error) {
 
 			index := 0
 			keysIndex := 0
-			key := sortedKeys[keysIndex]
+			key := 0
+
 			for keysIndex < len(sortedKeys) && index < indexP10 {
+				key = sortedKeys[keysIndex]
 				index += counts[key]
 				keysIndex++
-				key = sortedKeys[keysIndex]
 			}
 			percentile.P10 = key
 
 			for keysIndex < len(sortedKeys) && index < indexP25 {
+				key = sortedKeys[keysIndex]
 				index += counts[key]
 				keysIndex++
-				key = sortedKeys[keysIndex]
 			}
 			percentile.P25 = key
 
 			for keysIndex < len(sortedKeys) && index < indexP50 {
+				key = sortedKeys[keysIndex]
 				index += counts[key]
 				keysIndex++
-				key = sortedKeys[keysIndex]
 			}
 			percentile.P50 = key
 
 			for keysIndex < len(sortedKeys) && index < indexP75 {
+				key = sortedKeys[keysIndex]
 				index += counts[key]
 				keysIndex++
-				key = sortedKeys[keysIndex]
 			}
 			percentile.P75 = key
 
 			for keysIndex < len(sortedKeys) && index < indexP90 {
+				key = sortedKeys[keysIndex]
 				index += counts[key]
 				keysIndex++
-				key = sortedKeys[keysIndex]
 			}
 			percentile.P90 = key
 

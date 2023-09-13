@@ -12,13 +12,6 @@ const (
 )
 
 const (
-	ExitStatusUnknown  = "unknown"
-	ExitStatusSuccess  = "success"
-	ExitStatusFailure  = "failure"
-	ExitStatusCanceled = "canceled"
-)
-
-const (
 	AgentClosed   = "closed"
 	AgentActive   = "active"
 	AgentDisabled = "disabled"
@@ -31,19 +24,12 @@ type GpuRequirements struct {
 }
 
 type SessionRequirements struct {
-	Version    string `json:"version"`
-	Persistent bool   `json:"persistent"`
+	Version string `json:"version"`
 
 	Gpus []GpuRequirements `json:"gpus"`
 
 	MatchLabels map[string]string `json:"matchLabels"`
 	Tolerates   map[string]string `json:"tolerates"`
-}
-
-type ConnectionData struct {
-	Id          string `json:"id"`
-	Pid         string `json:"pid"`
-	ProcessName string `json:"processName"`
 }
 
 type SessionGpu struct {
@@ -53,21 +39,25 @@ type SessionGpu struct {
 }
 
 type Session struct {
-	Id         string `json:"id"`
-	State      string `json:"state"`
-	Address    string `json:"address"`
-	Version    string `json:"version"`
-	Persistent bool   `json:"persistent"`
+	Id      string `json:"id"`
+	State   string `json:"state"`
+	Address string `json:"address"`
+	Version string `json:"version"`
 
 	Gpus        []SessionGpu `json:"gpus"`
 	Connections []Connection `json:"connections"`
 }
 
-type Connection struct {
+type ConnectionData struct {
 	Id          string `json:"id"`
-	ExitStatus  string `json:"exitStatus"`
-	Pid         int64  `json:"pid"`
+	Pid         string `json:"pid"`
 	ProcessName string `json:"processName"`
+}
+
+type Connection struct {
+	ConnectionData
+
+	ExitCode int `json:"exitCode"`
 }
 
 type GpuMetrics struct {
@@ -120,8 +110,8 @@ type Status struct {
 }
 
 type SessionUpdate struct {
-	State       string       `json:"State"`
-	Connections []Connection `json:"connections"`
+	State       string                `json:"State"`
+	Connections map[string]Connection `json:"connections"`
 }
 
 type AgentUpdate struct {

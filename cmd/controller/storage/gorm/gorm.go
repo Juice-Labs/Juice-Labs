@@ -57,11 +57,10 @@ func restAgentFromAgent(dbAgent models.Agent) (restapi.Agent, error) {
 
 	for _, dbSession := range dbAgent.Sessions {
 		session := restapi.Session{
-			Id:         dbSession.UUID.String(),
-			State:      dbSession.State.String(),
-			Address:    dbSession.Address,
-			Version:    dbSession.Version,
-			Persistent: dbSession.Persistent,
+			Id:      dbSession.UUID.String(),
+			State:   dbSession.State.String(),
+			Address: dbSession.Address,
+			Version: dbSession.Version,
 		}
 
 		if err := json.Unmarshal(dbSession.GPUs, &session.Gpus); err != nil {
@@ -70,10 +69,12 @@ func restAgentFromAgent(dbAgent models.Agent) (restapi.Agent, error) {
 
 		for _, dbConnection := range dbSession.Connections {
 			session.Connections = append(session.Connections, restapi.Connection{
-				Id:          dbConnection.UUID.String(),
-				ExitStatus:  dbConnection.ExitStatus.String(),
-				Pid:         int64(dbConnection.Pid),
-				ProcessName: dbConnection.ProcessName,
+				ConnectionData: restapi.ConnectionData{
+					Id:          dbConnection.UUID.String(),
+					Pid:         dbConnection.Pid,
+					ProcessName: dbConnection.ProcessName,
+				},
+				ExitCode: dbConnection.ExitCode,
 			})
 		}
 
@@ -85,11 +86,10 @@ func restAgentFromAgent(dbAgent models.Agent) (restapi.Agent, error) {
 
 func restSessionFromSession(dbSession models.Session) (restapi.Session, error) {
 	session := restapi.Session{
-		Id:         dbSession.UUID.String(),
-		State:      dbSession.State.String(),
-		Address:    dbSession.Address,
-		Version:    dbSession.Version,
-		Persistent: dbSession.Persistent,
+		Id:      dbSession.UUID.String(),
+		State:   dbSession.State.String(),
+		Address: dbSession.Address,
+		Version: dbSession.Version,
 	}
 
 	if err := json.Unmarshal(dbSession.GPUs, &session.Gpus); err != nil {
@@ -98,10 +98,12 @@ func restSessionFromSession(dbSession models.Session) (restapi.Session, error) {
 
 	for _, dbConnection := range dbSession.Connections {
 		session.Connections = append(session.Connections, restapi.Connection{
-			Id:          dbConnection.UUID.String(),
-			ExitStatus:  dbConnection.ExitStatus.String(),
-			Pid:         int64(dbConnection.Pid),
-			ProcessName: dbConnection.ProcessName,
+			ConnectionData: restapi.ConnectionData{
+				Id:          dbConnection.UUID.String(),
+				Pid:         dbConnection.Pid,
+				ProcessName: dbConnection.ProcessName,
+			},
+			ExitCode: dbConnection.ExitCode,
 		})
 	}
 	return session, nil
@@ -260,14 +262,17 @@ func (g *gormDriver) UpdateAgent(update restapi.AgentUpdate) error {
 			}
 
 			for _, connectionUpdate := range sessionUpdate.Connections {
-				dbConnection := models.Connection{
-					UUID:        uuid.FromStringOrNil(connectionUpdate.Id),
-					Session:     dbSession,
-					Pid:         uint64(connectionUpdate.Pid),
-					ProcessName: connectionUpdate.ProcessName,
-					ExitStatus:  models.ExitStatusFromString(connectionUpdate.ExitStatus),
-				}
-				dbSession.Connections = append(dbSession.Connections, dbConnection)
+				var dbConnection models.Connection
+				tx.Where(models.Connection{UUID: uuid.FromStringOrNil(connectionUpdate.Id)}).
+					Assign(models.Connection{
+						SessionID:   dbSession.ID,
+						Pid:         connectionUpdate.Pid,
+						ProcessName: connectionUpdate.ProcessName,
+						ExitCode:    connectionUpdate.ExitCode,
+					}).
+					FirstOrCreate(&dbConnection)
+
+				tx.Updates(dbConnection)
 			}
 
 			tx.Updates(dbSession)

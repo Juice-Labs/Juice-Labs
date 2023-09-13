@@ -1,3 +1,6 @@
+/*
+ *  Copyright (c) 2023 Juice Technologies, Inc. All Rights Reserved.
+ */
 package app
 
 import "sync/atomic"

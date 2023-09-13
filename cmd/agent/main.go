@@ -44,25 +44,25 @@ func main() {
 	err := appmain.Run(config, func(group task.Group) error {
 		var tlsConfig *tls.Config
 
-		var err error
-		var certificates []tls.Certificate
 		if *certFile != "" && *keyFile != "" {
-			certificate, err_ := tls.LoadX509KeyPair(*certFile, *keyFile)
-			err = err_
-			if err == nil {
-				certificates = append(certificates, certificate)
+			certificate, err := tls.LoadX509KeyPair(*certFile, *keyFile)
+			if err != nil {
+				return err
+			}
+
+			tlsConfig = &tls.Config{
+				InsecureSkipVerify: true,
+				Certificates:       []tls.Certificate{certificate},
 			}
 		} else if *generateCert {
-			certificate, err_ := crypto.GenerateCertificate()
-			err = err_
-			if err == nil {
-				certificates = append(certificates, certificate)
+			certificate, err := crypto.GenerateCertificate()
+			if err != nil {
+				return err
 			}
-		}
 
-		if certificates != nil {
 			tlsConfig = &tls.Config{
-				Certificates: certificates,
+				InsecureSkipVerify: true,
+				Certificates:       []tls.Certificate{certificate},
 			}
 		}
 
@@ -70,30 +70,26 @@ func main() {
 			logger.Infof("Could not load .env file: %v", err)
 		}
 
+		agent, err := app.NewAgent(group.Ctx(), tlsConfig)
 		if err == nil {
-			agent, err := app.NewAgent(tlsConfig)
-			if err == nil {
-				consumer, err_ := playnite.NewGpuMetricsConsumer(agent)
-				err = err_
-				if err != nil {
-					logger.Warning(err)
-				}
-
-				agent.GpuMetricsProvider.AddConsumer(consumer)
-				agent.GpuMetricsProvider.AddConsumer(prometheus.NewGpuMetricsConsumer())
-
-				err = agent.ConnectToController(group)
-				if err == nil {
-					group.Go("Agent", agent)
-				} else {
-					group.Cancel()
-				}
+			consumer, err_ := playnite.NewGpuMetricsConsumer(agent)
+			err = err_
+			if err != nil {
+				logger.Warning(err)
 			}
 
-			return err
+			agent.GpuMetricsProvider.AddConsumer(consumer)
+			agent.GpuMetricsProvider.AddConsumer(prometheus.NewGpuMetricsConsumer())
+
+			err = agent.ConnectToController(group, tlsConfig)
+			if err == nil {
+				group.Go("Agent", agent)
+			} else {
+				group.Cancel()
+			}
 		}
 
-		return nil
+		return err
 	})
 
 	if err != nil {

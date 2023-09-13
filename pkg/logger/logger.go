@@ -13,7 +13,7 @@ import (
 
 var (
 	quiet       = flag.Bool("quiet", false, "Disables all logging output")
-	logLevelArg = flag.String("log-level", "info", "Sets the maximum level of output [Fatal, Error, Warning, Info (Default), Debug, Trace]")
+	logLevelArg = flag.String("log-level", "info", "Sets the maximum level of output [Fatal, Error, Warning, Info (Default), Debug]")
 	logFile     = flag.String("log-file", "", "")
 	logFormat   = flag.String("log-format", "juice", "Set the format of the logging [juice, console, json]")
 
@@ -115,13 +115,5 @@ func Debug(v ...any) {
 }
 
 func Debugf(format string, v ...any) {
-	sugardLogger.Debugf(format, v...)
-}
-
-func Trace(v ...any) {
-	sugardLogger.Debug(v...)
-}
-
-func Tracef(format string, v ...any) {
 	sugardLogger.Debugf(format, v...)
 }

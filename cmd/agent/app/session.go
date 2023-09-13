@@ -1,230 +1,161 @@
+/*
+ *  Copyright (c) 2023 Juice Technologies, Inc. All Rights Reserved.
+ */
 package app
 
 import (
-	"errors"
+	"context"
+	"fmt"
 	"net"
-	"strconv"
-	"sync"
 
-	"github.com/Juice-Labs/Juice-Labs/cmd/agent/connection"
+	"github.com/Juice-Labs/Juice-Labs/pkg/errors"
 	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
-	orderedmap "github.com/wk8/go-ordered-map/v2"
+	"github.com/Juice-Labs/Juice-Labs/pkg/utilities"
 )
 
-type EventListener interface {
-	SessionStateChanged(sessionId string, state string)
-}
+var (
+	ErrClosed = errors.New("session is closed")
+)
 
 type Session struct {
-	mutex sync.RWMutex
+	Id      string
+	Version string
 
-	id         string
-	juicePath  string
-	version    string
-	persistant bool
-	gpus       *gpu.SelectedGpuSet
+	juicePath string
+	gpus      *gpu.SelectedGpuSet
 
-	state       string
-	connections *orderedmap.OrderedMap[string, *Reference[connection.Connection]]
+	closed      *utilities.ConcurrentVariable[bool]
+	connections *utilities.ConcurrentMap[string, *Connection]
+
+	taskManager *task.TaskManager
 
 	eventListener EventListener
 }
 
-func (session *Session) Id() string {
-	session.mutex.RLock()
-	defer session.mutex.RUnlock()
-
-	return session.id
-}
-
-func (session *Session) Persistent() bool {
-	session.mutex.RLock()
-	defer session.mutex.RUnlock()
-
-	return session.persistant
-}
-
-func (session *Session) State() string {
-	session.mutex.RLock()
-	defer session.mutex.RUnlock()
-
-	return session.state
-}
-
-func (session *Session) ActiveConnections() *orderedmap.OrderedMap[string, *Reference[connection.Connection]] {
-	session.mutex.RLock()
-	defer session.mutex.RUnlock()
-
-	// activeConnections := orderedmap.New[string, *Reference[connection.Connection]]()
-
-	// for pair := session.connections.Oldest(); pair != nil; pair = pair.Next() {
-	// 	connection := pair.Value.Object
-	// 	if connection.ExitStatus() == restapi.ExitStatusUnknown {
-	// 		activeConnections.Set(pair.Key, pair.Value)
-	// 	}
-	// }
-
-	// return activeConnections
-
-	return session.connections
-}
-
-func NewSession(id string, juicePath string, version string, gpus *gpu.SelectedGpuSet, eventListener EventListener, persistent bool) *Session {
-	session := Session{
-		id:            id,
+func newSession(ctx context.Context, id string, version string, juicePath string, gpus *gpu.SelectedGpuSet, eventListener EventListener) *Session {
+	return &Session{
+		Id:            id,
+		Version:       version,
 		juicePath:     juicePath,
-		version:       version,
-		state:         restapi.SessionActive,
 		gpus:          gpus,
-		persistant:    persistent,
-		connections:   orderedmap.New[string, *Reference[connection.Connection]](),
+		closed:        utilities.NewConcurrentVariableD[bool](false),
+		connections:   utilities.NewConcurrentMap[string, *Connection](),
+		taskManager:   task.NewTaskManager(ctx),
 		eventListener: eventListener,
 	}
-
-	return &session
 }
 
 func (session *Session) Session() restapi.Session {
-	session.mutex.RLock()
-	defer session.mutex.RUnlock()
+	return utilities.WithReturn(session.closed, func(value bool) restapi.Session {
+		connections := make([]restapi.Connection, 0, session.connections.Len())
+		gpus := make([]restapi.SessionGpu, 0)
+		state := restapi.SessionClosed
 
-	connections := make([]restapi.Connection, 0, session.connections.Len())
-	for pair := session.connections.Oldest(); pair != nil; pair = pair.Next() {
-		connections = append(connections, pair.Value.Object.Connection())
-	}
+		if !value {
+			session.connections.Foreach(func(key string, value *Connection) bool {
+				connections = append(connections, restapi.Connection{
+					ConnectionData: value.ConnectionData,
+				})
+				return true
+			})
 
-	return restapi.Session{
-		Id:          session.id,
-		State:       session.state,
-		Version:     session.version,
-		Gpus:        session.gpus.GetGpus(),
-		Connections: connections,
-		Persistent:  session.persistant,
-	}
-}
-
-func (session *Session) Close() error {
-	errs := []error{}
-	// verify that there are no connections
-	if session.ActiveConnections().Len() > 0 {
-		logger.Errorf("closing session has active connections, %s", session.Id())
-		errs = append(errs, errors.New("closing session has active connections"))
-	}
-	session.mutex.Lock()
-
-	session.state = restapi.SessionClosed
-
-	session.connections = nil
-
-	session.gpus.Release()
-	session.gpus = nil
-
-	session.mutex.Unlock()
-	session.eventListener.SessionStateChanged(session.id, session.state)
-
-	err := errors.Join(errs...)
-	return err
-}
-
-func (session *Session) Cancel() error {
-	session.mutex.Lock()
-	session.state = restapi.SessionCanceling
-	session.mutex.Unlock()
-
-	session.mutex.RLock()
-	defer session.mutex.RUnlock()
-
-	errs := []error{}
-
-	for pair := session.connections.Oldest(); pair != nil; pair = pair.Next() {
-		connection := pair.Value.Object
-		errs = append(errs, connection.Cancel())
-	}
-	session.eventListener.SessionStateChanged(session.id, session.state)
-
-	return errors.Join(errs...)
-}
-
-func (session *Session) AddConnection(connection *connection.Connection) *Reference[connection.Connection] {
-	session.mutex.Lock()
-	defer session.mutex.Unlock()
-
-	connectionRef := NewReference(connection, func() {
-		logger.Tracef("session %s closing connection %s", session.Id(), connection.Id())
-		err := connection.Close()
-		if err != nil {
-			logger.Errorf("session %s experienced a failure during closing, %v", session.Id(), err)
+			gpus = session.gpus.GetGpus()
+			state = restapi.SessionActive
 		}
 
-		session.mutex.Lock()
-		defer session.mutex.Unlock()
+		return restapi.Session{
+			Id:          session.Id,
+			State:       state,
+			Version:     session.Version,
+			Gpus:        gpus,
+			Connections: connections,
+		}
+	})
+}
 
-		session.connections.Delete(connection.Id())
+func (session *Session) Run(group task.Group) error {
+	group.GoFn(fmt.Sprintf("session %s close", session.Id), func(g task.Group) error {
+		select {
+		case <-group.Ctx().Done():
+			session.Cancel()
+			break
+
+		case <-session.taskManager.Ctx().Done():
+			break
+		}
+
+		session.closed.Set(true)
+
+		err := session.taskManager.Wait()
+
+		session.gpus.Release()
+
+		session.eventListener.SessionClosed(session.Id)
+
+		return err
 	})
 
-	session.connections.Set(connection.Id(), connectionRef)
-
-	return connectionRef
+	return nil
 }
 
-func (session *Session) Connect(group task.Group, connectionData restapi.ConnectionData, c net.Conn, agent *Agent) error {
-	connectionRef, found := session.GetConnection(connectionData.Id)
-	if found {
-		logger.Tracef("Connecting to existing connection: %s", connectionData.Id)
-		defer connectionRef.Release()
-	} else {
-		// New Connection - Create it and start RenderWin
-		pid, err := strconv.ParseInt(connectionData.Pid, 10, 64)
-		if err != nil {
-			pid = 0
+func (session *Session) Cancel() {
+	utilities.With(session.closed, func(value bool) {
+		if !value {
+			session.taskManager.Cancel()
 		}
-		connectionRef = session.AddConnection(connection.New(connectionData.Id, session.juicePath, session.version, session.gpus, session.id, pid, connectionData.ProcessName, agent))
-		err = connectionRef.Object.Start(group)
-		if err == nil {
-			group.GoFn("Agent startConnection", func(group task.Group) error {
-				err := connectionRef.Object.Wait()
-				logger.Tracef("Connection %s exited with code: %v", connectionRef.Object.Id(), connectionRef.Object.ExitStatus())
+	})
+}
+
+func (session *Session) Connect(connectionData restapi.ConnectionData, c net.Conn) error {
+	logger.Debugf("Connecting to connection: %s", connectionData.Id)
+
+	return utilities.WithReturn(session.closed, func(value bool) error {
+		if !value {
+			connection, found := session.connections.Get(connectionData.Id)
+			if !found {
+				var err error
+				connection, err = session.addConnection(connectionData)
 				if err != nil {
-					logger.Errorf("session %s experienced a failure during waiting, %v", session.Id(), err)
+					return errors.Newf("session %s connection %s failed to connect", session.Id, connectionData.Id).Wrap(err)
 				}
-				connectionRef.Release()
+			}
 
-				if session.ActiveConnections().Len() == 0 {
-					if !session.Persistent() {
-						err = session.Cancel()
-						if err != nil {
-							logger.Errorf("session %s experienced a failure canceling, %v", session.Id(), err)
-						}
-					}
-
-				}
-				return err
-			})
-		} else {
-			connectionRef.Release()
+			return connection.Connect(c)
 		}
-		logger.Tracef("Connection %s created for pid: %s, process name: %s", connectionData.Id, connectionData.Pid, connectionData.ProcessName)
-		session.eventListener.SessionStateChanged(session.id, session.state)
-	}
 
-	err := connectionRef.Object.Connect(c)
-
-	return err
+		return ErrClosed
+	})
 }
 
-func (session *Session) GetConnection(id string) (*Reference[connection.Connection], bool) {
-	session.mutex.Lock()
-	defer session.mutex.Unlock()
+func (session *Session) addConnection(connectionData restapi.ConnectionData) (*Connection, error) {
+	logger.Debugf("session %s creating connection %s for PID %s and process name %s", session.Id, connectionData.Id, connectionData.Pid, connectionData.ProcessName)
 
-	connectionRef, ok := session.connections.Get(id)
-	if !ok {
-		return nil, false
+	exitCodeCh := make(chan int)
+
+	connection := newConnection(connectionData, session.juicePath, session.gpus.GetPciBusString())
+	err := connection.Start(session.taskManager, exitCodeCh)
+	if err != nil {
+		return nil, err
 	}
-	if !connectionRef.Acquire() {
-		return nil, false
-	}
-	return connectionRef, true
+
+	session.taskManager.GoFn(fmt.Sprintf("session %s connection %s", session.Id, connection.Id), func(g task.Group) error {
+		exitCode, ok := <-exitCodeCh
+		if !ok {
+			panic("channel has been closed")
+		}
+		close(exitCodeCh)
+
+		session.connections.Delete(connection.Id)
+		session.eventListener.ConnectionClosed(session.Id, connection.ConnectionData, exitCode)
+
+		return nil
+	})
+
+	session.connections.Set(connection.Id, connection)
+	session.eventListener.ConnectionCreated(session.Id, connection.ConnectionData)
+
+	return connection, nil
 }

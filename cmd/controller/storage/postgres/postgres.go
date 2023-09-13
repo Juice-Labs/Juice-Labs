@@ -114,10 +114,10 @@ const (
 				SELECT ( SELECT row(key, value) FROM key_values WHERE id = agent_taints.key_value_id ) FROM agent_taints WHERE agent_id = agents.id
 			) ) taints, 
 			( SELECT ARRAY (
-				SELECT row(id, state, address, version, persistent, gpus) FROM sessions tab WHERE tab.agent_id = agents.id AND tab.state != 'closed'
+				SELECT row(id, state, address, version, gpus) FROM sessions tab WHERE tab.agent_id = agents.id AND tab.state != 'closed'
 			) ) sessions
 		FROM agents`
-	selectSessions       = "SELECT id, state, address, version, persistent, gpus FROM sessions"
+	selectSessions       = "SELECT id, state, address, version, gpus FROM sessions"
 	selectQueuedSessions = "SELECT id, requirements FROM sessions WHERE state = 'queued'"
 
 	orderBy     = " ORDER BY created_at ASC"
@@ -201,7 +201,7 @@ func unmarshalSession(row sqlRow) (restapi.Session, error) {
 	var address []byte
 	var gpus []byte
 
-	err := row.Scan(&session.Id, &session.State, &address, &session.Version, &session.Persistent, &gpus)
+	err := row.Scan(&session.Id, &session.State, &address, &session.Version, &gpus)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			err = storage.ErrNotFound
@@ -580,11 +580,11 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 
 		for _, connectionUpdate := range sessionUpdate.Connections {
 			_, err = tx.ExecContext(driver.ctx, `
-			INSERT INTO connections (id, session_id, pid, process_name, exit_status)
+			INSERT INTO connections (id, session_id, pid, process_name, exit_code)
 			VALUES ($1, $2, $3, $4, $5)
 			ON CONFLICT (id) 
-			DO UPDATE SET exit_status = $5`,
-				connectionUpdate.Id, id, connectionUpdate.Pid, connectionUpdate.ProcessName, connectionUpdate.ExitStatus)
+			DO UPDATE SET exit_code = $5`,
+				connectionUpdate.Id, id, connectionUpdate.Pid, connectionUpdate.ProcessName, connectionUpdate.ExitCode)
 			if err != nil {
 				return errors.Join(err, tx.Rollback())
 			}
@@ -617,12 +617,11 @@ func (driver *storageDriver) RequestSession(sessionRequirements restapi.SessionR
 
 	var id string
 	err = tx.QueryRowContext(driver.ctx, "INSERT INTO sessions ("+
-		"state, version, persistent, requirements, vram_required, updated_at"+
+		"state, version, requirements, vram_required, updated_at"+
 		") VALUES ("+
 		"$1, $2, $3, $4, $5, now()"+
 		") RETURNING id",
-		restapi.SessionQueued, sessionRequirements.Version,
-		sessionRequirements.Persistent, requirements, storage.TotalVramRequired(sessionRequirements)).Scan(&id)
+		restapi.SessionQueued, sessionRequirements.Version, requirements, storage.TotalVramRequired(sessionRequirements)).Scan(&id)
 	if err != nil {
 		return "", errors.Join(err, tx.Rollback())
 	}
@@ -713,13 +712,13 @@ func (driver *storageDriver) GetSessionById(id string) (restapi.Session, error) 
 	if err != nil {
 		return restapi.Session{}, err
 	}
-	connectionRows, err := driver.db.QueryContext(driver.ctx, fmt.Sprint("SELECT id, pid, process_name, exit_status FROM connections WHERE session_id = $1"), id)
+	connectionRows, err := driver.db.QueryContext(driver.ctx, fmt.Sprint("SELECT id, pid, process_name, exit_code FROM connections WHERE session_id = $1"), id)
 	if err != nil {
 		return restapi.Session{}, err
 	}
 	for connectionRows.Next() {
 		var connection restapi.Connection
-		err = connectionRows.Scan(&connection.Id, &connection.Pid, &connection.ProcessName, &connection.ExitStatus)
+		err = connectionRows.Scan(&connection.Id, &connection.Pid, &connection.ProcessName, &connection.ExitCode)
 		if err != nil {
 			return restapi.Session{}, err
 		}

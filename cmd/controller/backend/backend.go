@@ -28,7 +28,7 @@ func NewBackend(storage storage.Storage) *Backend {
 func (backend *Backend) Run(group task.Group) error {
 	err := backend.update(group.Ctx())
 	if err == nil {
-		ticker := time.NewTicker(5 * time.Second)
+		ticker := time.NewTicker(1 * time.Second)
 		defer ticker.Stop()
 
 		for err == nil {
@@ -139,7 +139,7 @@ func (backend *Backend) update(ctx context.Context) error {
 					}
 
 					if selectedGpus != nil {
-						logger.Tracef("assigning %s to %s", session.Id, agent.Id)
+						logger.Debugf("assigning %s to %s", session.Id, agent.Id)
 						err = errors.Join(err, backend.storage.AssignSession(session.Id, agent.Id, selectedGpus.GetGpus()))
 						break
 					}

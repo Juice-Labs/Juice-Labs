@@ -10,6 +10,7 @@ import (
 	"github.com/kolesnikovae/go-winjob"
 
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
+	pkgWinjob "github.com/Juice-Labs/Juice-Labs/pkg/winjob"
 )
 
 type jobObject struct {
@@ -17,16 +18,20 @@ type jobObject struct {
 }
 
 func (job *jobObject) Close() error {
-	return job.object.Close()
+	if job.object != nil {
+		return job.object.Close()
+	}
+
+	return nil
 }
 
 func newJobObject() closable {
-	job, err := winjob.Create("Juicify", winjob.WithKillOnJobClose())
+	job, err := pkgWinjob.CreateAnonymous(winjob.WithKillOnJobClose())
 	if err == nil {
-		process, err_ := os.FindProcess(os.Getpid())
-		err = err_
+		var process *os.Process
+		process, err = os.FindProcess(os.Getpid())
 		if err == nil {
-			err = errors.Join(err, job.Assign(process))
+			err = job.Assign(process)
 		} else {
 			err = errors.Join(err, job.Close())
 			job = nil
@@ -34,7 +39,7 @@ func newJobObject() closable {
 	}
 
 	if err != nil {
-		logger.Error("unable to create job object, ", err)
+		logger.Error("unable to create job object, ", errors.Join(err, job.Close()))
 	}
 
 	return &jobObject{
