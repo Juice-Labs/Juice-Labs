@@ -659,5 +659,6 @@ func (driver *storageDriver) GetPermissions(userId string) (restapi.UserPermissi
 }
 
 func (driver *storageDriver) GetPoolPermissions(id string) (restapi.PoolPermissions, error) {
+	// TODO
 	return restapi.PoolPermissions{}, nil
 }
