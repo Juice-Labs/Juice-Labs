@@ -721,6 +721,10 @@ func (driver *storageDriver) GetSessionById(id string) (restapi.Session, error) 
 
 }
 
+func (driver *storageDriver) GetAgentForSession(id string) (restapi.Agent, error) {
+	return restapi.Agent{}, errors.New("Unimplemented")
+}
+
 func (driver *storageDriver) GetQueuedSessionById(id string) (storage.QueuedSession, error) {
 	return unmarshalQueuedSession(driver.db.QueryRowContext(driver.ctx, selectQueuedSessionsWhere("id = $1"), id))
 }

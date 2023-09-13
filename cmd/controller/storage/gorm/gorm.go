@@ -464,6 +464,25 @@ func (g *gormDriver) GetSessionById(id string) (restapi.Session, error) {
 	return restSessionFromSession(dbSession)
 }
 
+func (g *gormDriver) GetAgentForSession(id string) (restapi.Agent, error) {
+
+	dbSession := models.Session{
+		UUID: uuid.FromStringOrNil(id),
+	}
+
+	dbAgent := models.Agent{}
+
+	result := g.db.Preload("Labels").Preload("Taints").Joins("Agents", g.db.Where(&dbSession, "UUID")).Take(&dbAgent)
+
+	//result := g.db.Joins("Sessions").Joins("Agents").Where(&dbSession, "UUID").First(&dbAgent)
+
+	if result.Error != nil {
+		return restapi.Agent{}, mapError(result.Error)
+	}
+
+	return restAgentFromAgent(dbAgent)
+}
+
 func (g *gormDriver) GetQueuedSessionById(id string) (storage.QueuedSession, error) {
 	dbSession := models.Session{
 		UUID:  uuid.FromStringOrNil(id),

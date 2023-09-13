@@ -90,6 +90,8 @@ type Storage interface {
 	GetQueuedSessionById(id string) (QueuedSession, error) // For Testing
 
 	GetAgents(poolId string) (Iterator[restapi.Agent], error)
+	GetAgentForSession(sessionId string) (restapi.Agent, error)
+
 	GetAvailableAgentsMatching(totalAvailableVramAtLeast uint64) (Iterator[restapi.Agent], error)
 	GetQueuedSessionsIterator() (Iterator[QueuedSession], error)
 

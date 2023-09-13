@@ -5,6 +5,7 @@ package memdb
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"time"
 
@@ -477,6 +478,10 @@ func (driver *storageDriver) GetSessionById(id string) (restapi.Session, error) 
 	}
 
 	return utilities.Require[Session](obj).Session, nil
+}
+
+func (driver *storageDriver) GetAgentForSession(id string) (restapi.Agent, error) {
+	return restapi.Agent{}, errors.New("Unimplemented")
 }
 
 func (driver *storageDriver) GetQueuedSessionById(id string) (storage.QueuedSession, error) {

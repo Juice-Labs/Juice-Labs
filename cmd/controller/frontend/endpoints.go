@@ -34,7 +34,8 @@ func (frontend *Frontend) initializeEndpoints(server *server.Server) {
 	server.AddEndpointFunc("POST", "/v1/request/session", frontend.requestSessionEp, true)
 	server.AddEndpointFunc("GET", "/v1/session/{id}", frontend.getSessionEp, true)
 	server.AddEndpointFunc("DELETE", "/v1/session/{id}", frontend.cancelSessionEp, true)
-
+	server.AddEndpointFunc("POST", "/v1/connect/session/{id}", frontend.connectSessionEp)
+	
 	server.AddEndpointFunc("PUT", "/v1/pool", frontend.createPoolEp, true)
 	server.AddEndpointFunc("GET", "/v1/pool/{id}", frontend.getPoolEp, true)
 	server.AddEndpointFunc("GET", "/v1/pool/{id}/permissions", frontend.getPoolPermissionsEp, true)
@@ -183,6 +184,22 @@ func (frontend *Frontend) cancelSessionEp(w http.ResponseWriter, r *http.Request
 	}
 
 	err = pkgnet.Respond(w, http.StatusOK, fmt.Sprintf("Session %s cancelled", id))
+	if err != nil {
+		logger.Error(err)
+	}
+}
+
+func (frontend *Frontend) connectSessionEp(w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
+
+	err := frontend.connectSession(id)
+	if err != nil {
+		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
+		logger.Error(err)
+		return
+	}
+
+	err = pkgnet.Respond(w, http.StatusOK, fmt.Sprintf("Session %s connected", id))
 	if err != nil {
 		logger.Error(err)
 	}

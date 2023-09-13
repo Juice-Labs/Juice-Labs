@@ -447,3 +447,81 @@ func TestGetQueuedSessionsIterator(t *testing.T) {
 		run(t, db)
 	})
 }
+
+func TestAgentLookupBySession(t *testing.T) {
+	run := func(t *testing.T, db storage.Storage) {
+		agent := registerAgent(t, db, defaultAgent(24*1024*1024*1024))
+
+		requirements := defaultSessionRequirements(4 * 1024 * 1024 * 1024)
+		sessionId := queueSession(t, db, requirements)
+
+		selectedGpus := []restapi.SessionGpu{
+			{
+				Index:        agent.Gpus[0].Index,
+				VramRequired: requirements.Gpus[0].VramRequired,
+			},
+		}
+
+		err := db.AssignSession(sessionId, agent.Id, selectedGpus)
+		if err != nil {
+			t.Log(err)
+			t.FailNow()
+		}
+
+		session := restapi.Session{
+			Id:      sessionId,
+			State:   restapi.SessionAssigned,
+			Address: agent.Address,
+			Version: requirements.Version,
+			Gpus:    selectedGpus,
+		}
+		checkSession(t, db, session)
+
+		agent.Sessions = append(agent.Sessions, session)
+		checkAgent(t, db, agent)
+
+		agent.Sessions[0].State = restapi.SessionActive
+		session.State = restapi.SessionActive
+		db.UpdateAgent(restapi.AgentUpdate{
+			Id:    agent.Id,
+			State: agent.State,
+			SessionsUpdate: map[string]restapi.SessionUpdate{
+				session.Id: {
+					State: restapi.SessionActive,
+				},
+			},
+		})
+		checkAgent(t, db, agent)
+		compare(t, session, agent.Sessions[0], nil)
+		checkSession(t, db, session)
+
+		agent.Sessions = make([]restapi.Session, 0)
+		db.UpdateAgent(restapi.AgentUpdate{
+			Id:    agent.Id,
+			State: agent.State,
+			SessionsUpdate: map[string]restapi.SessionUpdate{
+				session.Id: {
+					State: restapi.SessionClosed,
+				},
+			},
+		})
+		checkAgent(t, db, agent)
+
+		fromSessionAgent, err := db.GetAgentForSession(session.Id)
+		if err != nil {
+			t.Log(err)
+			t.FailNow()
+		}
+		checkAgent(t, db, fromSessionAgent)
+
+		session.State = restapi.SessionClosed
+		checkSession(t, db, session)
+	}
+
+	t.Run("gorm sqlite", func(t *testing.T) {
+		db := openGorm(t, "sqlite")
+		defer db.Close()
+		run(t, db)
+	})
+
+}

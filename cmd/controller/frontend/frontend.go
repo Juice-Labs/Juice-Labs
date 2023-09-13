@@ -215,6 +215,11 @@ func (frontend *Frontend) getPermissions(userId string) (restapi.UserPermissions
 	return frontend.storage.GetPermissions(userId)
 }
 
+func (frontend *Frontend) connectSession(id string) error {
+	session, err := frontend.storage.GetSessionById(id)
+	session.
+}
+
 func (frontend *Frontend) newAgentHandler(id string) *AgentHandler {
 	handler := NewAgentHandler(id)
 	frontend.agentHandlers.Set(id, handler)
