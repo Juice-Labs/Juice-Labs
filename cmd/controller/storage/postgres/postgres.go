@@ -96,6 +96,9 @@ func (iterator *tableIterator[T]) Next() bool {
 		}
 
 		iterator.iterator = storage.NewDefaultIterator[T](objects)
+		// Call next once to move the new iterator to the first element
+		iterator.iterator.Next()
+
 	}
 
 	return true
@@ -106,7 +109,7 @@ func (iterator *tableIterator[T]) Value() T {
 }
 
 const (
-	selectAgents = `SELECT id, state, hostname, address, version, gpus, 
+	selectAgents = `SELECT id, state, hostname, address, version, pool_id, gpus, 
 			( SELECT ARRAY (
 				SELECT ( SELECT row(key, value) FROM key_values WHERE id = agent_labels.key_value_id ) FROM agent_labels WHERE agent_id = agents.id
 			) ) labels, 
@@ -114,10 +117,10 @@ const (
 				SELECT ( SELECT row(key, value) FROM key_values WHERE id = agent_taints.key_value_id ) FROM agent_taints WHERE agent_id = agents.id
 			) ) taints, 
 			( SELECT ARRAY (
-				SELECT row(id, state, address, version, gpus) FROM sessions tab WHERE tab.agent_id = agents.id AND tab.state != 'closed'
+				SELECT row(id, state, address, version, pool_id, gpus) FROM sessions tab WHERE tab.agent_id = agents.id AND tab.state != 'closed'
 			) ) sessions
 		FROM agents`
-	selectSessions       = "SELECT id, state, address, version, gpus FROM sessions"
+	selectSessions       = "SELECT id, state, address, version, pool_id, gpus FROM sessions"
 	selectQueuedSessions = "SELECT id, requirements FROM sessions WHERE state = 'queued'"
 
 	orderBy     = " ORDER BY created_at ASC"
@@ -146,7 +149,7 @@ func unmarshalAgent(row sqlRow) (restapi.Agent, error) {
 		Sessions: make([]restapi.Session, 0),
 	}
 
-	err := row.Scan(&agent.Id, &agent.State, &agent.Hostname, &agent.Address, &agent.Version, &gpus, &labels, &taints, &sessions)
+	err := row.Scan(&agent.Id, &agent.State, &agent.Hostname, &agent.Address, &agent.Version, &agent.PoolId, &gpus, &labels, &taints, &sessions)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			err = storage.ErrNotFound
@@ -201,7 +204,10 @@ func unmarshalSession(row sqlRow) (restapi.Session, error) {
 	var address []byte
 	var gpus []byte
 
-	err := row.Scan(&session.Id, &session.State, &address, &session.Version, &gpus)
+	var poolId sql.NullString
+
+	err := row.Scan(&session.Id, &session.State, &address, &session.Version, &poolId, &gpus)
+
 	if err != nil {
 		if err == sql.ErrNoRows {
 			err = storage.ErrNotFound
@@ -209,6 +215,8 @@ func unmarshalSession(row sqlRow) (restapi.Session, error) {
 
 		return restapi.Session{}, err
 	}
+
+	session.PoolId = poolId.String
 
 	if address == nil {
 		session.Address = ""
@@ -460,11 +468,11 @@ func (driver *storageDriver) RegisterAgent(agent restapi.Agent) (string, error) 
 
 	var id string
 	err = tx.QueryRowContext(driver.ctx, "INSERT INTO agents ("+
-		"state, hostname, address, version, gpus, vram_available, updated_at"+
+		"state, hostname, address, version, pool_id, gpus, vram_available, updated_at"+
 		") VALUES ("+
-		"$1, $2, $3, $4, $5, $6, now()"+
+		"$1, $2, $3, $4, $5, $6, $7, now()"+
 		") RETURNING id",
-		agent.State, agent.Hostname, agent.Address, agent.Version,
+		agent.State, agent.Hostname, agent.Address, agent.Version, agent.PoolId,
 		gpus, storage.TotalVram(agent.Gpus)).Scan(&id)
 	if err != nil {
 		return "", errors.Join(err, tx.Rollback())
@@ -544,33 +552,6 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 		return errors.Join(err, tx.Rollback())
 	}
 
-	// TODO: Automatically close sessions that are not persistant when the last connection is closed
-	// This should be done by the agent or controller, not the storage implementation
-
-	// Check if any of the sessions are being closed
-	// closedSessions := make([]string, 0, len(update.Sessions))
-	// closedSessionsCount := 0
-	// for key, value := range update.Sessions {
-	// 	if value.State == restapi.SessionClosed {
-	// 		closedSessions = append(closedSessions, key)
-	// 		closedSessionsCount++
-	// 	}
-	// }
-
-	// if closedSessionsCount > 0 {
-	// 	if update.State != "" {
-	// 		_, err = tx.ExecContext(driver.ctx, `UPDATE agents SET vram_available = (
-	// 				SELECT SUM(vram_required) FROM sessions WHERE id = ANY($1)
-	// 			), state = $2, gpus = $3, updated_at = now() WHERE id = $4`,
-	// 			pq.StringArray(closedSessions), update.State, gpusData, update.Id)
-	// 	} else {
-	// 		_, err = tx.ExecContext(driver.ctx, `UPDATE agents SET vram_available = (
-	// 				SELECT SUM(vram_required) FROM sessions WHERE id = ANY($1)
-	// 			), gpus = $2, updated_at = now() WHERE id = $3`,
-	// 			pq.StringArray(closedSessions), gpusData, update.Id)
-	// 	}
-	// }
-
 	for id, sessionUpdate := range update.SessionsUpdate {
 
 		_, err = tx.ExecContext(driver.ctx, "UPDATE sessions SET state = $1 WHERE id = $2", sessionUpdate.State, id)
@@ -604,6 +585,16 @@ func (driver *storageDriver) UpdateAgent(update restapi.AgentUpdate) error {
 	return tx.Commit()
 }
 
+func NewNullString(s string) sql.NullString {
+	if len(s) == 0 {
+		return sql.NullString{}
+	}
+	return sql.NullString{
+		String: s,
+		Valid:  true,
+	}
+}
+
 func (driver *storageDriver) RequestSession(sessionRequirements restapi.SessionRequirements) (string, error) {
 	requirements, err := json.Marshal(sessionRequirements)
 	if err != nil {
@@ -617,11 +608,12 @@ func (driver *storageDriver) RequestSession(sessionRequirements restapi.SessionR
 
 	var id string
 	err = tx.QueryRowContext(driver.ctx, "INSERT INTO sessions ("+
-		"state, version, requirements, vram_required, updated_at"+
+		"state, version, pool_id, requirements, vram_required, updated_at"+
 		") VALUES ("+
-		"$1, $2, $3, $4, $5, now()"+
+		"$1, $2, $3, $4, $5, $6, now()"+
 		") RETURNING id",
-		restapi.SessionQueued, sessionRequirements.Version, requirements, storage.TotalVramRequired(sessionRequirements)).Scan(&id)
+		restapi.SessionQueued, sessionRequirements.Version, NewNullString(sessionRequirements.PoolId),
+		requirements, storage.TotalVramRequired(sessionRequirements)).Scan(&id)
 	if err != nil {
 		return "", errors.Join(err, tx.Rollback())
 	}
@@ -712,7 +704,7 @@ func (driver *storageDriver) GetSessionById(id string) (restapi.Session, error) 
 	if err != nil {
 		return restapi.Session{}, err
 	}
-	connectionRows, err := driver.db.QueryContext(driver.ctx, fmt.Sprint("SELECT id, pid, process_name, exit_code FROM connections WHERE session_id = $1"), id)
+	connectionRows, err := driver.db.QueryContext(driver.ctx, "SELECT id, pid, process_name, exit_code FROM connections WHERE session_id = $1", id)
 	if err != nil {
 		return restapi.Session{}, err
 	}
@@ -733,8 +725,16 @@ func (driver *storageDriver) GetQueuedSessionById(id string) (storage.QueuedSess
 	return unmarshalQueuedSession(driver.db.QueryRowContext(driver.ctx, selectQueuedSessionsWhere("id = $1"), id))
 }
 
-func (driver *storageDriver) GetAgents() (storage.Iterator[restapi.Agent], error) {
-	statement, err := driver.db.PrepareContext(driver.ctx, selectAgentsIteratorWhere("state = 'active'", 20))
+func (driver *storageDriver) GetAgents(poolId string) (storage.Iterator[restapi.Agent], error) {
+	var statement *sql.Stmt
+	var err error
+
+	if poolId != "" {
+		statement, err = driver.db.PrepareContext(driver.ctx, selectAgentsIteratorWhere(fmt.Sprintf("pool_id = '%s' AND state = 'active'", poolId), 20))
+	} else {
+		statement, err = driver.db.PrepareContext(driver.ctx, selectAgentsIteratorWhere("state = 'active'", 20))
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -769,4 +769,168 @@ func (driver *storageDriver) SetAgentsMissingIfNotUpdatedFor(duration time.Durat
 func (driver *storageDriver) RemoveMissingAgentsIfNotUpdatedFor(duration time.Duration) error {
 	_, err := driver.db.ExecContext(driver.ctx, "DELETE FROM agents WHERE state = 'missing' AND updated_at <= now()-make_interval(secs=>$1)", duration.Seconds())
 	return err
+}
+
+func (driver *storageDriver) DeletePool(id string) error {
+	_, err := driver.db.ExecContext(driver.ctx, "DELETE FROM pools WHERE id = $1", id)
+	return err
+}
+
+func (driver *storageDriver) GetPool(id string) (restapi.Pool, error) {
+	row := driver.db.QueryRowContext(driver.ctx, "SELECT id, pool_name FROM pools WHERE id = $1", id)
+	var pool restapi.Pool
+	err := row.Scan(&pool.Id, &pool.Name)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			err = storage.ErrNotFound
+		}
+		return restapi.Pool{}, err
+	}
+	return pool, nil
+}
+
+func (driver *storageDriver) CreatePool(name string) (restapi.Pool, error) {
+	tx, err := driver.db.BeginTx(driver.ctx, nil)
+	if err != nil {
+		return restapi.Pool{}, err
+	}
+
+	var pool restapi.Pool
+	err = tx.QueryRowContext(driver.ctx, "INSERT INTO pools (pool_name) VALUES ($1) RETURNING id", name).Scan(&pool.Id)
+	if err != nil {
+		return restapi.Pool{}, errors.Join(err, tx.Rollback())
+	}
+
+	pool.Name = name
+	err = tx.Commit()
+	if err != nil {
+		return restapi.Pool{}, err
+	}
+	return pool, nil
+}
+
+func (driver *storageDriver) AddPermission(poolId string, userId string, permission restapi.Permission) error {
+	tx, err := driver.db.BeginTx(driver.ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.ExecContext(driver.ctx, "INSERT INTO permissions (user_id, pool_id, permission) VALUES ($1, $2, $3)", userId, poolId, permission)
+	if err != nil {
+		return errors.Join(err, tx.Rollback())
+	}
+
+	return tx.Commit()
+}
+
+func (driver *storageDriver) RemovePermission(poolId string, userId string, permission restapi.Permission) error {
+	tx, err := driver.db.BeginTx(driver.ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	result, err := tx.ExecContext(driver.ctx, "DELETE FROM permissions WHERE user_id = $1 AND pool_id = $2 AND permission = $3", userId, poolId, permission)
+	if err != nil {
+		return errors.Join(err, tx.Rollback())
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return errors.Join(err, tx.Rollback())
+	}
+	if rowsAffected == 0 {
+		return errors.New("No permission found")
+	}
+
+	return tx.Commit()
+
+}
+
+type UserPermissionRow struct {
+	PoolId       string
+	Permission   restapi.Permission
+	PoolName     string
+	SessionCount int
+	AgentCount   int
+	UserCount    int
+}
+
+func (driver *storageDriver) GetPermissions(userId string) (restapi.UserPermissions, error) {
+	var result restapi.UserPermissions
+
+	rows, err := driver.db.QueryContext(driver.ctx, `
+	SELECT permissions.pool_id, permissions.permission, pools.pool_name, COUNT(DISTINCT sessions.id) AS session_count, COUNT(DISTINCT agents.id) AS agent_count, 
+		(SELECT COUNT(DISTINCT p.user_id) FROM permissions p WHERE p.pool_id = permissions.pool_id) as user_count
+	FROM permissions 
+	JOIN pools ON pools.id = permissions.pool_id
+	LEFT JOIN agents ON agents.pool_id = pools.id AND agents.state = 'active'
+	LEFT JOIN sessions ON sessions.agent_id = agents.id AND sessions.state = 'active'
+	WHERE user_id = $1
+	GROUP BY permissions.pool_id, permissions.permission, pools.pool_name`, userId)
+
+	if err != nil {
+		return restapi.UserPermissions{}, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var row UserPermissionRow
+		err := rows.Scan(&row.PoolId, &row.Permission, &row.PoolName, &row.SessionCount, &row.AgentCount, &row.UserCount)
+		if err != nil {
+			return restapi.UserPermissions{}, err
+		}
+		if result.Permissions == nil {
+			result.Permissions = make(map[restapi.Permission][]restapi.Pool)
+		}
+		if result.Permissions[row.Permission] == nil {
+			result.Permissions[row.Permission] = []restapi.Pool{}
+		}
+		result.Permissions[row.Permission] = append(result.Permissions[row.Permission], restapi.Pool{
+			Id:           row.PoolId,
+			Name:         row.PoolName,
+			SessionCount: row.SessionCount,
+			AgentCount:   row.AgentCount,
+			UserCount:    row.UserCount,
+		})
+	}
+
+	return result, nil
+
+}
+
+type PoolPermissionRow struct {
+	PoolId     string
+	Permission restapi.Permission
+	UserId     string
+}
+
+func (driver *storageDriver) GetPoolPermissions(poolId string) (restapi.PoolPermissions, error) {
+	var result restapi.PoolPermissions
+
+	rows, err := driver.db.QueryContext(driver.ctx, `
+	SELECT permissions.pool_id, permissions.permission, permissions.user_id
+	FROM permissions 
+	WHERE permissions.pool_id = $1`, poolId)
+
+	if err != nil {
+		return restapi.PoolPermissions{}, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var row PoolPermissionRow
+		err := rows.Scan(&row.PoolId, &row.Permission, &row.UserId)
+		if err != nil {
+			return restapi.PoolPermissions{}, err
+		}
+		if result.UserIds == nil {
+			result.UserIds = make(map[string][]restapi.Permission)
+		}
+		if result.UserIds[row.UserId] == nil {
+			result.UserIds[row.UserId] = []restapi.Permission{}
+		}
+		result.UserIds[row.UserId] = append(result.UserIds[row.UserId], row.Permission)
+	}
+
+	return result, nil
+
 }

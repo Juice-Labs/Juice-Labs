@@ -65,8 +65,17 @@ func canTolerate(taints, tolerates map[string]string) bool {
 	return isSubset(tolerates, taints)
 }
 
+func matchesPool(poolId string, reqPoolId string) bool {
+	if reqPoolId == "" {
+		return true
+	}
+	return poolId == reqPoolId
+}
+
 func agentMatches(agent restapi.Agent, requirements restapi.SessionRequirements) (*gpu.SelectedGpuSet, error) {
-	if matchesLabels(agent.Labels, requirements.MatchLabels) && canTolerate(agent.Taints, requirements.Tolerates) {
+	if matchesPool(agent.PoolId, requirements.PoolId) &&
+		matchesLabels(agent.Labels, requirements.MatchLabels) &&
+		canTolerate(agent.Taints, requirements.Tolerates) {
 		var err error
 
 		// Need to ensure the agent has the GPU capacity to support this session

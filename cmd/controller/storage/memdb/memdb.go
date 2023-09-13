@@ -500,7 +500,7 @@ func (driver *storageDriver) GetQueuedSessionById(id string) (storage.QueuedSess
 	}, nil
 }
 
-func (driver *storageDriver) GetAgents() (storage.Iterator[restapi.Agent], error) {
+func (driver *storageDriver) GetAgents(poolId string) (storage.Iterator[restapi.Agent], error) {
 	txn := driver.db.Txn(false)
 	defer txn.Abort()
 
@@ -625,4 +625,40 @@ func (driver *storageDriver) RemoveMissingAgentsIfNotUpdatedFor(duration time.Du
 	}
 
 	return nil
+}
+
+func (driver *storageDriver) DeletePool(id string) error {
+	// TODO
+	return nil
+}
+
+func (driver *storageDriver) GetPool(id string) (restapi.Pool, error) {
+	// TODO
+	return restapi.Pool{}, nil
+}
+
+func (driver *storageDriver) CreatePool(name string) (restapi.Pool, error) {
+	// TODO
+	return restapi.Pool{}, nil
+}
+
+func (driver *storageDriver) AddPermission(poolId string, userId string, permission restapi.Permission) error {
+	// todo
+	return nil
+}
+
+func (driver *storageDriver) RemovePermission(poolId string, userId string, permission restapi.Permission) error {
+	// TODO
+	return nil
+
+}
+
+func (driver *storageDriver) GetPermissions(userId string) (restapi.UserPermissions, error) {
+	// TODO
+	return restapi.UserPermissions{}, nil
+}
+
+func (driver *storageDriver) GetPoolPermissions(id string) (restapi.PoolPermissions, error) {
+	// TODO
+	return restapi.PoolPermissions{}, nil
 }

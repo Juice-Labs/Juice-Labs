@@ -16,6 +16,7 @@ import (
 
 	"github.com/Juice-Labs/Juice-Labs/pkg/errors"
 	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
+	"github.com/Juice-Labs/Juice-Labs/pkg/middleware"
 	"github.com/Juice-Labs/Juice-Labs/pkg/sentry"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 
@@ -27,10 +28,12 @@ var (
 )
 
 type Endpoint struct {
-	Name    string
-	Methods []string
-	Path    string
-	Handler http.Handler
+	Name        string
+	Methods     []string
+	Queries     []string
+	Path        string
+	Handler     http.Handler
+	RequireAuth bool
 }
 
 type Server struct {
@@ -105,7 +108,7 @@ func NewServer(address string, tlsConfig *tls.Config) (*Server, error) {
 
 	server.AddEndpointFunc("GET", "/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-	})
+	}, false)
 
 	return server, nil
 }
@@ -114,28 +117,40 @@ func (server *Server) Port() int {
 	return server.port
 }
 
-func (server *Server) AddEndpointFunc(method string, path string, fn http.HandlerFunc) {
+func (server *Server) AddEndpointFunc(method string, path string, fn http.HandlerFunc, requireAuth bool) {
 	server.AddEndpoint(Endpoint{
-		Methods: []string{method},
-		Path:    path,
-		Handler: fn,
+		Methods:     []string{method},
+		Path:        path,
+		Handler:     fn,
+		RequireAuth: requireAuth,
+	})
+}
+func (server *Server) AddEndpointFuncWithQuery(method string, path string, fn http.HandlerFunc, requireAuth bool, queries []string) {
+	server.AddEndpoint(Endpoint{
+		Methods:     []string{method},
+		Path:        path,
+		Handler:     fn,
+		RequireAuth: requireAuth,
+		Queries:     queries,
 	})
 }
 
-func (server *Server) AddNamedEndpointFunc(name string, method string, path string, fn http.HandlerFunc) {
+func (server *Server) AddNamedEndpointFunc(name string, method string, path string, fn http.HandlerFunc, requireAuth bool) {
 	server.AddEndpoint(Endpoint{
-		Name:    name,
-		Methods: []string{method},
-		Path:    path,
-		Handler: fn,
+		Name:        name,
+		Methods:     []string{method},
+		Path:        path,
+		Handler:     fn,
+		RequireAuth: requireAuth,
 	})
 }
 
-func (server *Server) AddEndpointHandler(method string, path string, handler http.Handler) {
+func (server *Server) AddEndpointHandler(method string, path string, handler http.Handler, requireAuth bool) {
 	server.AddEndpoint(Endpoint{
-		Methods: []string{method},
-		Path:    path,
-		Handler: handler,
+		Methods:     []string{method},
+		Path:        path,
+		Handler:     handler,
+		RequireAuth: requireAuth,
 	})
 }
 
@@ -161,7 +176,20 @@ func (server *Server) RemoveEndpointByName(name string) {
 
 func (server *Server) Run(group task.Group) error {
 	for _, endpoint := range server.endpoints {
-		server.root.Methods(endpoint.Methods...).Path(endpoint.Path).Handler(endpoint.Handler)
+
+		route := server.root.Methods(endpoint.Methods...).Path(endpoint.Path)
+
+		if endpoint.RequireAuth {
+			handlerWithAuth := middleware.EnsureValidToken()(endpoint.Handler)
+			route.Handler(handlerWithAuth)
+		} else {
+			route.Handler(endpoint.Handler)
+		}
+
+		if len(endpoint.Queries) > 0 {
+			route.Queries(endpoint.Queries...)
+		}
+
 	}
 
 	httpServer := http.Server{

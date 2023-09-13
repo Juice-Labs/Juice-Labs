@@ -89,12 +89,20 @@ type Storage interface {
 	GetSessionById(id string) (restapi.Session, error)
 	GetQueuedSessionById(id string) (QueuedSession, error) // For Testing
 
-	GetAgents() (Iterator[restapi.Agent], error)
+	GetAgents(poolId string) (Iterator[restapi.Agent], error)
 	GetAvailableAgentsMatching(totalAvailableVramAtLeast uint64) (Iterator[restapi.Agent], error)
 	GetQueuedSessionsIterator() (Iterator[QueuedSession], error)
 
 	SetAgentsMissingIfNotUpdatedFor(duration time.Duration) error
 	RemoveMissingAgentsIfNotUpdatedFor(duration time.Duration) error
+
+	CreatePool(name string) (restapi.Pool, error)
+	GetPool(id string) (restapi.Pool, error)
+	GetPoolPermissions(id string) (restapi.PoolPermissions, error)
+	DeletePool(id string) error
+	RemovePermission(poolId string, userId string, permission restapi.Permission) error
+	AddPermission(poolId string, userId string, permission restapi.Permission) error
+	GetPermissions(userId string) (restapi.UserPermissions, error)
 }
 
 var (

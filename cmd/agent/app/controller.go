@@ -87,6 +87,7 @@ func (agent *Agent) ConnectToController(group task.Group, tlsConfig *tls.Config)
 			Gpus:     agent.Gpus.GetGpus(),
 			Labels:   agent.labels,
 			Taints:   agent.taints,
+			PoolId:   agent.poolId,
 		})
 		if err != nil {
 			return fmt.Errorf("Agent.ConnectToController: failed to register with Controller at %s with %s", *controllerAddress, err)

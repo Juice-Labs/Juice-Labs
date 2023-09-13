@@ -73,4 +73,7 @@ type Agent struct {
 	Labels   []KeyValue `gorm:"many2many:agent_labels;constraint:OnDelete:CASCADE;"`
 	Taints   []KeyValue `gorm:"many2many:agent_taints;constraint:OnDelete:CASCADE;"`
 	Sessions []Session
+
+	PoolID uuid.UUID `gorm:"type:uuid;"`
+	Pool   Pool      `gorm:"constraint:OnDelete:CASCADE;"`
 }

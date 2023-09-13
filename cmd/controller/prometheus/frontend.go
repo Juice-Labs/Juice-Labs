@@ -69,7 +69,7 @@ func NewFrontend(server *server.Server, storage storage.Storage) *Frontend {
 	}
 	prometheus.MustRegister(frontend)
 
-	server.AddEndpointHandler("GET", "/metrics", promhttp.Handler())
+	server.AddEndpointHandler("GET", "/metrics", promhttp.Handler(), true)
 
 	return frontend
 }

@@ -53,6 +53,7 @@ func defaultAgent(gpuVram uint64) restapi.Agent {
 		Labels:   map[string]string{},
 		Taints:   map[string]string{},
 		Sessions: make([]restapi.Session, 0),
+		PoolId:   "TestPool",
 	}
 }
 
@@ -77,6 +78,7 @@ func createAgent() restapi.Agent {
 		Version:  "Test",
 		Labels:   map[string]string{},
 		Taints:   map[string]string{},
+		PoolId:   "TestPool",
 		Sessions: make([]restapi.Session, 0),
 	}
 
