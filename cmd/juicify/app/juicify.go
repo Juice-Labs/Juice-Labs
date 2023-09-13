@@ -117,6 +117,8 @@ func waitForSession(group task.Group, api restapi.Client, id string) (restapi.Se
 }
 
 func requestSession(group task.Group, api *restapi.Client, config *Configuration) error {
+	logger.Infof("Connecting to %s", config.Servers[0])
+
 	id, err := api.RequestSessionWithContext(group.Ctx(), config.Requirements)
 	if err != nil {
 		return err

@@ -16,7 +16,12 @@ func DetectGpus(rendererWinPath string) (*gpu.GpuSet, error) {
 		"--dump_gpus", "0")
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("DetectGpus: Renderer_Win failed with %s", err)
+		if exiterr, ok := err.(*exec.ExitError); ok {
+			return nil, fmt.Errorf("DetectGpus: Renderer_Win failed with %s, %s", err, exiterr.Stderr)
+		} else {
+			return nil, fmt.Errorf("DetectGpus: Renderer_Win failed with %s", err)
+		}
+
 	}
 
 	if cmd.ProcessState.ExitCode() == 0 {

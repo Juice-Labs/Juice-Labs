@@ -202,11 +202,17 @@ func (server *Server) Run(group task.Group) error {
 	}
 
 	group.GoFn("HTTP Listen", func(group task.Group) error {
+		var err error
 		if server.tlsConfig != nil {
-			return httpServer.ListenAndServeTLS("", "")
+			err = httpServer.ListenAndServeTLS("", "")
 		} else {
-			return httpServer.ListenAndServe()
+			err = httpServer.ListenAndServe()
 		}
+		if err == http.ErrServerClosed {
+			return nil
+		}
+		
+		return err
 	})
 
 	group.GoFn("HTTP Shutdown", func(group task.Group) error {
