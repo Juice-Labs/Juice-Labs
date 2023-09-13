@@ -17,7 +17,6 @@ import (
 	pkgnet "github.com/Juice-Labs/Juice-Labs/pkg/net"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/server"
-	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
 
 func (frontend *Frontend) initializeEndpoints(server *server.Server) {
@@ -101,7 +100,7 @@ func (frontend *Frontend) getAgentsEp(w http.ResponseWriter, r *http.Request) {
 	pkgnet.Respond(w, http.StatusOK, agents)
 }
 
-func (frontend *Frontend) getAgentsForPoolEp(group task.Group, w http.ResponseWriter, r *http.Request) {
+func (frontend *Frontend) getAgentsForPoolEp(w http.ResponseWriter, r *http.Request) {
 	poolID := r.URL.Query().Get("pool_id")
 	agents, err := frontend.getAgents(poolID)
 	if err != nil {
@@ -201,7 +200,7 @@ func (frontend *Frontend) getSessionEp(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (frontend *Frontend) createPoolEp(group task.Group, w http.ResponseWriter, r *http.Request) {
+func (frontend *Frontend) createPoolEp(w http.ResponseWriter, r *http.Request) {
 	poolParams, err := pkgnet.ReadRequestBody[restapi.CreatePoolParams](r)
 	if err != nil {
 		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
@@ -265,7 +264,7 @@ func (frontend *Frontend) createPoolEp(group task.Group, w http.ResponseWriter, 
 	}
 }
 
-func (frontend *Frontend) getPoolEp(group task.Group, w http.ResponseWriter, r *http.Request) {
+func (frontend *Frontend) getPoolEp(w http.ResponseWriter, r *http.Request) {
 
 	id := mux.Vars(r)["id"]
 
@@ -282,7 +281,7 @@ func (frontend *Frontend) getPoolEp(group task.Group, w http.ResponseWriter, r *
 	}
 }
 
-func (frontend *Frontend) getPoolPermissionsEp(group task.Group, w http.ResponseWriter, r *http.Request) {
+func (frontend *Frontend) getPoolPermissionsEp(w http.ResponseWriter, r *http.Request) {
 
 	id := mux.Vars(r)["id"]
 
@@ -299,7 +298,7 @@ func (frontend *Frontend) getPoolPermissionsEp(group task.Group, w http.Response
 	}
 }
 
-func (frontend *Frontend) deletePoolEp(group task.Group, w http.ResponseWriter, r *http.Request) {
+func (frontend *Frontend) deletePoolEp(w http.ResponseWriter, r *http.Request) {
 
 	id := mux.Vars(r)["id"]
 
@@ -316,7 +315,7 @@ func (frontend *Frontend) deletePoolEp(group task.Group, w http.ResponseWriter, 
 	}
 }
 
-func (frontend *Frontend) getPermissionsEp(group task.Group, w http.ResponseWriter, r *http.Request) {
+func (frontend *Frontend) getPermissionsEp(w http.ResponseWriter, r *http.Request) {
 
 	id := mux.Vars(r)["id"]
 
@@ -333,7 +332,7 @@ func (frontend *Frontend) getPermissionsEp(group task.Group, w http.ResponseWrit
 	}
 }
 
-func (frontend *Frontend) deletePermissionEp(group task.Group, w http.ResponseWriter, r *http.Request) {
+func (frontend *Frontend) deletePermissionEp(w http.ResponseWriter, r *http.Request) {
 	permissionParams, err := pkgnet.ReadRequestBody[restapi.PermissionParams](r)
 	if err != nil {
 		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
@@ -354,7 +353,7 @@ func (frontend *Frontend) deletePermissionEp(group task.Group, w http.ResponseWr
 	}
 }
 
-func (frontend *Frontend) addPermissionEp(group task.Group, w http.ResponseWriter, r *http.Request) {
+func (frontend *Frontend) addPermissionEp(w http.ResponseWriter, r *http.Request) {
 	permissionParams, err := pkgnet.ReadRequestBody[restapi.PermissionParams](r)
 	if err != nil {
 		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))

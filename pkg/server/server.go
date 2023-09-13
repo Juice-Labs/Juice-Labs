@@ -125,7 +125,7 @@ func (server *Server) AddEndpointFunc(method string, path string, fn http.Handle
 		RequireAuth: requireAuth,
 	})
 }
-func (server *Server) AddEndpointFuncWithQuery(method string, path string, fn EndpointHandlerFn, requireAuth bool, queries []string) {
+func (server *Server) AddEndpointFuncWithQuery(method string, path string, fn http.HandlerFunc, requireAuth bool, queries []string) {
 	server.AddEndpoint(Endpoint{
 		Methods:     []string{method},
 		Path:        path,
