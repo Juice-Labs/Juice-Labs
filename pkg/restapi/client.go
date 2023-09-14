@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/Juice-Labs/Juice-Labs/pkg/errors"
+	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 )
 
 var (
@@ -269,21 +270,18 @@ func (api Client) RegisterAgentWithContext(ctx context.Context, agent Agent) (st
 	return parseStringResponse(response)
 }
 
-func (api Client) Connect(ctx context.Context, id string, msg string) (string, error) {
-	return api.ConnectWithContext(ctx, id, msg)
+func (api Client) Connect(ctx context.Context, id string) (string, error) {
+	return api.ConnectWithContext(ctx, id)
 }
 
-func (api Client) ConnectWithContext(ctx context.Context, id string, msg string) (string, error) {
-	body, err := jsonReaderFromObject(msg)
-	if err != nil {
-		return "", ErrInvalidInput.Wrap(err)
-	}
-
-	response, err := api.GetWithJson(ctx, fmt.Sprintf("/v1/agent/%s/connect", id), body)
+func (api Client) ConnectWithContext(ctx context.Context, id string) (string, error) {
+	response, err := api.Post(ctx, fmt.Sprintf("/v1/connect/session/%s", id))
 	if err != nil {
 		return "", err
 	}
 	defer response.Body.Close()
+
+	logger.Info(response)
 
 	result, err := parseJsonResponse[string](response)
 	if err != nil {
@@ -340,13 +338,7 @@ func (api Client) handleWebsocket(ctx context.Context, ws *websocket.Conn, callb
 			}
 
 			if response != nil {
-				marshaledResponse, err := json.Marshal(response)
-				if err != nil {
-					wsDone <- err
-					break
-				}
-
-				err = ws.WriteMessage(websocket.TextMessage, marshaledResponse)
+				err = ws.WriteMessage(websocket.TextMessage, response.Message)
 				if err != nil {
 					wsDone <- err
 					break

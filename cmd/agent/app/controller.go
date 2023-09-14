@@ -14,6 +14,7 @@ import (
 
 	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
 	"github.com/Juice-Labs/Juice-Labs/pkg/errors"
+	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
 	"github.com/Juice-Labs/Juice-Labs/pkg/task"
 )
@@ -197,5 +198,6 @@ func (agent *Agent) getGpuMetrics() []restapi.GpuMetrics {
 }
 
 func (agent *Agent) processMessages(message []byte) (*restapi.MessageResponse, error) {
+	logger.Info("processMessages: " + string(message))
 	return nil, nil
 }

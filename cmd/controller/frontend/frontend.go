@@ -4,6 +4,7 @@
 package frontend
 
 import (
+	"context"
 	"flag"
 	"net/http"
 	"os"
@@ -215,9 +216,45 @@ func (frontend *Frontend) getPermissions(userId string) (restapi.UserPermissions
 	return frontend.storage.GetPermissions(userId)
 }
 
-func (frontend *Frontend) connectSession(id string) error {
-	session, err := frontend.storage.GetSessionById(id)
-	session.
+func (frontend *Frontend) connectSession(id string, ctx context.Context) (string, error) {
+	agent, err := frontend.storage.GetAgentForSession(id)
+	if err != nil {
+		return "", err
+	}
+
+	handler, err := frontend.getAgentHandler(agent.Id)
+	if err != nil {
+		return "", err
+	}
+
+	subscribeCtx, cancelCtx := context.WithCancel(ctx)
+	defer cancelCtx()
+
+	msgCh, err := handler.Subscribe(subscribeCtx, "relay")
+	if err != nil {
+		return "", err
+	}
+
+	logger.Info("Sending session id: ", id)
+
+	connRequest := "Request: " + id
+
+	err = handler.Publish("relay", []byte(connRequest))
+	if err != nil {
+		return "", err
+	}
+
+	// Wait for the response
+	select {
+	case <-subscribeCtx.Done():
+		break
+
+	case msg := <-msgCh:
+		logger.Info("connectSession reponse: " + string(msg))
+		return string(msg), nil
+	}
+
+	return "", errors.New("Empty response")
 }
 
 func (frontend *Frontend) newAgentHandler(id string) *AgentHandler {

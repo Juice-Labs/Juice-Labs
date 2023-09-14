@@ -5,7 +5,6 @@ package frontend
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -29,13 +28,14 @@ func (frontend *Frontend) initializeEndpoints(server *server.Server) {
 	server.AddEndpointFunc("POST", "/v1/register/agent", frontend.registerAgentEp, true)
 	server.AddEndpointFunc("GET", "/v1/agent/{id}", frontend.getAgentEp, true)
 	server.AddEndpointFunc("PUT", "/v1/agent/{id}", frontend.updateAgentEp, true)
+	server.AddEndpointFunc("GET", "/v1/agent/{id}/connect", frontend.connectAgentEp, true)
 	server.AddEndpointFuncWithQuery("GET", "/v1/agents", frontend.getAgentsForPoolEp, true, []string{"pool_id", "{pool_id}"})
 	server.AddEndpointFunc("GET", "/v1/agents", frontend.getAgentsEp, true)
 	server.AddEndpointFunc("POST", "/v1/request/session", frontend.requestSessionEp, true)
 	server.AddEndpointFunc("GET", "/v1/session/{id}", frontend.getSessionEp, true)
 	server.AddEndpointFunc("DELETE", "/v1/session/{id}", frontend.cancelSessionEp, true)
-	server.AddEndpointFunc("POST", "/v1/connect/session/{id}", frontend.connectSessionEp)
-	
+	server.AddEndpointFunc("POST", "/v1/connect/session/{id}", frontend.connectSessionEp, true)
+
 	server.AddEndpointFunc("PUT", "/v1/pool", frontend.createPoolEp, true)
 	server.AddEndpointFunc("GET", "/v1/pool/{id}", frontend.getPoolEp, true)
 	server.AddEndpointFunc("GET", "/v1/pool/{id}/permissions", frontend.getPoolPermissionsEp, true)
@@ -192,12 +192,14 @@ func (frontend *Frontend) cancelSessionEp(w http.ResponseWriter, r *http.Request
 func (frontend *Frontend) connectSessionEp(w http.ResponseWriter, r *http.Request) {
 	id := mux.Vars(r)["id"]
 
-	err := frontend.connectSession(id)
+	msg, err := frontend.connectSession(id, r.Context())
 	if err != nil {
 		err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 		logger.Error(err)
 		return
 	}
+
+	logger.Info(msg)
 
 	err = pkgnet.Respond(w, http.StatusOK, fmt.Sprintf("Session %s connected", id))
 	if err != nil {
@@ -426,13 +428,9 @@ func (frontend *Frontend) connectAgentEp(w http.ResponseWriter, r *http.Request)
 					return err
 				}
 
-				var decodedMessage Message
-				err = json.Unmarshal(msg, &decodedMessage)
-				if err != nil {
-					return err
-				}
+				logger.Info(string(msg))
 
-				err = handler.Publish(decodedMessage.Topic, decodedMessage.Message)
+				err = handler.Publish("relay", msg)
 				if err != nil {
 					return err
 				}
@@ -451,7 +449,7 @@ func (frontend *Frontend) connectAgentEp(w http.ResponseWriter, r *http.Request)
 		})
 
 		wsTask.GoFn(fmt.Sprintf("Agent %s Write", id), func(group task.Group) error {
-			msgCh, err := handler.Subscribe(group.Ctx(), "agent")
+			msgCh, err := handler.Subscribe(group.Ctx(), "relay")
 			if err != nil {
 				return err
 			}
@@ -487,7 +485,7 @@ func (frontend *Frontend) connectAgentEp(w http.ResponseWriter, r *http.Request)
 		subscribeCtx, cancelCtx := context.WithCancel(r.Context())
 		defer cancelCtx()
 
-		msgCh, err := handler.Subscribe(subscribeCtx, "response")
+		msgCh, err := handler.Subscribe(subscribeCtx, "relay")
 		if err != nil {
 			err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 			logger.Error(err)
@@ -501,7 +499,7 @@ func (frontend *Frontend) connectAgentEp(w http.ResponseWriter, r *http.Request)
 			return
 		}
 
-		err = handler.Publish("agent", []byte(msg))
+		err = handler.Publish("relay", []byte(msg))
 		if err != nil {
 			err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
 			logger.Error(err)

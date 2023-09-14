@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 	"github.com/Juice-Labs/Juice-Labs/pkg/utilities"
 )
 
@@ -47,6 +48,8 @@ func (handler *AgentHandler) Publish(topic string, msg []byte) error {
 	msgCh, found := handler.subscriberChannels.Get(topic)
 	if found {
 		msgCh <- msg
+	} else {
+		logger.Warning("Publishing message on unsubscribed topic '" + topic + "'")
 	}
 
 	return nil

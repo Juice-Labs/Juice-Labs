@@ -71,11 +71,17 @@ func TestAgents(t *testing.T) {
 		return api.ConnectAgentWithWebsocket(group.Ctx(), id, createProcessMessages(t))
 	})
 
-	ticker := time.NewTimer(1 * time.Second)
+	ticker := time.NewTimer(3 * time.Second)
 	<-ticker.C
 	ticker.Stop()
 
-	msg, err := api.ConnectWithContext(group.Ctx(), id, "Test Message")
+	session, err := api.RequestSessionWithContext(group.Ctx(), restapi.SessionRequirements{})
+
+	ticker = time.NewTimer(3 * time.Second)
+	<-ticker.C
+	ticker.Stop()
+
+	msg, err := api.ConnectWithContext(group.Ctx(), session)
 	if err != nil {
 		t.Error(err)
 		t.FailNow()
