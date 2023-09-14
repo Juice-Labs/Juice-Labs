@@ -230,16 +230,16 @@ func (frontend *Frontend) connectSession(id string, ctx context.Context) (string
 	subscribeCtx, cancelCtx := context.WithCancel(ctx)
 	defer cancelCtx()
 
-	msgCh, err := handler.Subscribe(subscribeCtx, "relay")
+	msgCh, err := handler.Subscribe(subscribeCtx, "relay_client")
 	if err != nil {
 		return "", err
 	}
 
 	logger.Info("Sending session id: ", id)
 
-	connRequest := "Request: " + id
+	connRequest := "{ \"session\": \"" + id + "\" }"
 
-	err = handler.Publish("relay", []byte(connRequest))
+	err = handler.Publish("relay_agent", []byte(connRequest))
 	if err != nil {
 		return "", err
 	}

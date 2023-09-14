@@ -199,5 +199,10 @@ func (agent *Agent) getGpuMetrics() []restapi.GpuMetrics {
 
 func (agent *Agent) processMessages(message []byte) (*restapi.MessageResponse, error) {
 	logger.Info("processMessages: " + string(message))
-	return nil, nil
+	resp := "{ \"host\": \"10.10.10.10\", \"port\": 12340 }"
+
+	return &restapi.MessageResponse{
+		Topic:   "relay_client",
+		Message: resp,
+	}, nil
 }

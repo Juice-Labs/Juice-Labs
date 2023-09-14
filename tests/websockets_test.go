@@ -5,7 +5,6 @@ package tests
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"testing"
 	"time"
@@ -87,7 +86,7 @@ func TestAgents(t *testing.T) {
 		t.FailNow()
 	}
 
-	if msg != "Test Message" {
+	if msg != "{ \"host\": \"10.10.10.10\", \"port\": 12340 }" {
 		t.Error("Response is invalid")
 		t.FailNow()
 	}
@@ -98,10 +97,15 @@ func TestAgents(t *testing.T) {
 
 func createProcessMessages(t *testing.T) restapi.MessageHandler {
 	return func(message []byte) (*restapi.MessageResponse, error) {
-		t.Log(string(message))
+
+		// Need to do the local, agent based connect session here
+		logger.Info(string(message))
+
+		resp := "{ \"host\": \"10.10.10.10\", \"port\": 12340 }"
+
 		return &restapi.MessageResponse{
-			Topic:   "response",
-			Message: json.RawMessage(message),
+			Topic:   "relay_client",
+			Message: resp,
 		}, nil
 	}
 }

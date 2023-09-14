@@ -5,7 +5,6 @@ package restapi
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -15,7 +14,6 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/Juice-Labs/Juice-Labs/pkg/errors"
-	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
 )
 
 var (
@@ -281,8 +279,6 @@ func (api Client) ConnectWithContext(ctx context.Context, id string) (string, er
 	}
 	defer response.Body.Close()
 
-	logger.Info(response)
-
 	result, err := parseJsonResponse[string](response)
 	if err != nil {
 		return "", ErrInvalidResponse.Wrap(err)
@@ -293,7 +289,7 @@ func (api Client) ConnectWithContext(ctx context.Context, id string) (string, er
 
 type MessageResponse struct {
 	Topic   string
-	Message json.RawMessage
+	Message string
 }
 
 type MessageHandler func(msg []byte) (*MessageResponse, error)
@@ -327,7 +323,7 @@ func (api Client) handleWebsocket(ctx context.Context, ws *websocket.Conn, callb
 		for {
 			_, msg, err := ws.ReadMessage()
 			if err != nil {
-				wsDone <- err
+				//wsDone <- err
 				break
 			}
 
@@ -338,7 +334,7 @@ func (api Client) handleWebsocket(ctx context.Context, ws *websocket.Conn, callb
 			}
 
 			if response != nil {
-				err = ws.WriteMessage(websocket.TextMessage, response.Message)
+				err = ws.WriteMessage(websocket.TextMessage, []byte(response.Message))
 				if err != nil {
 					wsDone <- err
 					break

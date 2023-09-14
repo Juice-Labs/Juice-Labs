@@ -4,7 +4,6 @@
 package frontend
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 
@@ -199,9 +198,7 @@ func (frontend *Frontend) connectSessionEp(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	logger.Info(msg)
-
-	err = pkgnet.Respond(w, http.StatusOK, fmt.Sprintf("Session %s connected", id))
+	err = pkgnet.Respond(w, http.StatusOK, msg)
 	if err != nil {
 		logger.Error(err)
 	}
@@ -430,7 +427,7 @@ func (frontend *Frontend) connectAgentEp(w http.ResponseWriter, r *http.Request)
 
 				logger.Info(string(msg))
 
-				err = handler.Publish("relay", msg)
+				err = handler.Publish("relay_client", msg)
 				if err != nil {
 					return err
 				}
@@ -449,7 +446,7 @@ func (frontend *Frontend) connectAgentEp(w http.ResponseWriter, r *http.Request)
 		})
 
 		wsTask.GoFn(fmt.Sprintf("Agent %s Write", id), func(group task.Group) error {
-			msgCh, err := handler.Subscribe(group.Ctx(), "relay")
+			msgCh, err := handler.Subscribe(group.Ctx(), "relay_agent")
 			if err != nil {
 				return err
 			}
@@ -474,47 +471,6 @@ func (frontend *Frontend) connectAgentEp(w http.ResponseWriter, r *http.Request)
 		// Wait until the agent disconnects
 		wsTask.Wait()
 	} else {
-		// Client --> Controller
-		handler, err := frontend.getAgentHandler(id)
-		if err != nil {
-			err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
-			logger.Error(err)
-			return
-		}
-
-		subscribeCtx, cancelCtx := context.WithCancel(r.Context())
-		defer cancelCtx()
-
-		msgCh, err := handler.Subscribe(subscribeCtx, "relay")
-		if err != nil {
-			err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
-			logger.Error(err)
-			return
-		}
-
-		msg, err := pkgnet.ReadRequestBodyAsString(r)
-		if err != nil {
-			err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusBadRequest, err.Error()))
-			logger.Error(err)
-			return
-		}
-
-		err = handler.Publish("relay", []byte(msg))
-		if err != nil {
-			err = errors.Join(err, pkgnet.RespondWithString(w, http.StatusInternalServerError, err.Error()))
-			logger.Error(err)
-			return
-		}
-
-		// Wait for the response
-		select {
-		case <-subscribeCtx.Done():
-			break
-
-		case msg := <-msgCh:
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			w.Write(msg)
-		}
+		logger.Error("Only bidirectional connection is between Agent <-> Controller")
 	}
 }
