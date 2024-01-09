@@ -12,11 +12,11 @@ import (
 	"github.com/auth0/go-jwt-middleware/v2/validator"
 	"github.com/gorilla/mux"
 
-	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
-	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
-	pkgnet "github.com/Juice-Labs/Juice-Labs/pkg/net"
-	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
-	"github.com/Juice-Labs/Juice-Labs/pkg/server"
+	"github.com/Xdevlab/Run/cmd/internal/build"
+	"github.com/Xdevlab/Run/pkg/logger"
+	pkgnet "github.com/Xdevlab/Run/pkg/net"
+	"github.com/Xdevlab/Run/pkg/restapi"
+	"github.com/Xdevlab/Run/pkg/server"
 )
 
 func (frontend *Frontend) initializeEndpoints(server *server.Server) {

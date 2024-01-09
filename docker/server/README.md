@@ -1,6 +1,6 @@
 ## Pulling from docker
 
-The Juice server docker image is available on [Docker Hub](https://hub.docker.com/r/juicelabs/server/tags) and can be pulled with `docker pull juicelabs/server:<release>-<os>` replacing `<release>`with a release timestamp and Git hash from [Juice-Labs/releases](https://github.com/Juice-Labs/Juice-Labs/releases) and `<os>` with `ubuntu-18`, `ubuntu-20`, or `ubuntu-22` as necessary.
+The Juice server docker image is available on [Docker Hub](https://hub.docker.com/r/juicelabs/server/tags) and can be pulled with `docker pull juicelabs/server:<release>-<os>` replacing `<release>`with a release timestamp and Git hash from [Juice-Labs/releases](https://github.com/Xdevlab/Run/releases) and `<os>` with `ubuntu-18`, `ubuntu-20`, or `ubuntu-22` as necessary.
 
 Pull the Juice server release `2022-11-22-1843-b1ffa79d` for Ubuntu 22:
 
@@ -26,4 +26,4 @@ The Juice server accepts connections on TCP port 43210 by default.  To use a dif
 
 ## Juice Log Files
 
-Log files are stored in `/home/juice/agent/log`.  Add a volume at that path to preserve logs between container runs.
+Log files are stored in `/home/admin/agent/log`.  Add a volume at that path to preserve logs between container runs.

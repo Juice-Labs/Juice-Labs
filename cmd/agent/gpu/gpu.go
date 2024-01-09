@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
+	"github.com/Xdevlab/Run/pkg/gpu"
 )
 
 func DetectGpus(rendererWinPath string) (*gpu.GpuSet, error) {

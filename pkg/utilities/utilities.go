@@ -6,8 +6,8 @@ package utilities
 import (
 	"reflect"
 
-	"github.com/Juice-Labs/Juice-Labs/pkg/errors"
-	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
+	"github.com/Xdevlab/Run/pkg/errors"
+	"github.com/Xdevlab/Run/pkg/logger"
 )
 
 var (

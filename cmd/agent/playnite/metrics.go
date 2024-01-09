@@ -8,11 +8,11 @@ import (
 	"encoding/json"
 	"net"
 
-	"github.com/Juice-Labs/Juice-Labs/cmd/agent/app"
-	"github.com/Juice-Labs/Juice-Labs/cmd/agent/gpu"
-	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
-	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
-	"github.com/Juice-Labs/Juice-Labs/pkg/utilities"
+	"github.com/Xdevlab/Run/cmd/agent/app"
+	"github.com/Xdevlab/Run/cmd/agent/gpu"
+	"github.com/Xdevlab/Run/pkg/logger"
+	"github.com/Xdevlab/Run/pkg/restapi"
+	"github.com/Xdevlab/Run/pkg/utilities"
 )
 
 type GpuData struct {

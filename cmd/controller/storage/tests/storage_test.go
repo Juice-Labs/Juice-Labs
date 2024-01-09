@@ -13,12 +13,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
-	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage/gorm"
-	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage/memdb"
-	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage/postgres"
-	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
-	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
+	"github.com/Xdevlab/Run/cmd/controller/storage"
+	"github.com/Xdevlab/Run/cmd/controller/storage/gorm"
+	"github.com/Xdevlab/Run/cmd/controller/storage/memdb"
+	"github.com/Xdevlab/Run/cmd/controller/storage/postgres"
+	"github.com/Xdevlab/Run/pkg/logger"
+	"github.com/Xdevlab/Run/pkg/restapi"
 )
 
 func openGorm(t *testing.T, driver string) storage.Storage {

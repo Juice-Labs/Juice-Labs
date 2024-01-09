@@ -9,8 +9,8 @@ import (
 
 	"github.com/kolesnikovae/go-winjob"
 
-	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
-	pkgWinjob "github.com/Juice-Labs/Juice-Labs/pkg/winjob"
+	"github.com/Xdevlab/Run/pkg/logger"
+	pkgWinjob "github.com/Xdevlab/Run/pkg/winjob"
 )
 
 type jobObject struct {

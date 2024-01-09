@@ -9,15 +9,15 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Juice-Labs/Juice-Labs/cmd/agent/app"
-	"github.com/Juice-Labs/Juice-Labs/cmd/agent/playnite"
-	"github.com/Juice-Labs/Juice-Labs/cmd/agent/prometheus"
-	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
-	"github.com/Juice-Labs/Juice-Labs/pkg/appmain"
-	"github.com/Juice-Labs/Juice-Labs/pkg/crypto"
-	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
-	"github.com/Juice-Labs/Juice-Labs/pkg/sentry"
-	"github.com/Juice-Labs/Juice-Labs/pkg/task"
+	"github.com/Xdevlab/Run/cmd/agent/app"
+	"github.com/Xdevlab/Run/cmd/agent/playnite"
+	"github.com/Xdevlab/Run/cmd/agent/prometheus"
+	"github.com/Xdevlab/Run/cmd/internal/build"
+	"github.com/Xdevlab/Run/pkg/appmain"
+	"github.com/Xdevlab/Run/pkg/crypto"
+	"github.com/Xdevlab/Run/pkg/logger"
+	"github.com/Xdevlab/Run/pkg/sentry"
+	"github.com/Xdevlab/Run/pkg/task"
 	"github.com/joho/godotenv"
 )
 
@@ -28,7 +28,7 @@ var (
 )
 
 func main() {
-	name := "Juice Agent"
+	name := "Agent"
 	config := appmain.Config{
 		Name:    name,
 		Version: build.Version,

@@ -7,15 +7,15 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
-	"github.com/Juice-Labs/Juice-Labs/cmd/juicify/app"
-	"github.com/Juice-Labs/Juice-Labs/pkg/appmain"
-	"github.com/Juice-Labs/Juice-Labs/pkg/sentry"
-	"github.com/Juice-Labs/Juice-Labs/pkg/task"
+	"github.com/Xdevlab/Run/cmd/internal/build"
+	"github.com/Xdevlab/Run/cmd/juicify/app"
+	"github.com/Xdevlab/Run/pkg/appmain"
+	"github.com/Xdevlab/Run/pkg/sentry"
+	"github.com/Xdevlab/Run/pkg/task"
 )
 
 func main() {
-	name := "juicify"
+	name := "run"
 
 	config := appmain.Config{
 		Name:    name,

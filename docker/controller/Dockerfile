@@ -5,7 +5,7 @@ FROM golang:latest as build
 COPY . /tmp/juice/
 
 RUN cd /tmp/juice && \
-    go build -ldflags "-X cmd.internal.build.version=${JUICE_VERSION} -X github.com/Juice-Labs/Juice-Labs/pkg/sentry.SentryDsn=${JUICE_SENTRY_DSN}" ./cmd/controller
+    go build -ldflags "-X cmd.internal.build.version=${JUICE_VERSION} -X github.com/Xdevlab/Run/pkg/sentry.SentryDsn=${JUICE_SENTRY_DSN}" ./cmd/controller
 
 FROM ${BASE_CONTAINER}
 

@@ -7,7 +7,7 @@ RUN apt-get update && \
 ARG JUICE_VERSION
 ENV JUICE_VERSION=${JUICE_VERSION}
 LABEL "juicelabs.co/version"=${JUICE_VERSION}
-RUN wget -O ~/JuiceClient.tar.gz https://github.com/Juice-Labs/Juice-Labs/releases/download/${JUICE_VERSION}/JuiceClient-linux.tar.gz
+RUN wget -O ~/JuiceClient.tar.gz https://github.com/Xdevlab/Run/releases/download/${JUICE_VERSION}/JuiceClient-linux.tar.gz
 
 WORKDIR /root
 

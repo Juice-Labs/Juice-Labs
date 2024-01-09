@@ -59,7 +59,7 @@ RUN sed -e "s/<<VK_API_VERSION>>/${VK_API_VERSION}/" /usr/share/vulkan/icd.d/nvi
 ARG JUICE_VERSION
 ENV JUICE_VERSION=${JUICE_VERSION}
 LABEL "juicelabs.co/version"=${JUICE_VERSION}
-RUN wget -O ~/JuiceServer.tar.gz https://github.com/Juice-Labs/Juice-Labs/releases/download/${JUICE_VERSION}/JuiceServer-linux.tar.gz
+RUN wget -O ~/JuiceServer.tar.gz https://github.com/Xdevlab/Run/releases/download/${JUICE_VERSION}/JuiceServer-linux.tar.gz
 
 ARG PORT=43210
 EXPOSE ${PORT}

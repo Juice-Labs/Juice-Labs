@@ -15,9 +15,9 @@ import (
 	"github.com/lib/pq"
 	_ "github.com/lib/pq"
 
-	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
-	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
-	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
+	"github.com/Xdevlab/Run/cmd/controller/storage"
+	"github.com/Xdevlab/Run/pkg/logger"
+	"github.com/Xdevlab/Run/pkg/restapi"
 )
 
 type storageDriver struct {

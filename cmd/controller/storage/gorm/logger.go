@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
+	"github.com/Xdevlab/Run/pkg/logger"
 	glogger "gorm.io/gorm/logger"
 	"gorm.io/gorm/utils"
 )

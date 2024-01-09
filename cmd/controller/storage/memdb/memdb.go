@@ -11,9 +11,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
 
-	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
-	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
-	"github.com/Juice-Labs/Juice-Labs/pkg/utilities"
+	"github.com/Xdevlab/Run/cmd/controller/storage"
+	"github.com/Xdevlab/Run/pkg/restapi"
+	"github.com/Xdevlab/Run/pkg/utilities"
 )
 
 type Agent struct {

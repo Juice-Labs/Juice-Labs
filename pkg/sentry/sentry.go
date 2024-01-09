@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
+	"github.com/Xdevlab/Run/pkg/logger"
 	"github.com/getsentry/sentry-go"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"

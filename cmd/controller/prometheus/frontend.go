@@ -10,9 +10,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
-	"github.com/Juice-Labs/Juice-Labs/pkg/server"
-	"github.com/Juice-Labs/Juice-Labs/pkg/task"
+	"github.com/Xdevlab/Run/cmd/controller/storage"
+	"github.com/Xdevlab/Run/pkg/server"
+	"github.com/Xdevlab/Run/pkg/task"
 )
 
 type Frontend struct {

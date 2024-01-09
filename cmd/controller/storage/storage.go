@@ -7,7 +7,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
+	"github.com/Xdevlab/Run/pkg/restapi"
 )
 
 type Percentile[T any] struct {

@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Juice-Labs/Juice-Labs/pkg/errors"
-	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
-	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
-	"github.com/Juice-Labs/Juice-Labs/pkg/task"
+	"github.com/Xdevlab/Run/pkg/errors"
+	"github.com/Xdevlab/Run/pkg/logger"
+	"github.com/Xdevlab/Run/pkg/restapi"
+	"github.com/Xdevlab/Run/pkg/task"
 )
 
 type Configuration struct {
@@ -195,7 +195,7 @@ func Run(group task.Group) error {
 		return errors.New("host is not configured properly").Wrap(err)
 	}
 
-	cfgPath := filepath.Join(*juicePath, "juice.cfg")
+	cfgPath := filepath.Join(*juicePath, "client.cfg")
 
 	var config Configuration
 	configBytes, err := os.ReadFile(cfgPath)
@@ -231,7 +231,7 @@ func Run(group task.Group) error {
 	} else if len(config.Servers) > 0 {
 		server = config.Servers[0]
 	} else {
-		return errors.New("require either juice.cfg to have servers set or --address")
+		return errors.New("require either client.cfg to have servers set or --address")
 	}
 
 	if *accessToken != "" {

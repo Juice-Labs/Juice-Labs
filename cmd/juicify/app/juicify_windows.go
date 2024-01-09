@@ -10,16 +10,16 @@ import (
 
 	"github.com/kolesnikovae/go-winjob"
 
-	"github.com/Juice-Labs/Juice-Labs/pkg/errors"
-	"github.com/Juice-Labs/Juice-Labs/pkg/task"
-	pkgWinjob "github.com/Juice-Labs/Juice-Labs/pkg/winjob"
+	"github.com/Xdevlab/Run/pkg/errors"
+	"github.com/Xdevlab/Run/pkg/task"
+	pkgWinjob "github.com/Xdevlab/Run/pkg/winjob"
 )
 
 // #include "version_windows.h"
 import "C"
 
 func getVersion() (string, error) {
-	libPath := filepath.Join(*juicePath, "juiceclient.dll")
+	libPath := filepath.Join(*juicePath, "client.dll")
 	libPathBytes := make([]byte, len(libPath)+1)
 	copy(libPathBytes, libPath)
 

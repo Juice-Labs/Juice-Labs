@@ -36,8 +36,8 @@ function Get-LinkFlags($Component)
     $dsn = $SentryDsn[$Component]
     
     return @(
-        "-X github.com/Juice-Labs/Juice-Labs/cmd/internal/build.Version=$Version";
-        "-X github.com/Juice-Labs/Juice-Labs/pkg/sentry.SentryDsn=$dsn";
+        "-X github.com/Xdevlab/Run/cmd/internal/build.Version=$Version";
+        "-X github.com/Xdevlab/Run/pkg/sentry.SentryDsn=$dsn";
      ) | Join-String -Separator " "
 }
 

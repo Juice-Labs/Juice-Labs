@@ -1,4 +1,4 @@
-module github.com/Juice-Labs/Juice-Labs
+module github.com/Xdevlab/Run
 
 go 1.20
 

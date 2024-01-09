@@ -15,14 +15,14 @@ import (
 
 	"github.com/google/uuid"
 
-	cmdgpu "github.com/Juice-Labs/Juice-Labs/cmd/agent/gpu"
-	"github.com/Juice-Labs/Juice-Labs/pkg/errors"
-	"github.com/Juice-Labs/Juice-Labs/pkg/gpu"
-	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
-	"github.com/Juice-Labs/Juice-Labs/pkg/restapi"
-	"github.com/Juice-Labs/Juice-Labs/pkg/server"
-	"github.com/Juice-Labs/Juice-Labs/pkg/task"
-	"github.com/Juice-Labs/Juice-Labs/pkg/utilities"
+	cmdgpu "github.com/Xdevlab/Run/cmd/agent/gpu"
+	"github.com/Xdevlab/Run/pkg/errors"
+	"github.com/Xdevlab/Run/pkg/gpu"
+	"github.com/Xdevlab/Run/pkg/logger"
+	"github.com/Xdevlab/Run/pkg/restapi"
+	"github.com/Xdevlab/Run/pkg/server"
+	"github.com/Xdevlab/Run/pkg/task"
+	"github.com/Xdevlab/Run/pkg/utilities"
 )
 
 var (

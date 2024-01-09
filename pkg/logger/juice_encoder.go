@@ -7,7 +7,7 @@ import (
 	"go.uber.org/zap/buffer"
 	"go.uber.org/zap/zapcore"
 
-	pool "github.com/Juice-Labs/Juice-Labs/pkg/logger/pool"
+	pool "github.com/Xdevlab/Run/pkg/logger/pool"
 )
 
 // This is copy-pasta basically from zapcore.memory_encoder.go

@@ -13,21 +13,21 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Juice-Labs/Juice-Labs/cmd/controller/backend"
-	"github.com/Juice-Labs/Juice-Labs/cmd/controller/frontend"
-	"github.com/Juice-Labs/Juice-Labs/cmd/controller/prometheus"
-	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage"
-	"github.com/Juice-Labs/Juice-Labs/cmd/controller/storage/gorm"
+	"github.com/Xdevlab/Run/cmd/controller/backend"
+	"github.com/Xdevlab/Run/cmd/controller/frontend"
+	"github.com/Xdevlab/Run/cmd/controller/prometheus"
+	"github.com/Xdevlab/Run/cmd/controller/storage"
+	"github.com/Xdevlab/Run/cmd/controller/storage/gorm"
 
 	"github.com/joho/godotenv"
 
-	"github.com/Juice-Labs/Juice-Labs/cmd/internal/build"
-	"github.com/Juice-Labs/Juice-Labs/pkg/appmain"
-	"github.com/Juice-Labs/Juice-Labs/pkg/crypto"
-	"github.com/Juice-Labs/Juice-Labs/pkg/logger"
-	"github.com/Juice-Labs/Juice-Labs/pkg/sentry"
-	"github.com/Juice-Labs/Juice-Labs/pkg/server"
-	"github.com/Juice-Labs/Juice-Labs/pkg/task"
+	"github.com/Xdevlab/Run/cmd/internal/build"
+	"github.com/Xdevlab/Run/pkg/appmain"
+	"github.com/Xdevlab/Run/pkg/crypto"
+	"github.com/Xdevlab/Run/pkg/logger"
+	"github.com/Xdevlab/Run/pkg/sentry"
+	"github.com/Xdevlab/Run/pkg/server"
+	"github.com/Xdevlab/Run/pkg/task"
 )
 
 var (
@@ -88,7 +88,7 @@ func openStorage(ctx context.Context) (storage.Storage, error) {
 }
 
 func main() {
-	name := "Juice Controller"
+	name := "Controller"
 	config := appmain.Config{
 		Name:    name,
 		Version: build.Version,
