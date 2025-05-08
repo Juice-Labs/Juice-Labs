@@ -22,3 +22,6 @@ GPU capacity is increasingly critical to major trends in computing, but its use 
 1. **Any client workload can access GPU from anywhere, creating new capabilities**
 1. **GPU capacity is pooled and shared across wide areas -- GPU hardware scales independently of other computing resources**
 1. **GPU utilization is driven much higher, and stranded capacity is rescued, by dynamically adding multiple clients to the same GPU based on resource needs and availability -- i.e. more workloads are served with the same GPU hardware**
+
+# Deployment Infrastructure for GPU agents
+We have open source docker and k8n configurations for running agents on your own infrastructure at https://github.com/Juice-Labs/juice-oss. 
